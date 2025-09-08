@@ -216,6 +216,10 @@ export type Database = {
           tipo_usuario: Database["public"]["Enums"]["user_type"]
         }
       }
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       turno_tipo: "6:00am - 2:00pm" | "2:00pm - 10:00pm" | "10:00pm - 6:00am"
