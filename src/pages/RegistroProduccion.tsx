@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -18,20 +19,30 @@ import {
   Target,
   TrendingUp,
   Factory,
-  Package
+  Package,
+  Users,
+  Plus,
+  Minus,
+  X
 } from 'lucide-react';
 import { Tables, Enums } from '@/integrations/supabase/types';
 
 type Maquina = Tables<'maquinas'>;
 type Producto = Tables<'productos'>;
 type MetaProduccion = Tables<'metas_produccion'>;
+type Usuario = Tables<'usuarios'>;
+
+interface ProductoDetalle {
+  producto_id: string;
+  produccion_real: number;
+}
 
 interface FormData {
   fecha: string;
-  turno: Enums<'turno_tipo'> | '';
+  turno: Enums<'turno_produccion'> | '';
   maquina_id: string;
-  producto_id: string;
-  produccion_real: string;
+  productos: ProductoDetalle[];
+  asistentes: string[];
 }
 
 export default function RegistroProduccion() {
@@ -42,19 +53,27 @@ export default function RegistroProduccion() {
     fecha: new Date().toISOString().split('T')[0],
     turno: '',
     maquina_id: '',
-    producto_id: '',
-    produccion_real: '',
+    productos: [],
+    asistentes: [],
   });
   
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
-  const [meta, setMeta] = useState<MetaProduccion | null>(null);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [metas, setMetas] = useState<MetaProduccion[]>([]);
   const [porcentajeCumplimiento, setPorcentajeCumplimiento] = useState(0);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
 
-  const turnos: Enums<'turno_tipo'>[] = ["6:00am - 2:00pm", "2:00pm - 10:00pm", "10:00pm - 6:00am"];
+  const turnos: Enums<'turno_produccion'>[] = [
+    "6:00am - 2:00pm", 
+    "2:00pm - 10:00pm", 
+    "10:00pm - 6:00am",
+    "7:00am - 5:00pm",
+    "7:00am - 3:00pm",
+    "7:00am - 3:30pm"
+  ];
 
   useEffect(() => {
     loadInitialData();
@@ -65,38 +84,44 @@ export default function RegistroProduccion() {
       const filtered = productos.filter(p => p.maquina_id === formData.maquina_id);
       setFilteredProductos(filtered);
       
-      // Reset producto selection if current selection doesn't match machine
-      if (formData.producto_id && !filtered.find(p => p.id === formData.producto_id)) {
-        setFormData(prev => ({ ...prev, producto_id: '' }));
-        setMeta(null);
+      // Reset productos selection if current selections don't match machine
+      const validProductos = formData.productos.filter(p => 
+        filtered.find(fp => fp.id === p.producto_id)
+      );
+      if (validProductos.length !== formData.productos.length) {
+        setFormData(prev => ({ ...prev, productos: validProductos }));
       }
     } else {
       setFilteredProductos([]);
+      setFormData(prev => ({ ...prev, productos: [] }));
     }
   }, [formData.maquina_id, productos]);
 
   useEffect(() => {
-    loadMeta();
-  }, [formData.maquina_id, formData.producto_id]);
+    loadMetas();
+  }, [formData.maquina_id]);
 
   useEffect(() => {
     calculatePerformance();
-  }, [formData.produccion_real, meta, formData.turno]);
+  }, [formData.productos, metas, formData.turno]);
 
   const loadInitialData = async () => {
     try {
       setDataLoading(true);
       
-      const [maquinasResult, productosResult] = await Promise.all([
+      const [maquinasResult, productosResult, usuariosResult] = await Promise.all([
         supabase.from('maquinas').select('*').eq('activa', true).order('nombre'),
-        supabase.from('productos').select('*').eq('activo', true).order('nombre')
+        supabase.from('productos').select('*').eq('activo', true).order('nombre'),
+        supabase.from('usuarios').select('*').eq('activo', true).neq('id', user?.id || '').order('nombre')
       ]);
 
       if (maquinasResult.error) throw maquinasResult.error;
       if (productosResult.error) throw productosResult.error;
+      if (usuariosResult.error) throw usuariosResult.error;
 
       setMaquinas(maquinasResult.data || []);
       setProductos(productosResult.data || []);
+      setUsuarios(usuariosResult.data || []);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -109,9 +134,9 @@ export default function RegistroProduccion() {
     }
   };
 
-  const loadMeta = async () => {
-    if (!formData.maquina_id || !formData.producto_id) {
-      setMeta(null);
+  const loadMetas = async () => {
+    if (!formData.maquina_id) {
+      setMetas([]);
       return;
     }
 
@@ -119,35 +144,42 @@ export default function RegistroProduccion() {
       const { data, error } = await supabase
         .from('metas_produccion')
         .select('*')
-        .eq('maquina_id', formData.maquina_id)
-        .eq('producto_id', formData.producto_id)
-        .maybeSingle();
+        .eq('maquina_id', formData.maquina_id);
 
       if (error) throw error;
-      setMeta(data);
+      setMetas(data || []);
     } catch (error) {
-      console.error('Error loading meta:', error);
+      console.error('Error loading metas:', error);
     }
   };
 
   const calculatePerformance = () => {
-    if (!formData.produccion_real || !meta || !formData.turno) {
+    if (!formData.productos.length || !metas.length || !formData.turno) {
       setPorcentajeCumplimiento(0);
       return;
     }
 
-    const produccionReal = parseInt(formData.produccion_real);
-    let metaTurno = 0;
+    let totalProduccionReal = 0;
+    let totalMetaTurno = 0;
 
-    // Determinar meta según duración del turno
-    if (formData.turno === "6:00am - 2:00pm" || formData.turno === "2:00pm - 10:00pm") {
-      metaTurno = meta.turno_8h;
-    } else if (formData.turno === "10:00pm - 6:00am") {
-      metaTurno = meta.turno_10h;
-    }
+    formData.productos.forEach(producto => {
+      const meta = metas.find(m => m.producto_id === producto.producto_id);
+      if (meta) {
+        totalProduccionReal += producto.produccion_real;
+        
+        // Determinar meta según duración del turno
+        if (formData.turno.includes("8h") || formData.turno === "6:00am - 2:00pm" || 
+            formData.turno === "2:00pm - 10:00pm" || formData.turno === "7:00am - 3:00pm" || 
+            formData.turno === "7:00am - 3:30pm") {
+          totalMetaTurno += meta.turno_8h;
+        } else {
+          totalMetaTurno += meta.turno_10h;
+        }
+      }
+    });
 
-    if (metaTurno > 0) {
-      const porcentaje = (produccionReal / metaTurno) * 100;
+    if (totalMetaTurno > 0) {
+      const porcentaje = (totalProduccionReal / totalMetaTurno) * 100;
       setPorcentajeCumplimiento(porcentaje);
     } else {
       setPorcentajeCumplimiento(0);
@@ -164,10 +196,48 @@ export default function RegistroProduccion() {
     return fecha;
   };
 
-  const handleInputChange = (field: keyof FormData, value: string) => {
+  const handleInputChange = (field: 'fecha' | 'turno' | 'maquina_id', value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
+    }));
+  };
+
+  const addProducto = () => {
+    if (filteredProductos.length > 0) {
+      const newProducto: ProductoDetalle = {
+        producto_id: filteredProductos[0].id,
+        produccion_real: 0
+      };
+      setFormData(prev => ({
+        ...prev,
+        productos: [...prev.productos, newProducto]
+      }));
+    }
+  };
+
+  const removeProducto = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      productos: prev.productos.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateProducto = (index: number, field: 'producto_id' | 'produccion_real', value: string | number) => {
+    setFormData(prev => ({
+      ...prev,
+      productos: prev.productos.map((producto, i) => 
+        i === index ? { ...producto, [field]: value } : producto
+      )
+    }));
+  };
+
+  const toggleAsistente = (asistenteId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      asistentes: prev.asistentes.includes(asistenteId)
+        ? prev.asistentes.filter(id => id !== asistenteId)
+        : [...prev.asistentes, asistenteId]
     }));
   };
 
@@ -183,10 +253,21 @@ export default function RegistroProduccion() {
       return;
     }
 
-    if (!formData.turno || !formData.maquina_id || !formData.producto_id || !formData.produccion_real) {
+    if (!formData.turno || !formData.maquina_id || !formData.productos.length) {
       toast({
         title: "Campos Requeridos",
-        description: "Por favor completa todos los campos del formulario",
+        description: "Por favor completa todos los campos del formulario y agrega al menos un producto",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar que todos los productos tengan cantidad mayor a 0
+    const invalidProducts = formData.productos.filter(p => p.produccion_real <= 0);
+    if (invalidProducts.length > 0) {
+      toast({
+        title: "Cantidades Inválidas",
+        description: "Todos los productos deben tener una cantidad mayor a 0",
         variant: "destructive",
       });
       return;
@@ -197,19 +278,67 @@ export default function RegistroProduccion() {
     try {
       const fechaAjustada = adjustDateForNightShift(formData.fecha, formData.turno);
       
-      const { error } = await supabase
+      // 1. Crear registro principal
+      const { data: registro, error: registroError } = await supabase
         .from('registros_produccion')
         .insert({
           fecha: fechaAjustada,
           turno: formData.turno,
           operario_id: user.id,
           maquina_id: formData.maquina_id,
-          producto_id: formData.producto_id,
-          produccion_real: parseInt(formData.produccion_real),
-          porcentaje_cumplimiento: porcentajeCumplimiento,
-        });
+          es_asistente: false
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (registroError) throw registroError;
+
+      // 2. Crear detalles de productos
+      const detallesPromises = formData.productos.map(producto => {
+        const meta = metas.find(m => m.producto_id === producto.producto_id);
+        let metaTurno = 0;
+        
+        if (meta) {
+          if (formData.turno.includes("8h") || formData.turno === "6:00am - 2:00pm" || 
+              formData.turno === "2:00pm - 10:00pm" || formData.turno === "7:00am - 3:00pm" || 
+              formData.turno === "7:00am - 3:30pm") {
+            metaTurno = meta.turno_8h;
+          } else {
+            metaTurno = meta.turno_10h;
+          }
+        }
+
+        const porcentajeProducto = metaTurno > 0 ? (producto.produccion_real / metaTurno) * 100 : 0;
+
+        return supabase.from('detalle_produccion').insert({
+          registro_id: registro.id,
+          producto_id: producto.producto_id,
+          produccion_real: producto.produccion_real,
+          porcentaje_cumplimiento: porcentajeProducto
+        });
+      });
+
+      const detallesResults = await Promise.all(detallesPromises);
+      const detallesErrors = detallesResults.filter(result => result.error);
+      if (detallesErrors.length > 0) {
+        throw detallesErrors[0].error;
+      }
+
+      // 3. Crear registros de asistentes
+      if (formData.asistentes.length > 0) {
+        const asistentesPromises = formData.asistentes.map(asistenteId =>
+          supabase.from('registro_asistentes').insert({
+            registro_id: registro.id,
+            asistente_id: asistenteId
+          })
+        );
+
+        const asistentesResults = await Promise.all(asistentesPromises);
+        const asistentesErrors = asistentesResults.filter(result => result.error);
+        if (asistentesErrors.length > 0) {
+          throw asistentesErrors[0].error;
+        }
+      }
 
       toast({
         title: "¡Registro Guardado!",
@@ -221,10 +350,10 @@ export default function RegistroProduccion() {
         fecha: new Date().toISOString().split('T')[0],
         turno: '',
         maquina_id: '',
-        producto_id: '',
-        produccion_real: '',
+        productos: [],
+        asistentes: [],
       });
-      setMeta(null);
+      setMetas([]);
       setPorcentajeCumplimiento(0);
 
     } catch (error: any) {
@@ -335,89 +464,200 @@ export default function RegistroProduccion() {
               </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Máquina */}
-              <div className="space-y-2">
-                <Label htmlFor="maquina" className="flex items-center space-x-2">
-                  <Factory className="h-4 w-4" />
-                  <span>Máquina</span>
-                </Label>
-                <Select 
-                  value={formData.maquina_id} 
-                  onValueChange={(value) => handleInputChange('maquina_id', value)}
-                >
-                  <SelectTrigger className="input-touch">
-                    <SelectValue placeholder="Selecciona la máquina" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {maquinas.map((maquina) => (
-                      <SelectItem key={maquina.id} value={maquina.id}>
-                        {maquina.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Producto */}
-              <div className="space-y-2">
-                <Label htmlFor="producto" className="flex items-center space-x-2">
-                  <Package className="h-4 w-4" />
-                  <span>Producto</span>
-                </Label>
-                <Select 
-                  value={formData.producto_id} 
-                  onValueChange={(value) => handleInputChange('producto_id', value)}
-                  disabled={!formData.maquina_id}
-                >
-                  <SelectTrigger className="input-touch">
-                    <SelectValue placeholder={
-                      formData.maquina_id ? "Selecciona el producto" : "Primero selecciona una máquina"
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredProductos.map((producto) => (
-                      <SelectItem key={producto.id} value={producto.id}>
-                        {producto.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Máquina */}
+            <div className="space-y-2">
+              <Label htmlFor="maquina" className="flex items-center space-x-2">
+                <Factory className="h-4 w-4" />
+                <span>Máquina</span>
+              </Label>
+              <Select 
+                value={formData.maquina_id} 
+                onValueChange={(value) => handleInputChange('maquina_id', value)}
+              >
+                <SelectTrigger className="input-touch">
+                  <SelectValue placeholder="Selecciona la máquina" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  {maquinas.map((maquina) => (
+                    <SelectItem key={maquina.id} value={maquina.id}>
+                      {maquina.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Producción Real */}
-            <div className="space-y-2">
-              <Label htmlFor="produccion_real">Producción Real (unidades)</Label>
-              <Input
-                id="produccion_real"
-                type="number"
-                min="0"
-                step="1"
-                value={formData.produccion_real}
-                onChange={(e) => handleInputChange('produccion_real', e.target.value)}
-                placeholder="Ingresa las unidades producidas"
-                className="input-touch text-lg"
-                inputMode="numeric"
-                required
-              />
+            {/* Productos */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center space-x-2">
+                  <Package className="h-4 w-4" />
+                  <span>Productos Fabricados</span>
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addProducto}
+                  disabled={!formData.maquina_id || filteredProductos.length === 0}
+                  className="flex items-center space-x-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Agregar Producto</span>
+                </Button>
+              </div>
+
+              {formData.productos.length === 0 && (
+                <div className="text-center py-8 border-2 border-dashed border-muted rounded-lg">
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">
+                    {formData.maquina_id 
+                      ? "Agrega los productos fabricados en este turno"
+                      : "Primero selecciona una máquina"
+                    }
+                  </p>
+                </div>
+              )}
+
+              {formData.productos.map((producto, index) => (
+                <Card key={index} className="p-4">
+                  <div className="flex items-center space-x-4">
+                    <div className="flex-1">
+                      <Label className="text-sm font-medium">Producto</Label>
+                      <Select
+                        value={producto.producto_id}
+                        onValueChange={(value) => updateProducto(index, 'producto_id', value)}
+                      >
+                        <SelectTrigger className="input-touch">
+                          <SelectValue placeholder="Selecciona el producto" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          {filteredProductos.map((prod) => (
+                            <SelectItem key={prod.id} value={prod.id}>
+                              {prod.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="flex-1">
+                      <Label className="text-sm font-medium">Cantidad Producida</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={producto.produccion_real}
+                        onChange={(e) => updateProducto(index, 'produccion_real', parseInt(e.target.value) || 0)}
+                        placeholder="Unidades"
+                        className="input-touch"
+                        inputMode="numeric"
+                      />
+                    </div>
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeProducto(index)}
+                      className="mt-6 text-destructive hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Operarios Asistentes */}
+            <div className="space-y-4">
+              <Label className="flex items-center space-x-2">
+                <Users className="h-4 w-4" />
+                <span>Operarios Asistentes</span>
+              </Label>
+              
+              {usuarios.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  No hay otros operarios disponibles
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-40 overflow-y-auto">
+                  {usuarios.map((usuario) => (
+                    <div key={usuario.id} className="flex items-center space-x-3 p-2 rounded-lg border hover:bg-muted/50">
+                      <Checkbox
+                        id={`asistente-${usuario.id}`}
+                        checked={formData.asistentes.includes(usuario.id)}
+                        onCheckedChange={() => toggleAsistente(usuario.id)}
+                      />
+                      <Label 
+                        htmlFor={`asistente-${usuario.id}`}
+                        className="text-sm font-medium cursor-pointer flex-1"
+                      >
+                        {usuario.nombre}
+                        <span className="text-xs text-muted-foreground block">
+                          {usuario.cedula}
+                        </span>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {formData.asistentes.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {formData.asistentes.map((asistenteId) => {
+                    const asistente = usuarios.find(u => u.id === asistenteId);
+                    return asistente ? (
+                      <Badge key={asistenteId} variant="secondary" className="flex items-center space-x-1">
+                        <span>{asistente.nombre}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleAsistente(asistenteId)}
+                          className="ml-1 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Meta y Cumplimiento */}
-            {meta && formData.turno && (
+            {formData.productos.length > 0 && formData.turno && (
               <Card className="bg-muted/50 border-primary/20">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <Target className="h-6 w-6 text-primary" />
                       <div>
-                        <p className="font-medium text-foreground">Meta del Turno</p>
-                        <p className="text-2xl font-bold text-primary">
-                          {formData.turno === "10:00pm - 6:00am" 
-                            ? meta.turno_10h.toLocaleString()
-                            : meta.turno_8h.toLocaleString()
-                          } unidades
-                        </p>
+                        <p className="font-medium text-foreground">Resumen de Producción</p>
+                        <div className="space-y-1">
+                          {formData.productos.map((producto) => {
+                            const productoInfo = productos.find(p => p.id === producto.producto_id);
+                            const meta = metas.find(m => m.producto_id === producto.producto_id);
+                            
+                            if (!productoInfo) return null;
+                            
+                            let metaTurno = 0;
+                            if (meta) {
+                              if (formData.turno.includes("8h") || formData.turno === "6:00am - 2:00pm" || 
+                                  formData.turno === "2:00pm - 10:00pm" || formData.turno === "7:00am - 3:00pm" || 
+                                  formData.turno === "7:00am - 3:30pm") {
+                                metaTurno = meta.turno_8h;
+                              } else {
+                                metaTurno = meta.turno_10h;
+                              }
+                            }
+
+                            return (
+                              <div key={producto.producto_id} className="text-sm text-muted-foreground">
+                                <span className="font-medium">{productoInfo.nombre}:</span> {producto.produccion_real} / {metaTurno} unidades
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                     
@@ -460,7 +700,7 @@ export default function RegistroProduccion() {
             <Button
               type="submit"
               className="w-full btn-touch text-lg font-semibold"
-              disabled={loading || !formData.turno || !formData.maquina_id || !formData.producto_id || !formData.produccion_real}
+              disabled={loading || !formData.turno || !formData.maquina_id || !formData.productos.length}
             >
               {loading ? (
                 <>
