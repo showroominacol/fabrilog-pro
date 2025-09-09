@@ -273,22 +273,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_current_user_profile: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          activo: boolean
-          cedula: string
-          fecha_creacion: string
-          id: string
-          nombre: string
-          password_hash: string
-          tipo_usuario: Database["public"]["Enums"]["user_type"]
-        }
-      }
-      get_current_user_role: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      [_ in never]: never
     }
     Enums: {
       turno_produccion:
