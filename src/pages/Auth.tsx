@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Factory, Loader2, AlertCircle } from 'lucide-react';
+import { Factory, Loader2, AlertCircle, User, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
@@ -24,10 +24,10 @@ export default function Auth() {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
+    const cedula = formData.get('cedula') as string;
     const password = formData.get('password') as string;
 
-    const { error } = await signIn(email, password);
+    const { error } = await signIn(cedula, password);
 
     if (error) {
       setError(error.message);
@@ -37,10 +37,6 @@ export default function Auth() {
         variant: "destructive",
       });
     } else {
-      toast({
-        title: "¡Bienvenido!",
-        description: "Has iniciado sesión correctamente",
-      });
       navigate('/dashboard');
     }
     
@@ -53,9 +49,9 @@ export default function Auth() {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
     const nombre = formData.get('nombre') as string;
+    const cedula = formData.get('cedula') as string;
+    const password = formData.get('password') as string;
     const tipo_usuario = formData.get('tipo_usuario') as 'operario' | 'admin';
 
     if (!nombre.trim()) {
@@ -64,7 +60,13 @@ export default function Auth() {
       return;
     }
 
-    const { error } = await signUp(email, password, nombre.trim(), tipo_usuario);
+    if (!cedula.trim()) {
+      setError('La cédula es requerida');
+      setIsLoading(false);
+      return;
+    }
+
+    const { error } = await signUp(nombre.trim(), cedula.trim(), password, tipo_usuario);
 
     if (error) {
       setError(error.message);
@@ -72,11 +74,6 @@ export default function Auth() {
         title: "Error de Registro",
         description: error.message,
         variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "¡Registro Exitoso!",
-        description: "Tu cuenta ha sido creada. Verifica tu email para activarla.",
       });
     }
     
@@ -108,28 +105,46 @@ export default function Auth() {
           <Tabs defaultValue="signin" className="w-full">
             <CardHeader>
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="signin">Iniciar Sesión</TabsTrigger>
-                <TabsTrigger value="signup">Registrarse</TabsTrigger>
+                <TabsTrigger value="signin">OPERARIO</TabsTrigger>
+                <TabsTrigger value="signin-admin">ADMINISTRADOR</TabsTrigger>
               </TabsList>
             </CardHeader>
 
             <CardContent>
               <TabsContent value="signin" className="space-y-4">
                 <CardDescription>
-                  Ingresa tus credenciales para acceder al sistema
+                  Acceso para operarios de producción
                 </CardDescription>
                 
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signin-email">Email</Label>
-                    <Input
-                      id="signin-email"
-                      name="email"
-                      type="email"
-                      required
-                      placeholder="correo@empresa.com"
-                      className="input-touch"
-                    />
+                    <Label htmlFor="signin-nombre">Nombre</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="signin-nombre"
+                        name="nombre"
+                        type="text"
+                        required
+                        placeholder="Juan Pérez"
+                        className="input-touch pl-10"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-cedula">Cédula</Label>
+                    <div className="relative">
+                      <CreditCard className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="signin-cedula"
+                        name="cedula"
+                        type="text"
+                        required
+                        placeholder="12345678"
+                        className="input-touch pl-10"
+                      />
+                    </div>
                   </div>
                   
                   <div className="space-y-2">
@@ -155,17 +170,92 @@ export default function Auth() {
                         Iniciando sesión...
                       </>
                     ) : (
-                      'Iniciar Sesión'
+                      'INICIAR COMO OPERARIO'
                     )}
                   </Button>
                 </form>
               </TabsContent>
 
-              <TabsContent value="signup" className="space-y-4">
+              <TabsContent value="signin-admin" className="space-y-4">
                 <CardDescription>
-                  Crea una nueva cuenta de usuario
+                  Acceso para administradores del sistema
                 </CardDescription>
                 
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-nombre">Nombre</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="admin-nombre"
+                        name="nombre"
+                        type="text"
+                        required
+                        placeholder="Administrador"
+                        className="input-touch pl-10"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-cedula">Cédula</Label>
+                    <div className="relative">
+                      <CreditCard className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="admin-cedula"
+                        name="cedula"
+                        type="text"
+                        required
+                        placeholder="12345678"
+                        className="input-touch pl-10"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-password">Contraseña</Label>
+                    <Input
+                      id="admin-password"
+                      name="password"
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      className="input-touch"
+                    />
+                  </div>
+                  
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    className="w-full btn-touch font-semibold"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Iniciando sesión...
+                      </>
+                    ) : (
+                      'INICIAR COMO ADMINISTRADOR'
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+            </CardContent>
+          </Tabs>
+        </Card>
+
+        {/* Opción para registro (solo para admins crear nuevos usuarios) */}
+        <Card className="shadow-[var(--shadow-card)]">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-center text-lg">¿Nuevo usuario?</CardTitle>
+            <CardDescription className="text-center">
+              Solo administradores pueden crear nuevas cuentas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="signup" className="w-full">
+              <TabsContent value="signup" className="space-y-4">
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-nombre">Nombre Completo</Label>
@@ -180,13 +270,13 @@ export default function Auth() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
+                    <Label htmlFor="signup-cedula">Cédula</Label>
                     <Input
-                      id="signup-email"
-                      name="email"
-                      type="email"
+                      id="signup-cedula"
+                      name="cedula"
+                      type="text"
                       required
-                      placeholder="correo@empresa.com"
+                      placeholder="12345678"
                       className="input-touch"
                     />
                   </div>
@@ -219,6 +309,7 @@ export default function Auth() {
                   
                   <Button
                     type="submit"
+                    variant="outline"
                     className="w-full btn-touch font-semibold"
                     disabled={isLoading}
                   >
@@ -228,13 +319,13 @@ export default function Auth() {
                         Registrando...
                       </>
                     ) : (
-                      'Crear Cuenta'
+                      'Crear Nuevo Usuario'
                     )}
                   </Button>
                 </form>
               </TabsContent>
-            </CardContent>
-          </Tabs>
+            </Tabs>
+          </CardContent>
         </Card>
 
         <div className="text-center text-sm text-muted-foreground">

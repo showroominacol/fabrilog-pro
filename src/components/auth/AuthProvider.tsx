@@ -1,17 +1,20 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { Tables } from '@/integrations/supabase/types';
+import { useToast } from '@/hooks/use-toast';
 
-type UserProfile = Tables<'usuarios'>;
+interface Usuario {
+  id: string;
+  nombre: string;
+  cedula: string;
+  tipo_usuario: 'operario' | 'admin';
+  activo: boolean;
+}
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  profile: UserProfile | null;
+  user: Usuario | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, nombre: string, tipo_usuario?: 'operario' | 'admin') => Promise<{ error: any }>;
+  signIn: (cedula: string, password: string) => Promise<{ error: any }>;
+  signUp: (nombre: string, cedula: string, password: string, tipo_usuario?: 'operario' | 'admin') => Promise<{ error: any }>;
   signOut: () => Promise<{ error: any }>;
   isAdmin: boolean;
 }
@@ -27,136 +30,128 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Set up auth state listener first
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event);
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user && event === 'SIGNED_IN') {
-          // Fetch user profile with setTimeout to prevent deadlock
-          setTimeout(async () => {
-            try {
-              const { data: profileData, error } = await supabase
-                .from('usuarios')
-                .select('*')
-                .eq('auth_user_id', session.user.id)
-                .maybeSingle();
-                
-              if (error) {
-                console.error('Error fetching profile:', error);
-              } else {
-                setProfile(profileData);
-              }
-            } catch (error) {
-              console.error('Error in profile fetch:', error);
-            } finally {
-              setLoading(false);
-            }
-          }, 0);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
+    // Check for existing session in localStorage
+    const storedUser = localStorage.getItem('fabrilog_user');
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+      } catch (error) {
+        localStorage.removeItem('fabrilog_user');
       }
-    );
-
-    // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        // Fetch profile for existing session
-        setTimeout(async () => {
-          try {
-            const { data: profileData, error } = await supabase
-              .from('usuarios')
-              .select('*')
-              .eq('auth_user_id', session.user.id)
-              .maybeSingle();
-              
-            if (error) {
-              console.error('Error fetching profile:', error);
-            } else {
-              setProfile(profileData);
-            }
-          } catch (error) {
-            console.error('Error in profile fetch:', error);
-          } finally {
-            setLoading(false);
-          }
-        }, 0);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    }
+    setLoading(false);
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
-  };
-
-  const signUp = async (email: string, password: string, nombre: string, tipo_usuario: 'operario' | 'admin' = 'operario') => {
+  const signIn = async (cedula: string, password: string) => {
     try {
-      // Sign up the user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-        },
-      });
-
-      if (authError) return { error: authError };
-
-      // Create profile in usuarios table
-      if (authData.user) {
-        const { error: profileError } = await supabase
-          .from('usuarios')
-          .insert({
-            auth_user_id: authData.user.id,
-            nombre,
-            tipo_usuario,
-          });
-
-        if (profileError) {
-          console.error('Error creating profile:', profileError);
-          return { error: profileError };
-        }
+      setLoading(true);
+      
+      // Query user by cedula
+      const { data: userData, error: userError } = await supabase
+        .from('usuarios')
+        .select('*')
+        .eq('cedula', cedula)
+        .eq('activo', true)
+        .single();
+      
+      if (userError || !userData) {
+        return { error: { message: 'Usuario no encontrado o inactivo' } };
       }
-
+      
+      // For now, we'll use a simple password check
+      // In production, you should use proper password hashing
+      if (userData.password_hash !== password) {
+        return { error: { message: 'Contraseña incorrecta' } };
+      }
+      
+      // Store user session
+      const userSession = {
+        id: userData.id,
+        nombre: userData.nombre,
+        cedula: userData.cedula,
+        tipo_usuario: userData.tipo_usuario,
+        activo: userData.activo
+      };
+      
+      localStorage.setItem('fabrilog_user', JSON.stringify(userSession));
+      setUser(userSession);
+      
+      toast({
+        title: "Bienvenido",
+        description: `Hola ${userData.nombre}!`,
+      });
+      
       return { error: null };
     } catch (error) {
-      return { error };
+      console.error('Sign in error:', error);
+      return { error: { message: 'Error al iniciar sesión' } };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signUp = async (nombre: string, cedula: string, password: string, tipo_usuario: 'operario' | 'admin' = 'operario') => {
+    try {
+      setLoading(true);
+      
+      // Check if user already exists
+      const { data: existingUser } = await supabase
+        .from('usuarios')
+        .select('id')
+        .eq('cedula', cedula)
+        .single();
+      
+      if (existingUser) {
+        return { error: { message: 'Ya existe un usuario con esta cédula' } };
+      }
+      
+      // Create new user
+      const { data: newUser, error } = await supabase
+        .from('usuarios')
+        .insert({
+          nombre,
+          cedula,
+          password_hash: password, // In production, hash this properly
+          tipo_usuario,
+          activo: true
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        return { error };
+      }
+      
+      toast({
+        title: "Registro exitoso",
+        description: "Usuario creado correctamente. Ya puedes iniciar sesión.",
+      });
+      
+      return { error: null };
+    } catch (error) {
+      console.error('Sign up error:', error);
+      return { error: { message: 'Error al registrar usuario' } };
+    } finally {
+      setLoading(false);
     }
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    setProfile(null);
-    return { error };
+    localStorage.removeItem('fabrilog_user');
+    setUser(null);
+    return { error: null };
   };
 
-  const isAdmin = profile?.tipo_usuario === 'admin';
+  const isAdmin = user?.tipo_usuario === 'admin';
 
   const value = {
     user,
-    session,
-    profile,
     loading,
     signIn,
     signUp,

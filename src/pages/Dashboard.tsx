@@ -13,11 +13,6 @@ import {
   AlertTriangle,
   CheckCircle
 } from 'lucide-react';
-import { Tables } from '@/integrations/supabase/types';
-
-type RegistroProduccion = Tables<'registros_produccion'>;
-type Maquina = Tables<'maquinas'>;
-type Usuario = Tables<'usuarios'>;
 
 interface DashboardMetrics {
   totalRegistros: number;
@@ -28,8 +23,23 @@ interface DashboardMetrics {
   produccionHoy: number;
 }
 
+interface RegistroConDetalles {
+  id: string;
+  fecha: string;
+  turno: string;
+  es_asistente: boolean;
+  fecha_registro: string;
+  maquinas: { nombre: string } | null;
+  usuarios: { nombre: string } | null;
+  detalle_produccion: {
+    produccion_real: number;
+    porcentaje_cumplimiento: number;
+    productos: { nombre: string } | null;
+  }[];
+}
+
 export default function Dashboard() {
-  const { profile, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     totalRegistros: 0,
     cumplimientoPromedio: 0,
@@ -38,7 +48,7 @@ export default function Dashboard() {
     registrosHoy: 0,
     produccionHoy: 0,
   });
-  const [recentRecords, setRecentRecords] = useState<any[]>([]);
+  const [recentRecords, setRecentRecords] = useState<RegistroConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,33 +62,46 @@ export default function Dashboard() {
       // Obtener métricas generales
       const [
         { count: totalRegistros },
-        { data: registros },
         { count: maquinasActivas },
         { count: operariosActivos },
       ] = await Promise.all([
         supabase.from('registros_produccion').select('*', { count: 'exact', head: true }),
-        supabase.from('registros_produccion').select('porcentaje_cumplimiento, produccion_real, fecha').gte('fecha', new Date().toISOString().split('T')[0]),
         supabase.from('maquinas').select('*', { count: 'exact', head: true }).eq('activa', true),
         supabase.from('usuarios').select('*', { count: 'exact', head: true }).eq('activo', true),
       ]);
 
-      // Calcular métricas de hoy
+      // Obtener registros de hoy con detalles
       const hoy = new Date().toISOString().split('T')[0];
-      const registrosHoy = registros?.filter(r => r.fecha === hoy) || [];
-      
-      const cumplimientoPromedio = registros && registros.length > 0
-        ? registros.reduce((acc, r) => acc + r.porcentaje_cumplimiento, 0) / registros.length
-        : 0;
+      const { data: registrosHoy } = await supabase
+        .from('registros_produccion')
+        .select(`
+          *,
+          detalle_produccion(produccion_real, porcentaje_cumplimiento)
+        `)
+        .gte('fecha', hoy);
 
-      const produccionHoy = registrosHoy.reduce((acc, r) => acc + r.produccion_real, 0);
+      // Calcular métricas de producción
+      let produccionTotal = 0;
+      let cumplimientoTotal = 0;
+      let cantidadDetalles = 0;
+
+      registrosHoy?.forEach(registro => {
+        registro.detalle_produccion?.forEach(detalle => {
+          produccionTotal += detalle.produccion_real || 0;
+          cumplimientoTotal += detalle.porcentaje_cumplimiento || 0;
+          cantidadDetalles++;
+        });
+      });
+
+      const cumplimientoPromedio = cantidadDetalles > 0 ? cumplimientoTotal / cantidadDetalles : 0;
 
       setMetrics({
         totalRegistros: totalRegistros || 0,
         cumplimientoPromedio,
         maquinasActivas: maquinasActivas || 0,
         operariosActivos: operariosActivos || 0,
-        registrosHoy: registrosHoy.length,
-        produccionHoy,
+        registrosHoy: registrosHoy?.length || 0,
+        produccionHoy: produccionTotal,
       });
 
       // Obtener registros recientes con información relacionada
@@ -86,14 +109,18 @@ export default function Dashboard() {
         .from('registros_produccion')
         .select(`
           *,
-          maquinas (nombre),
-          productos (nombre),
-          usuarios (nombre)
+          maquinas(nombre),
+          usuarios(nombre),
+          detalle_produccion(
+            produccion_real,
+            porcentaje_cumplimiento,
+            productos(nombre)
+          )
         `)
         .order('fecha_registro', { ascending: false })
         .limit(isAdmin ? 10 : 5);
 
-      setRecentRecords(recentData || []);
+      setRecentRecords(recentData as RegistroConDetalles[] || []);
 
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -143,7 +170,7 @@ export default function Dashboard() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground">
-            Bienvenido, <span className="font-semibold text-foreground">{profile?.nombre}</span>
+            Bienvenido, <span className="font-semibold text-foreground">{user?.nombre}</span>
           </p>
         </div>
         <div className="flex items-center space-x-2 text-sm text-muted-foreground">
@@ -252,30 +279,42 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {recentRecords.map((record, index) => (
+              {recentRecords.map((record) => (
                 <div 
                   key={record.id}
                   className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
                 >
                   <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      <Badge className={getPerformanceColor(record.porcentaje_cumplimiento)}>
-                        {record.porcentaje_cumplimiento.toFixed(1)}%
+                    <div className="flex items-center space-x-3 mb-2">
+                      <Badge variant={record.es_asistente ? "secondary" : "default"}>
+                        {record.es_asistente ? 'Asistente' : 'Operario'}
                       </Badge>
                       <div>
                         <p className="font-medium text-foreground">
-                          {record.maquinas?.nombre} - {record.productos?.nombre}
+                          {record.maquinas?.nombre}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {record.usuarios?.nombre} • {record.turno}
                         </p>
                       </div>
                     </div>
+                    
+                    {/* Mostrar productos */}
+                    <div className="space-y-1">
+                      {record.detalle_produccion?.map((detalle, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            {detalle.productos?.nombre}: {detalle.produccion_real} unidades
+                          </span>
+                          <Badge className={getPerformanceColor(detalle.porcentaje_cumplimiento)}>
+                            {detalle.porcentaje_cumplimiento.toFixed(1)}%
+                          </Badge>
+                        </div>
+                      )) || []}
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-foreground">
-                      {record.produccion_real.toLocaleString()} unidades
-                    </p>
+                  
+                  <div className="text-right ml-4">
                     <p className="text-sm text-muted-foreground">
                       {new Date(record.fecha).toLocaleDateString('es-ES')}
                     </p>

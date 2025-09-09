@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      detalle_produccion: {
+        Row: {
+          fecha_creacion: string
+          id: string
+          porcentaje_cumplimiento: number
+          produccion_real: number
+          producto_id: string
+          registro_id: string
+        }
+        Insert: {
+          fecha_creacion?: string
+          id?: string
+          porcentaje_cumplimiento?: number
+          produccion_real?: number
+          producto_id: string
+          registro_id: string
+        }
+        Update: {
+          fecha_creacion?: string
+          id?: string
+          porcentaje_cumplimiento?: number
+          produccion_real?: number
+          producto_id?: string
+          registro_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "detalle_produccion_producto_id_fkey"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "detalle_produccion_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "registros_produccion"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       maquinas: {
         Row: {
           activa: boolean
@@ -115,39 +157,69 @@ export type Database = {
           },
         ]
       }
+      registro_asistentes: {
+        Row: {
+          asistente_id: string
+          fecha_creacion: string
+          id: string
+          registro_id: string
+        }
+        Insert: {
+          asistente_id: string
+          fecha_creacion?: string
+          id?: string
+          registro_id: string
+        }
+        Update: {
+          asistente_id?: string
+          fecha_creacion?: string
+          id?: string
+          registro_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registro_asistentes_asistente_id_fkey"
+            columns: ["asistente_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registro_asistentes_registro_id_fkey"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "registros_produccion"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       registros_produccion: {
         Row: {
+          es_asistente: boolean
           fecha: string
           fecha_registro: string
           id: string
           maquina_id: string
           operario_id: string
-          porcentaje_cumplimiento: number
-          produccion_real: number
-          producto_id: string
-          turno: Database["public"]["Enums"]["turno_tipo"]
+          turno: Database["public"]["Enums"]["turno_produccion"]
         }
         Insert: {
+          es_asistente?: boolean
           fecha: string
           fecha_registro?: string
           id?: string
           maquina_id: string
           operario_id: string
-          porcentaje_cumplimiento: number
-          produccion_real: number
-          producto_id: string
-          turno: Database["public"]["Enums"]["turno_tipo"]
+          turno: Database["public"]["Enums"]["turno_produccion"]
         }
         Update: {
+          es_asistente?: boolean
           fecha?: string
           fecha_registro?: string
           id?: string
           maquina_id?: string
           operario_id?: string
-          porcentaje_cumplimiento?: number
-          produccion_real?: number
-          producto_id?: string
-          turno?: Database["public"]["Enums"]["turno_tipo"]
+          turno?: Database["public"]["Enums"]["turno_produccion"]
         }
         Relationships: [
           {
@@ -162,13 +234,6 @@ export type Database = {
             columns: ["operario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "registros_produccion_producto_id_fkey"
-            columns: ["producto_id"]
-            isOneToOne: false
-            referencedRelation: "productos"
             referencedColumns: ["id"]
           },
         ]
@@ -226,6 +291,13 @@ export type Database = {
       }
     }
     Enums: {
+      turno_produccion:
+        | "6:00am - 2:00pm"
+        | "2:00pm - 10:00pm"
+        | "10:00pm - 6:00am"
+        | "7:00am - 5:00pm"
+        | "7:00am - 3:00pm"
+        | "7:00am - 3:30pm"
       turno_tipo: "6:00am - 2:00pm" | "2:00pm - 10:00pm" | "10:00pm - 6:00am"
       user_type: "operario" | "admin"
     }
@@ -355,6 +427,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      turno_produccion: [
+        "6:00am - 2:00pm",
+        "2:00pm - 10:00pm",
+        "10:00pm - 6:00am",
+        "7:00am - 5:00pm",
+        "7:00am - 3:00pm",
+        "7:00am - 3:30pm",
+      ],
       turno_tipo: ["6:00am - 2:00pm", "2:00pm - 10:00pm", "10:00pm - 6:00am"],
       user_type: ["operario", "admin"],
     },

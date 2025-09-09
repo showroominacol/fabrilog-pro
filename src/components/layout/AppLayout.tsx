@@ -19,7 +19,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { profile, signOut, isAdmin } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const location = useLocation();
 
   const navigation = [
@@ -44,7 +44,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   ];
 
   const filteredNavigation = navigation.filter(item => 
-    item.roles.includes(profile?.tipo_usuario || 'operario')
+    item.roles.includes(user?.tipo_usuario || 'operario')
   );
 
   const handleSignOut = async () => {
@@ -66,9 +66,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             
             <div className="flex items-center space-x-4">
               <div className="text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{profile?.nombre}</span>
+                <span className="font-medium text-foreground">{user?.nombre}</span>
                 <span className="ml-2 px-2 py-1 bg-primary/10 text-primary rounded-md text-xs font-medium capitalize">
-                  {profile?.tipo_usuario}
+                  {user?.tipo_usuario}
                 </span>
               </div>
               

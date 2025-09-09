@@ -35,7 +35,7 @@ interface FormData {
 }
 
 export default function RegistroProduccion() {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   
   const [formData, setFormData] = useState<FormData>({
@@ -174,7 +174,7 @@ export default function RegistroProduccion() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!profile) {
+    if (!user) {
       toast({
         title: "Error",
         description: "No se encontró información del usuario",
@@ -202,7 +202,7 @@ export default function RegistroProduccion() {
         .insert({
           fecha: fechaAjustada,
           turno: formData.turno,
-          operario_id: profile.id,
+          operario_id: user.id,
           maquina_id: formData.maquina_id,
           producto_id: formData.producto_id,
           produccion_real: parseInt(formData.produccion_real),
