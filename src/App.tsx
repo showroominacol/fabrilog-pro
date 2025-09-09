@@ -8,10 +8,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import RegistroProduccion from "./pages/RegistroProduccion";
-// import Metas from "./pages/Metas";
-// import Maquinas from "./pages/Maquinas";  
-// import Productos from "./pages/Productos";
-// import Usuarios from "./pages/Usuarios";
+import AdminMaquinasProductos from "./pages/AdminMaquinasProductos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -68,6 +65,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <RegistroProduccion />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/maquinas-productos" 
+        element={
+          <ProtectedRoute>
+            <AdminMaquinasProductos />
           </ProtectedRoute>
         } 
       />

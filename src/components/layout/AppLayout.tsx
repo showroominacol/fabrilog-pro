@@ -36,27 +36,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       roles: ['operario', 'admin'] 
     },
     { 
-      name: 'Metas Producción', 
-      href: '/metas', 
-      icon: Target, 
-      roles: ['admin'] 
-    },
-    { 
-      name: 'Máquinas', 
-      href: '/maquinas', 
-      icon: Factory, 
-      roles: ['admin'] 
-    },
-    { 
-      name: 'Productos', 
-      href: '/productos', 
-      icon: Package, 
-      roles: ['admin'] 
-    },
-    { 
-      name: 'Usuarios', 
-      href: '/usuarios', 
-      icon: Users, 
+      name: 'Admin Máquinas y Productos', 
+      href: '/admin/maquinas-productos', 
+      icon: Settings, 
       roles: ['admin'] 
     },
   ];
