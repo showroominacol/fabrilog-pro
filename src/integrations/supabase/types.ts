@@ -176,26 +176,29 @@ export type Database = {
       usuarios: {
         Row: {
           activo: boolean
-          auth_user_id: string | null
+          cedula: string
           fecha_creacion: string
           id: string
           nombre: string
+          password_hash: string
           tipo_usuario: Database["public"]["Enums"]["user_type"]
         }
         Insert: {
           activo?: boolean
-          auth_user_id?: string | null
+          cedula: string
           fecha_creacion?: string
           id?: string
           nombre: string
+          password_hash: string
           tipo_usuario?: Database["public"]["Enums"]["user_type"]
         }
         Update: {
           activo?: boolean
-          auth_user_id?: string | null
+          cedula?: string
           fecha_creacion?: string
           id?: string
           nombre?: string
+          password_hash?: string
           tipo_usuario?: Database["public"]["Enums"]["user_type"]
         }
         Relationships: []
@@ -209,10 +212,11 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: {
           activo: boolean
-          auth_user_id: string | null
+          cedula: string
           fecha_creacion: string
           id: string
           nombre: string
+          password_hash: string
           tipo_usuario: Database["public"]["Enums"]["user_type"]
         }
       }
