@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -57,6 +58,8 @@ export default function Metricas() {
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<string>('');
   const [mesSeleccionado, setMesSeleccionado] = useState<string>('');
   const [reporte, setReporte] = useState<ReporteMensual | null>(null);
+  const [busquedaOperario, setBusquedaOperario] = useState<string>('');
+  const [usuariosFiltrados, setUsuariosFiltrados] = useState<Usuario[]>([]);
 
   useEffect(() => {
     loadUsuarios();
@@ -69,6 +72,20 @@ export default function Metricas() {
       setUsuarioSeleccionado(user.id);
     }
   }, [user, isAdmin]);
+
+  // Filtrar usuarios basado en la búsqueda
+  useEffect(() => {
+    if (!busquedaOperario.trim()) {
+      setUsuariosFiltrados([]);
+      return;
+    }
+    
+    const filtrados = usuarios.filter(usuario => 
+      usuario.nombre.toLowerCase().includes(busquedaOperario.toLowerCase()) ||
+      usuario.cedula.toLowerCase().includes(busquedaOperario.toLowerCase())
+    );
+    setUsuariosFiltrados(filtrados);
+  }, [busquedaOperario, usuarios]);
 
   const loadUsuarios = async () => {
     try {
@@ -297,22 +314,65 @@ export default function Metricas() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Selector de operario (solo para admin) */}
+            {/* Búsqueda de operario (solo para admin) */}
             {isAdmin && (
               <div className="space-y-2">
-                <Label htmlFor="operario">Operario</Label>
-                <Select value={usuarioSeleccionado} onValueChange={setUsuarioSeleccionado}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar operario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {usuarios.map((usuario) => (
-                      <SelectItem key={usuario.id} value={usuario.id}>
-                        {usuario.nombre} ({usuario.cedula})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="busqueda">Buscar Operario</Label>
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Buscar por nombre o cédula..."
+                    value={busquedaOperario}
+                    onChange={(e) => setBusquedaOperario(e.target.value)}
+                  />
+                  
+                  {/* Lista de resultados */}
+                  {busquedaOperario.trim() && (
+                    <div className="border rounded-md max-h-40 overflow-y-auto">
+                      {usuariosFiltrados.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          No se encontraron operarios
+                        </div>
+                      ) : (
+                        usuariosFiltrados.map((usuario) => (
+                          <button
+                            key={usuario.id}
+                            className="w-full text-left p-2 hover:bg-muted transition-colors border-b last:border-b-0"
+                            onClick={() => {
+                              setUsuarioSeleccionado(usuario.id);
+                              setBusquedaOperario(usuario.nombre);
+                              setUsuariosFiltrados([]);
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{usuario.nombre}</span>
+                              <span className="text-sm text-muted-foreground">({usuario.cedula})</span>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Operario seleccionado */}
+                  {usuarioSeleccionado && !busquedaOperario && (
+                    <div className="flex items-center justify-between p-2 bg-muted rounded border">
+                      <span className="text-sm">
+                        {usuarios.find(u => u.id === usuarioSeleccionado)?.nombre} 
+                        ({usuarios.find(u => u.id === usuarioSeleccionado)?.cedula})
+                      </span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => {
+                          setUsuarioSeleccionado('');
+                          setBusquedaOperario('');
+                        }}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
