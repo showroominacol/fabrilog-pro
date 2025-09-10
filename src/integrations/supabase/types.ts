@@ -54,6 +54,20 @@ export type Database = {
             referencedRelation: "registros_produccion"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_detalle_produccion_producto"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_detalle_produccion_registro"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "registros_produccion"
+            referencedColumns: ["id"]
+          },
         ]
       }
       disenos_arboles: {
@@ -134,6 +148,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_metas_produccion_maquina"
+            columns: ["maquina_id"]
+            isOneToOne: false
+            referencedRelation: "maquinas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_metas_produccion_producto"
+            columns: ["producto_id"]
+            isOneToOne: false
+            referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "metas_produccion_maquina_id_fkey"
             columns: ["maquina_id"]
             isOneToOne: false
@@ -174,7 +202,15 @@ export type Database = {
           id?: string
           nivel?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_niveles_ramas_diseno"
+            columns: ["diseno_id"]
+            isOneToOne: false
+            referencedRelation: "disenos_arboles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       productos: {
         Row: {
@@ -206,6 +242,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_productos_diseno"
+            columns: ["diseno_id"]
+            isOneToOne: false
+            referencedRelation: "disenos_arboles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_productos_maquina"
+            columns: ["maquina_id"]
+            isOneToOne: false
+            referencedRelation: "maquinas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "productos_maquina_id_fkey"
             columns: ["maquina_id"]
             isOneToOne: false
@@ -234,6 +284,20 @@ export type Database = {
           registro_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_registro_asistentes_asistente"
+            columns: ["asistente_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_registro_asistentes_registro"
+            columns: ["registro_id"]
+            isOneToOne: false
+            referencedRelation: "registros_produccion"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "registro_asistentes_asistente_id_fkey"
             columns: ["asistente_id"]
@@ -279,6 +343,20 @@ export type Database = {
           turno?: Database["public"]["Enums"]["turno_produccion"]
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_registros_produccion_maquina"
+            columns: ["maquina_id"]
+            isOneToOne: false
+            referencedRelation: "maquinas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_registros_produccion_operario"
+            columns: ["operario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "registros_produccion_maquina_id_fkey"
             columns: ["maquina_id"]
