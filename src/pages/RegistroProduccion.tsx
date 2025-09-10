@@ -92,7 +92,10 @@ export default function RegistroProduccion() {
 
   useEffect(() => {
     if (formData.maquina_id) {
-      const filtered = productos.filter(p => p.maquina_id === formData.maquina_id);
+      const filtered = productos.filter(p => {
+        const productoMaquinas = (p as any).productos_maquinas || [];
+        return productoMaquinas.some((pm: any) => pm.maquina_id === formData.maquina_id);
+      });
       setFilteredProductos(filtered);
       
       // Reset productos selection if current selections don't match machine
@@ -122,7 +125,12 @@ export default function RegistroProduccion() {
       
       const [maquinasResult, productosResult, usuariosResult, disenosResult, nivelesResult] = await Promise.all([
         supabase.from('maquinas').select('*').eq('activa', true).order('nombre'),
-        supabase.from('productos').select('*').eq('activo', true).order('nombre'),
+        supabase.from('productos').select(`
+          *,
+          productos_maquinas!fk_productos_maquinas_producto(
+            maquina_id
+          )
+        `).eq('activo', true).order('nombre'),
         supabase.from('usuarios').select('*').eq('activo', true).neq('id', user?.id || '').order('nombre'),
         supabase.from('disenos_arboles').select('*').eq('activo', true).order('nombre'),
         supabase.from('niveles_ramas').select('*').eq('activo', true).order('nivel')

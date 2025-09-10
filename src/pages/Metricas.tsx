@@ -113,7 +113,11 @@ export default function Metricas() {
         *,
         detalle_produccion!fk_detalle_produccion_registro(
           *,
-          productos!fk_detalle_produccion_producto(nombre, maquina_id, tope)
+          productos!fk_detalle_produccion_producto(
+            nombre, 
+            tope,
+            productos_maquinas!fk_productos_maquinas_producto(maquina_id)
+          )
         )
       `)
       .eq('operario_id', operarioId)

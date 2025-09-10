@@ -218,27 +218,27 @@ export type Database = {
           diseno_id: string | null
           fecha_creacion: string
           id: string
-          maquina_id: string
           nombre: string
           tipo_producto: string
+          tope: number | null
         }
         Insert: {
           activo?: boolean
           diseno_id?: string | null
           fecha_creacion?: string
           id?: string
-          maquina_id: string
           nombre: string
           tipo_producto?: string
+          tope?: number | null
         }
         Update: {
           activo?: boolean
           diseno_id?: string | null
           fecha_creacion?: string
           id?: string
-          maquina_id?: string
           nombre?: string
           tipo_producto?: string
+          tope?: number | null
         }
         Relationships: [
           {
@@ -248,18 +248,40 @@ export type Database = {
             referencedRelation: "disenos_arboles"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      productos_maquinas: {
+        Row: {
+          fecha_creacion: string
+          id: string
+          maquina_id: string
+          producto_id: string
+        }
+        Insert: {
+          fecha_creacion?: string
+          id?: string
+          maquina_id: string
+          producto_id: string
+        }
+        Update: {
+          fecha_creacion?: string
+          id?: string
+          maquina_id?: string
+          producto_id?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "fk_productos_maquina"
+            foreignKeyName: "fk_productos_maquinas_maquina"
             columns: ["maquina_id"]
             isOneToOne: false
             referencedRelation: "maquinas"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "productos_maquina_id_fkey"
-            columns: ["maquina_id"]
+            foreignKeyName: "fk_productos_maquinas_producto"
+            columns: ["producto_id"]
             isOneToOne: false
-            referencedRelation: "maquinas"
+            referencedRelation: "productos"
             referencedColumns: ["id"]
           },
         ]

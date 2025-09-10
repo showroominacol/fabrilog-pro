@@ -9,17 +9,12 @@ type Producto = Tables<'productos'>;
 type Maquina = Tables<'maquinas'>;
 
 interface ProductosTableProps {
-  productos: Producto[];
-  maquinas: Maquina[];
-  onEdit: (producto: Producto) => void;
+  productos: (Producto & { maquinas?: { nombre: string }[] })[];
+  onEdit: (producto: Producto, maquinasIds: string[]) => void;
   onDelete: (id: string) => void;
 }
 
-export function ProductosTable({ productos, maquinas, onEdit, onDelete }: ProductosTableProps) {
-  const getMaquinaNombre = (maquinaId: string) => {
-    const maquina = maquinas.find(m => m.id === maquinaId);
-    return maquina?.nombre || 'Máquina no encontrada';
-  };
+export function ProductosTable({ productos, onEdit, onDelete }: ProductosTableProps) {
 
   if (productos.length === 0) {
     return (
@@ -44,7 +39,15 @@ export function ProductosTable({ productos, maquinas, onEdit, onDelete }: Produc
         {productos.map((producto) => (
           <TableRow key={producto.id}>
             <TableCell className="font-medium">{producto.nombre}</TableCell>
-            <TableCell>{getMaquinaNombre(producto.maquina_id)}</TableCell>
+            <TableCell>
+              <div className="flex flex-wrap gap-1">
+                {producto.maquinas?.map((maquina, index) => (
+                  <Badge key={index} variant="outline">
+                    {maquina.nombre}
+                  </Badge>
+                )) || <span className="text-muted-foreground">Sin máquinas</span>}
+              </div>
+            </TableCell>
             <TableCell>
               <Badge variant={producto.activo ? 'default' : 'secondary'}>
                 {producto.activo ? 'Activo' : 'Inactivo'}
@@ -58,7 +61,10 @@ export function ProductosTable({ productos, maquinas, onEdit, onDelete }: Produc
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onEdit(producto)}
+                  onClick={() => {
+                    const maquinasIds = (producto as any).productos_maquinas?.map((pm: any) => pm.maquina_id) || [];
+                    onEdit(producto, maquinasIds);
+                  }}
                 >
                   <Edit className="h-4 w-4" />
                 </Button>
