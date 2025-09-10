@@ -111,9 +111,9 @@ export default function Metricas() {
       .from('registros_produccion')
       .select(`
         *,
-        detalle_produccion(
+        detalle_produccion!fk_detalle_produccion_registro(
           *,
-          productos(nombre, maquina_id)
+          productos!fk_detalle_produccion_producto(nombre, maquina_id, tope)
         )
       `)
       .eq('operario_id', operarioId)
@@ -144,22 +144,14 @@ export default function Metricas() {
         if (registro.detalle_produccion) {
           for (const detalle of registro.detalle_produccion) {
             if (detalle.productos) {
-              // Obtener meta del producto para la máquina
-              const { data: meta } = await supabase
-                .from('metas_produccion')
-                .select('turno_8h, turno_10h')
-                .eq('maquina_id', registro.maquina_id)
-                .eq('producto_id', detalle.producto_id)
-                .single();
-
-              // Determinar meta según turno (asumiendo turno de 8h por defecto)
-              const metaProducto = meta?.turno_8h || 0;
+              // Usar el tope del producto como meta
+              const metaProducto = (detalle.productos as any).tope || 0;
               const porcentajeProducto = metaProducto > 0 ? (detalle.produccion_real / metaProducto) * 100 : 0;
               
               porcentajeAvanceTotal += porcentajeProducto;
 
               productosDetalles.push({
-                nombre: detalle.productos.nombre,
+                nombre: (detalle.productos as any).nombre,
                 produccion_real: detalle.produccion_real,
                 meta: metaProducto,
                 porcentaje: porcentajeProducto
@@ -222,7 +214,7 @@ export default function Metricas() {
       const { data: maquinasUsadas } = await supabase
         .from('registros_produccion')
         .select(`
-          maquinas(nombre)
+          maquinas!fk_registros_produccion_maquina(nombre)
         `)
         .eq('operario_id', usuarioSeleccionado)
         .gte('fecha', fechaInicio)

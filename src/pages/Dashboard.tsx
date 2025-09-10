@@ -109,12 +109,12 @@ export default function Dashboard() {
         .from('registros_produccion')
         .select(`
           *,
-          maquinas(nombre),
-          usuarios(nombre),
-          detalle_produccion(
+          maquinas!fk_registros_produccion_maquina(nombre),
+          usuarios!fk_registros_produccion_operario(nombre),
+          detalle_produccion!fk_detalle_produccion_registro(
             produccion_real,
             porcentaje_cumplimiento,
-            productos(nombre)
+            productos!fk_detalle_produccion_producto(nombre)
           )
         `)
         .order('fecha_registro', { ascending: false })
