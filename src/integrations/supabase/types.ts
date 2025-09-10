@@ -56,6 +56,30 @@ export type Database = {
           },
         ]
       }
+      disenos_arboles: {
+        Row: {
+          activo: boolean
+          descripcion: string | null
+          fecha_creacion: string
+          id: string
+          nombre: string
+        }
+        Insert: {
+          activo?: boolean
+          descripcion?: string | null
+          fecha_creacion?: string
+          id?: string
+          nombre: string
+        }
+        Update: {
+          activo?: boolean
+          descripcion?: string | null
+          fecha_creacion?: string
+          id?: string
+          nombre?: string
+        }
+        Relationships: []
+      }
       maquinas: {
         Row: {
           activa: boolean
@@ -125,27 +149,60 @@ export type Database = {
           },
         ]
       }
+      niveles_ramas: {
+        Row: {
+          activo: boolean
+          diseno_id: string
+          fecha_creacion: string
+          festones_por_rama: number
+          id: string
+          nivel: number
+        }
+        Insert: {
+          activo?: boolean
+          diseno_id: string
+          fecha_creacion?: string
+          festones_por_rama: number
+          id?: string
+          nivel: number
+        }
+        Update: {
+          activo?: boolean
+          diseno_id?: string
+          fecha_creacion?: string
+          festones_por_rama?: number
+          id?: string
+          nivel?: number
+        }
+        Relationships: []
+      }
       productos: {
         Row: {
           activo: boolean
+          diseno_id: string | null
           fecha_creacion: string
           id: string
           maquina_id: string
           nombre: string
+          tipo_producto: string
         }
         Insert: {
           activo?: boolean
+          diseno_id?: string | null
           fecha_creacion?: string
           id?: string
           maquina_id: string
           nombre: string
+          tipo_producto?: string
         }
         Update: {
           activo?: boolean
+          diseno_id?: string | null
           fecha_creacion?: string
           id?: string
           maquina_id?: string
           nombre?: string
+          tipo_producto?: string
         }
         Relationships: [
           {

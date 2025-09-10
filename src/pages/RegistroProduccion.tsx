@@ -31,10 +31,19 @@ type Maquina = Tables<'maquinas'>;
 type Producto = Tables<'productos'>;
 type MetaProduccion = Tables<'metas_produccion'>;
 type Usuario = Tables<'usuarios'>;
+type DisenoArbol = Tables<'disenos_arboles'>;
+type NivelRama = Tables<'niveles_ramas'>;
+
+interface NivelDetalle {
+  nivel: number;
+  cantidad_ramas: number;
+  festones_por_rama: number;
+}
 
 interface ProductoDetalle {
   producto_id: string;
   produccion_real: number;
+  niveles?: NivelDetalle[];
 }
 
 interface FormData {
@@ -62,6 +71,8 @@ export default function RegistroProduccion() {
   const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [metas, setMetas] = useState<MetaProduccion[]>([]);
+  const [disenosArboles, setDisenosArboles] = useState<DisenoArbol[]>([]);
+  const [nivelesRamas, setNivelesRamas] = useState<NivelRama[]>([]);
   const [porcentajeCumplimiento, setPorcentajeCumplimiento] = useState(0);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
@@ -109,19 +120,25 @@ export default function RegistroProduccion() {
     try {
       setDataLoading(true);
       
-      const [maquinasResult, productosResult, usuariosResult] = await Promise.all([
+      const [maquinasResult, productosResult, usuariosResult, disenosResult, nivelesResult] = await Promise.all([
         supabase.from('maquinas').select('*').eq('activa', true).order('nombre'),
         supabase.from('productos').select('*').eq('activo', true).order('nombre'),
-        supabase.from('usuarios').select('*').eq('activo', true).neq('id', user?.id || '').order('nombre')
+        supabase.from('usuarios').select('*').eq('activo', true).neq('id', user?.id || '').order('nombre'),
+        supabase.from('disenos_arboles').select('*').eq('activo', true).order('nombre'),
+        supabase.from('niveles_ramas').select('*').eq('activo', true).order('nivel')
       ]);
 
       if (maquinasResult.error) throw maquinasResult.error;
       if (productosResult.error) throw productosResult.error;
       if (usuariosResult.error) throw usuariosResult.error;
+      if (disenosResult.error) throw disenosResult.error;
+      if (nivelesResult.error) throw nivelesResult.error;
 
       setMaquinas(maquinasResult.data || []);
       setProductos(productosResult.data || []);
       setUsuarios(usuariosResult.data || []);
+      setDisenosArboles(disenosResult.data || []);
+      setNivelesRamas(nivelesResult.data || []);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -205,15 +222,50 @@ export default function RegistroProduccion() {
 
   const addProducto = () => {
     if (filteredProductos.length > 0) {
+      const firstProduct = filteredProductos[0];
       const newProducto: ProductoDetalle = {
-        producto_id: filteredProductos[0].id,
-        produccion_real: 0
+        producto_id: firstProduct.id,
+        produccion_real: 0,
+        niveles: firstProduct.tipo_producto === 'arbol_navideno' ? initializeNiveles(firstProduct.diseno_id!) : undefined
       };
       setFormData(prev => ({
         ...prev,
         productos: [...prev.productos, newProducto]
       }));
     }
+  };
+
+  const initializeNiveles = (disenoId: string): NivelDetalle[] => {
+    const niveles = nivelesRamas.filter(n => n.diseno_id === disenoId);
+    return niveles.map(nivel => ({
+      nivel: nivel.nivel,
+      cantidad_ramas: 0,
+      festones_por_rama: nivel.festones_por_rama
+    }));
+  };
+
+  const calculateFestones = (niveles: NivelDetalle[]): number => {
+    return niveles.reduce((total, nivel) => total + (nivel.cantidad_ramas * nivel.festones_por_rama), 0);
+  };
+
+  const updateProductoNivel = (productoIndex: number, nivelIndex: number, cantidadRamas: number) => {
+    setFormData(prev => ({
+      ...prev,
+      productos: prev.productos.map((producto, i) => {
+        if (i === productoIndex && producto.niveles) {
+          const updatedNiveles = producto.niveles.map((nivel, j) => 
+            j === nivelIndex ? { ...nivel, cantidad_ramas: cantidadRamas } : nivel
+          );
+          const totalFestones = calculateFestones(updatedNiveles);
+          return {
+            ...producto,
+            niveles: updatedNiveles,
+            produccion_real: totalFestones
+          };
+        }
+        return producto;
+      })
+    }));
   };
 
   const removeProducto = (index: number) => {
@@ -226,9 +278,28 @@ export default function RegistroProduccion() {
   const updateProducto = (index: number, field: 'producto_id' | 'produccion_real', value: string | number) => {
     setFormData(prev => ({
       ...prev,
-      productos: prev.productos.map((producto, i) => 
-        i === index ? { ...producto, [field]: value } : producto
-      )
+      productos: prev.productos.map((producto, i) => {
+        if (i === index) {
+          if (field === 'producto_id') {
+            const selectedProduct = filteredProductos.find(p => p.id === value as string);
+            if (selectedProduct?.tipo_producto === 'arbol_navideno') {
+              return { 
+                producto_id: value as string,
+                niveles: initializeNiveles(selectedProduct.diseno_id!),
+                produccion_real: 0
+              };
+            } else {
+              return { 
+                producto_id: value as string,
+                produccion_real: producto.produccion_real
+              };
+            }
+          } else {
+            return { ...producto, [field]: value as number };
+          }
+        }
+        return producto;
+      })
     }));
   };
 
@@ -268,6 +339,25 @@ export default function RegistroProduccion() {
       toast({
         title: "Cantidades Inválidas",
         description: "Todos los productos deben tener una cantidad mayor a 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar que los productos de árbol tengan al menos un nivel con ramas
+    const invalidTreeProducts = formData.productos.filter(producto => {
+      const selectedProduct = filteredProductos.find(p => p.id === producto.producto_id);
+      if (selectedProduct?.tipo_producto === 'arbol_navideno' && producto.niveles) {
+        const totalRamas = producto.niveles.reduce((sum, nivel) => sum + nivel.cantidad_ramas, 0);
+        return totalRamas === 0;
+      }
+      return false;
+    });
+    
+    if (invalidTreeProducts.length > 0) {
+      toast({
+        title: "Niveles Requeridos",
+        description: "Los productos de árbol deben tener al menos un nivel con ramas",
         variant: "destructive",
       });
       return;
@@ -519,54 +609,94 @@ export default function RegistroProduccion() {
                 </div>
               )}
 
-              {formData.productos.map((producto, index) => (
-                <Card key={index} className="p-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex-1">
-                      <Label className="text-sm font-medium">Producto</Label>
-                      <Select
-                        value={producto.producto_id}
-                        onValueChange={(value) => updateProducto(index, 'producto_id', value)}
-                      >
-                        <SelectTrigger className="input-touch">
-                          <SelectValue placeholder="Selecciona el producto" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-background z-50">
-                          {filteredProductos.map((prod) => (
-                            <SelectItem key={prod.id} value={prod.id}>
-                              {prod.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+              {formData.productos.map((producto, index) => {
+                const selectedProduct = filteredProductos.find(p => p.id === producto.producto_id);
+                const isTreeProduct = selectedProduct?.tipo_producto === 'arbol_navideno';
+                
+                return (
+                  <Card key={index} className="p-4">
+                    <div className="space-y-4">
+                      {/* Product Selection and Remove Button */}
+                      <div className="flex items-center space-x-4">
+                        <div className="flex-1">
+                          <Label className="text-sm font-medium">Producto</Label>
+                          <Select
+                            value={producto.producto_id}
+                            onValueChange={(value) => updateProducto(index, 'producto_id', value)}
+                          >
+                            <SelectTrigger className="input-touch">
+                              <SelectValue placeholder="Selecciona el producto" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background z-50">
+                              {filteredProductos.map((prod) => (
+                                <SelectItem key={prod.id} value={prod.id}>
+                                  {prod.nombre}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeProducto(index)}
+                          className="mt-6 text-destructive hover:text-destructive"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {/* Tree Levels Input or Regular Quantity */}
+                      {isTreeProduct && producto.niveles ? (
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium text-primary">Niveles de Ramas</Label>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
+                            {producto.niveles.map((nivel, nivelIndex) => (
+                              <div key={nivel.nivel} className="p-3 border rounded-lg bg-muted/30">
+                                <Label className="text-xs font-medium text-muted-foreground">
+                                  Nivel {nivel.nivel} ({nivel.festones_por_rama} festones/rama)
+                                </Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={nivel.cantidad_ramas}
+                                  onChange={(e) => updateProductoNivel(index, nivelIndex, parseInt(e.target.value) || 0)}
+                                  placeholder="Ramas"
+                                  className="input-touch mt-1"
+                                  inputMode="numeric"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
+                            <span className="text-sm font-medium">Total de Festones:</span>
+                            <Badge variant="secondary" className="text-lg font-bold">
+                              {producto.produccion_real.toLocaleString()}
+                            </Badge>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex-1">
+                          <Label className="text-sm font-medium">Cantidad Producida</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={producto.produccion_real}
+                            onChange={(e) => updateProducto(index, 'produccion_real', parseInt(e.target.value) || 0)}
+                            placeholder="Unidades"
+                            className="input-touch"
+                            inputMode="numeric"
+                          />
+                        </div>
+                      )}
                     </div>
-                    
-                    <div className="flex-1">
-                      <Label className="text-sm font-medium">Cantidad Producida</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={producto.produccion_real}
-                        onChange={(e) => updateProducto(index, 'produccion_real', parseInt(e.target.value) || 0)}
-                        placeholder="Unidades"
-                        className="input-touch"
-                        inputMode="numeric"
-                      />
-                    </div>
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => removeProducto(index)}
-                      className="mt-6 text-destructive hover:text-destructive"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
 
             {/* Operarios Asistentes */}
