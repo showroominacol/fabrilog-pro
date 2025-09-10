@@ -10,7 +10,8 @@ import {
   LogOut,
   Factory,
   Target,
-  Package
+  Package,
+  TrendingUp
 } from 'lucide-react';
 import { useLocation, Link } from 'react-router-dom';
 
@@ -33,6 +34,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       name: 'Registro Producción', 
       href: '/registro', 
       icon: FileText, 
+      roles: ['operario', 'admin'] 
+    },
+    { 
+      name: 'Métricas', 
+      href: '/metricas', 
+      icon: TrendingUp, 
       roles: ['operario', 'admin'] 
     },
     { 

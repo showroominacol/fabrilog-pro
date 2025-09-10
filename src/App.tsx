@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import RegistroProduccion from "./pages/RegistroProduccion";
 import AdminMaquinasProductos from "./pages/AdminMaquinasProductos";
+import Metricas from "./pages/Metricas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,6 +74,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AdminMaquinasProductos />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/metricas" 
+        element={
+          <ProtectedRoute>
+            <Metricas />
           </ProtectedRoute>
         } 
       />
