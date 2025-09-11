@@ -120,15 +120,59 @@ export default function AdminMaquinasProductos() {
     }
   };
 
-  const handleProductoSubmit = async (data: { nombre: string; tope?: number; maquinas_ids: string[] }) => {
+  const handleProductoSubmit = async (data: { 
+    nombre: string; 
+    tope?: number; 
+    maquinas_ids: string[];
+    tipo_producto: 'general' | 'arbol_navideno';
+    diseno_id?: string;
+    diseno_nombre?: string;
+    diseno_descripcion?: string;
+    niveles_ramas?: { nivel: number; festones_por_rama: number }[];
+  }) => {
     try {
       let productoId: string;
+      let disenoId = data.diseno_id;
+
+      // Si es árbol navideño y se está creando un nuevo diseño
+      if (data.tipo_producto === 'arbol_navideno' && data.diseno_nombre && data.niveles_ramas) {
+        // Crear nuevo diseño
+        const { data: nuevoDiseno, error: disenoError } = await supabase
+          .from('disenos_arboles')
+          .insert([{
+            nombre: data.diseno_nombre,
+            descripcion: data.diseno_descripcion || null
+          }])
+          .select()
+          .single();
+
+        if (disenoError) throw disenoError;
+        disenoId = nuevoDiseno.id;
+
+        // Crear niveles de ramas
+        const nivelesRamas = data.niveles_ramas.map(nivel => ({
+          diseno_id: disenoId,
+          nivel: nivel.nivel,
+          festones_por_rama: nivel.festones_por_rama
+        }));
+
+        const { error: nivelesError } = await supabase
+          .from('niveles_ramas')
+          .insert(nivelesRamas);
+
+        if (nivelesError) throw nivelesError;
+      }
       
       if (editingProducto) {
         // Update existing product
         const { error: updateError } = await supabase
           .from('productos')
-          .update({ nombre: data.nombre, tope: data.tope })
+          .update({ 
+            nombre: data.nombre, 
+            tope: data.tope,
+            tipo_producto: data.tipo_producto,
+            diseno_id: disenoId
+          })
           .eq('id', editingProducto.id);
         
         if (updateError) throw updateError;
@@ -145,7 +189,12 @@ export default function AdminMaquinasProductos() {
         // Create new product
         const { data: newProducto, error: insertError } = await supabase
           .from('productos')
-          .insert([{ nombre: data.nombre, tope: data.tope }])
+          .insert([{ 
+            nombre: data.nombre, 
+            tope: data.tope,
+            tipo_producto: data.tipo_producto,
+            diseno_id: disenoId
+          }])
           .select()
           .single();
         

@@ -29,7 +29,9 @@ export function ProductosTable({ productos, onEdit, onDelete }: ProductosTablePr
       <TableHeader>
         <TableRow>
           <TableHead>Nombre</TableHead>
-          <TableHead>Máquina</TableHead>
+          <TableHead>Tipo</TableHead>
+          <TableHead>Máquinas</TableHead>
+          <TableHead>Tope</TableHead>
           <TableHead>Estado</TableHead>
           <TableHead>Fecha Creación</TableHead>
           <TableHead className="text-right">Acciones</TableHead>
@@ -40,6 +42,11 @@ export function ProductosTable({ productos, onEdit, onDelete }: ProductosTablePr
           <TableRow key={producto.id}>
             <TableCell className="font-medium">{producto.nombre}</TableCell>
             <TableCell>
+              <Badge variant={producto.tipo_producto === 'arbol_navideno' ? 'default' : 'secondary'}>
+                {producto.tipo_producto === 'arbol_navideno' ? 'Árbol Navideño' : 'General'}
+              </Badge>
+            </TableCell>
+            <TableCell>
               <div className="flex flex-wrap gap-1">
                 {producto.maquinas?.map((maquina, index) => (
                   <Badge key={index} variant="outline">
@@ -47,6 +54,9 @@ export function ProductosTable({ productos, onEdit, onDelete }: ProductosTablePr
                   </Badge>
                 )) || <span className="text-muted-foreground">Sin máquinas</span>}
               </div>
+            </TableCell>
+            <TableCell>
+              {producto.tope ? Number(producto.tope).toLocaleString() : '-'}
             </TableCell>
             <TableCell>
               <Badge variant={producto.activo ? 'default' : 'secondary'}>
