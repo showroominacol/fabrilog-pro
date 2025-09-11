@@ -28,6 +28,7 @@ export function MaquinasTable({ maquinas, onEdit, onDelete }: MaquinasTableProps
         <TableRow>
           <TableHead>Nombre</TableHead>
           <TableHead>Descripción</TableHead>
+          <TableHead>Categoría</TableHead>
           <TableHead>Estado</TableHead>
           <TableHead>Fecha Creación</TableHead>
           <TableHead className="text-right">Acciones</TableHead>
@@ -38,6 +39,7 @@ export function MaquinasTable({ maquinas, onEdit, onDelete }: MaquinasTableProps
           <TableRow key={maquina.id}>
             <TableCell className="font-medium">{maquina.nombre}</TableCell>
             <TableCell>{maquina.descripcion || '-'}</TableCell>
+            <TableCell>{maquina.categoria || '-'}</TableCell>
             <TableCell>
               <Badge variant={maquina.activa ? 'default' : 'secondary'}>
                 {maquina.activa ? 'Activa' : 'Inactiva'}

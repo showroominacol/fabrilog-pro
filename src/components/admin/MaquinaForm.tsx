@@ -27,6 +27,7 @@ type Maquina = Tables<'maquinas'>;
 const formSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
   descripcion: z.string().optional(),
+  categoria: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -43,6 +44,7 @@ export function MaquinaForm({ maquina, onSubmit, onCancel }: MaquinaFormProps) {
     defaultValues: {
       nombre: maquina?.nombre || '',
       descripcion: maquina?.descripcion || '',
+      categoria: maquina?.categoria || '',
     },
   });
 
@@ -92,6 +94,20 @@ export function MaquinaForm({ maquina, onSubmit, onCancel }: MaquinaFormProps) {
                       className="resize-none"
                       {...field}
                     />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="categoria"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Categoría (opcional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Categoría de la máquina" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

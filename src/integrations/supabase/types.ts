@@ -97,6 +97,7 @@ export type Database = {
       maquinas: {
         Row: {
           activa: boolean
+          categoria: string | null
           descripcion: string | null
           fecha_creacion: string
           id: string
@@ -104,6 +105,7 @@ export type Database = {
         }
         Insert: {
           activa?: boolean
+          categoria?: string | null
           descripcion?: string | null
           fecha_creacion?: string
           id?: string
@@ -111,6 +113,7 @@ export type Database = {
         }
         Update: {
           activa?: boolean
+          categoria?: string | null
           descripcion?: string | null
           fecha_creacion?: string
           id?: string
