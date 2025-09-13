@@ -90,6 +90,7 @@ export default function RegistroProduccion() {
     loadInitialData();
   }, []);
 
+  useEffect(() => {
     if (formData.maquina_id) {
       const maquinaSeleccionada = maquinas.find(m => m.id === formData.maquina_id);
       if (maquinaSeleccionada?.categoria) {
@@ -111,6 +112,7 @@ export default function RegistroProduccion() {
       setFilteredProductos([]);
       setFormData(prev => ({ ...prev, productos: [] }));
     }
+  }, [formData.maquina_id, productos, maquinas]);
 
   useEffect(() => {
     loadMetas();
