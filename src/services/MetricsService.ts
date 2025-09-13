@@ -123,18 +123,15 @@ export class MetricsService {
         // Solo contar producción cuando es operario principal para el cálculo de bonos
         if (!registro.es_asistente && registro.detalle_produccion) {
           for (const detalle of registro.detalle_produccion) {
-            const maquina = (registro as any).maquinas;
-            
-            // Obtener meta del producto para esta máquina
-            const { data: metaData } = await supabase
-              .from('metas_produccion')
-              .select('turno_8h, turno_10h')
-              .eq('maquina_id', maquina?.id)
-              .eq('producto_id', detalle.producto_id)
+            // Obtener el tope del producto
+            const { data: productoData } = await supabase
+              .from('productos')
+              .select('tope')
+              .eq('id', detalle.producto_id)
               .single();
 
-            // Usar meta según el turno (por simplicidad usamos turno_8h por defecto)
-            const meta = metaData?.turno_8h || 0;
+            // Usar el tope del producto como meta
+            const meta = productoData?.tope || 0;
             
             produccionTotalDia += detalle.produccion_real;
             metaTotalDia += meta;
