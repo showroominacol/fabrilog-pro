@@ -29,7 +29,6 @@ import { Tables, Enums } from '@/integrations/supabase/types';
 
 type Maquina = Tables<'maquinas'>;
 type Producto = Tables<'productos'>;
-type MetaProduccion = Tables<'metas_produccion'>;
 type Usuario = Tables<'usuarios'>;
 type DisenoArbol = Tables<'disenos_arboles'>;
 type NivelRama = Tables<'niveles_ramas'>;
@@ -70,7 +69,6 @@ export default function RegistroProduccion() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [metas, setMetas] = useState<MetaProduccion[]>([]);
   const [disenosArboles, setDisenosArboles] = useState<DisenoArbol[]>([]);
   const [nivelesRamas, setNivelesRamas] = useState<NivelRama[]>([]);
   const [porcentajeCumplimiento, setPorcentajeCumplimiento] = useState(0);
@@ -115,12 +113,8 @@ export default function RegistroProduccion() {
   }, [formData.maquina_id, productos, maquinas]);
 
   useEffect(() => {
-    loadMetas();
-  }, [formData.maquina_id]);
-
-  useEffect(() => {
     calculatePerformance();
-  }, [formData.productos, metas, formData.turno]);
+  }, [formData.productos, formData.turno, productos]);
 
   const loadInitialData = async () => {
     try {
@@ -157,52 +151,26 @@ export default function RegistroProduccion() {
     }
   };
 
-  const loadMetas = async () => {
-    if (!formData.maquina_id) {
-      setMetas([]);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('metas_produccion')
-        .select('*')
-        .eq('maquina_id', formData.maquina_id);
-
-      if (error) throw error;
-      setMetas(data || []);
-    } catch (error) {
-      console.error('Error loading metas:', error);
-    }
-  };
 
   const calculatePerformance = () => {
-    if (!formData.productos.length || !metas.length || !formData.turno) {
+    if (!formData.productos.length || !formData.turno) {
       setPorcentajeCumplimiento(0);
       return;
     }
 
     let totalProduccionReal = 0;
-    let totalMetaTurno = 0;
+    let totalMeta = 0;
 
     formData.productos.forEach(producto => {
-      const meta = metas.find(m => m.producto_id === producto.producto_id);
-      if (meta) {
+      const productoInfo = productos.find(p => p.id === producto.producto_id);
+      if (productoInfo && productoInfo.tope) {
         totalProduccionReal += producto.produccion_real;
-        
-        // Determinar meta según duración del turno
-        if (formData.turno.includes("8h") || formData.turno === "6:00am - 2:00pm" || 
-            formData.turno === "2:00pm - 10:00pm" || formData.turno === "7:00am - 3:00pm" || 
-            formData.turno === "7:00am - 3:30pm") {
-          totalMetaTurno += meta.turno_8h;
-        } else {
-          totalMetaTurno += meta.turno_10h;
-        }
+        totalMeta += productoInfo.tope;
       }
     });
 
-    if (totalMetaTurno > 0) {
-      const porcentaje = (totalProduccionReal / totalMetaTurno) * 100;
+    if (totalMeta > 0) {
+      const porcentaje = (totalProduccionReal / totalMeta) * 100;
       setPorcentajeCumplimiento(porcentaje);
     } else {
       setPorcentajeCumplimiento(0);
@@ -391,20 +359,9 @@ export default function RegistroProduccion() {
 
       // 2. Crear detalles de productos
       const detallesPromises = formData.productos.map(producto => {
-        const meta = metas.find(m => m.producto_id === producto.producto_id);
-        let metaTurno = 0;
-        
-        if (meta) {
-          if (formData.turno.includes("8h") || formData.turno === "6:00am - 2:00pm" || 
-              formData.turno === "2:00pm - 10:00pm" || formData.turno === "7:00am - 3:00pm" || 
-              formData.turno === "7:00am - 3:30pm") {
-            metaTurno = meta.turno_8h;
-          } else {
-            metaTurno = meta.turno_10h;
-          }
-        }
-
-        const porcentajeProducto = metaTurno > 0 ? (producto.produccion_real / metaTurno) * 100 : 0;
+        const productoInfo = productos.find(p => p.id === producto.producto_id);
+        const tope = productoInfo?.tope || 0;
+        const porcentajeProducto = tope > 0 ? (producto.produccion_real / tope) * 100 : 0;
 
         return supabase.from('detalle_produccion').insert({
           registro_id: registro.id,
@@ -449,7 +406,6 @@ export default function RegistroProduccion() {
         productos: [],
         asistentes: [],
       });
-      setMetas([]);
       setPorcentajeCumplimiento(0);
 
     } catch (error: any) {
@@ -772,24 +728,14 @@ export default function RegistroProduccion() {
                         <div className="space-y-1">
                           {formData.productos.map((producto) => {
                             const productoInfo = productos.find(p => p.id === producto.producto_id);
-                            const meta = metas.find(m => m.producto_id === producto.producto_id);
                             
                             if (!productoInfo) return null;
                             
-                            let metaTurno = 0;
-                            if (meta) {
-                              if (formData.turno.includes("8h") || formData.turno === "6:00am - 2:00pm" || 
-                                  formData.turno === "2:00pm - 10:00pm" || formData.turno === "7:00am - 3:00pm" || 
-                                  formData.turno === "7:00am - 3:30pm") {
-                                metaTurno = meta.turno_8h;
-                              } else {
-                                metaTurno = meta.turno_10h;
-                              }
-                            }
+                            const tope = productoInfo.tope || 0;
 
                             return (
                               <div key={producto.producto_id} className="text-sm text-muted-foreground">
-                                <span className="font-medium">{productoInfo.nombre}:</span> {producto.produccion_real} / {metaTurno} unidades
+                                <span className="font-medium">{productoInfo.nombre}:</span> {producto.produccion_real} / {tope} unidades
                               </div>
                             );
                           })}

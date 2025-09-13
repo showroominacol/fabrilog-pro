@@ -121,65 +121,6 @@ export type Database = {
         }
         Relationships: []
       }
-      metas_produccion: {
-        Row: {
-          fecha_actualizacion: string
-          fecha_creacion: string
-          id: string
-          maquina_id: string
-          producto_id: string
-          turno_10h: number
-          turno_8h: number
-        }
-        Insert: {
-          fecha_actualizacion?: string
-          fecha_creacion?: string
-          id?: string
-          maquina_id: string
-          producto_id: string
-          turno_10h?: number
-          turno_8h?: number
-        }
-        Update: {
-          fecha_actualizacion?: string
-          fecha_creacion?: string
-          id?: string
-          maquina_id?: string
-          producto_id?: string
-          turno_10h?: number
-          turno_8h?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_metas_produccion_maquina"
-            columns: ["maquina_id"]
-            isOneToOne: false
-            referencedRelation: "maquinas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_metas_produccion_producto"
-            columns: ["producto_id"]
-            isOneToOne: false
-            referencedRelation: "productos"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "metas_produccion_maquina_id_fkey"
-            columns: ["maquina_id"]
-            isOneToOne: false
-            referencedRelation: "maquinas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "metas_produccion_producto_id_fkey"
-            columns: ["producto_id"]
-            isOneToOne: false
-            referencedRelation: "productos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       niveles_ramas: {
         Row: {
           activo: boolean
