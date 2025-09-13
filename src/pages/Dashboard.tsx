@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,18 @@ import {
 } from 'lucide-react';
 import { OperarioMetricsCard } from '@/components/operario/OperarioMetricsCard';
 
+// Helper para obtener rango del día en horario local
+const getTodayRangeISO = () => {
+  const start = new Date(); 
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(); 
+  end.setHours(23, 59, 59, 999);
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+};
+
+// Normalizar porcentajes (0-1 → 0-100)
+const toPct100 = (v: number) => (v > 0 && v <= 1 ? v * 100 : v);
+
 interface DashboardMetrics {
   totalRegistros: number;
   cumplimientoPromedio: number;
@@ -27,9 +39,9 @@ interface DashboardMetrics {
 
 interface RegistroConDetalles {
   id: string;
-  fecha: string;
-  turno: string;
-  es_asistente: boolean;
+  fecha?: string;
+  turno?: string;
+  es_asistente?: boolean;
   fecha_registro: string;
   maquinas: { nombre: string } | null;
   usuarios: { nombre: string } | null;
@@ -52,14 +64,21 @@ export default function Dashboard() {
   });
   const [recentRecords, setRecentRecords] = useState<RegistroConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Guard para evitar llamadas concurrentes
+  const loadingRef = useRef(false);
 
   const loadDashboardData = useCallback(async () => {
+    // Evitar llamadas duplicadas
+    if (loadingRef.current) return;
+    
     try {
+      loadingRef.current = true;
       setLoading(true);
 
-      const hoy = new Date().toISOString().split('T')[0];
+      const { startISO, endISO } = getTodayRangeISO();
 
-      // Consulta optimizada para obtener todas las métricas en una sola llamada
+      // Consultas optimizadas usando aliases específicos de FK
       const [
         { count: totalRegistros },
         { count: maquinasActivas },
@@ -73,16 +92,17 @@ export default function Dashboard() {
           .from('registros_produccion')
           .select(`
             id,
-            fecha,
-            detalle_produccion(
+            fecha_registro,
+            detalle_produccion!fk_detalle_produccion_registro(
               produccion_real,
               porcentaje_cumplimiento
             )
           `)
-          .eq('fecha', hoy)
+          .gte('fecha_registro', startISO)
+          .lte('fecha_registro', endISO)
       ]);
 
-      // Calcular métricas de producción del día
+      // Calcular métricas de producción del día con normalización
       let produccionTotal = 0;
       let cumplimientoTotal = 0;
       let cantidadDetalles = 0;
@@ -90,12 +110,16 @@ export default function Dashboard() {
       registrosHoyData?.forEach(registro => {
         registro.detalle_produccion?.forEach(detalle => {
           produccionTotal += detalle.produccion_real || 0;
-          cumplimientoTotal += detalle.porcentaje_cumplimiento || 0;
+          // Normalizar porcentaje antes de sumar
+          const pctNormalizado = toPct100(detalle.porcentaje_cumplimiento || 0);
+          cumplimientoTotal += pctNormalizado;
           cantidadDetalles++;
         });
       });
 
-      const cumplimientoPromedio = cantidadDetalles > 0 ? cumplimientoTotal / cantidadDetalles : 0;
+      // Asegurar que el promedio esté en rango 0-100
+      const cumplimientoPromedio = cantidadDetalles > 0 ? 
+        Math.min(100, Math.max(0, cumplimientoTotal / cantidadDetalles)) : 0;
 
       setMetrics({
         totalRegistros: totalRegistros || 0,
@@ -106,7 +130,7 @@ export default function Dashboard() {
         produccionHoy: produccionTotal,
       });
 
-      // Obtener registros recientes con información relacionada
+      // Obtener registros recientes con aliases específicos
       const { data: recentData } = await supabase
         .from('registros_produccion')
         .select(`
@@ -128,54 +152,50 @@ export default function Dashboard() {
       console.error('Error loading dashboard data:', error);
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
   }, [isAdmin]);
 
   useEffect(() => {
     loadDashboardData();
 
-    // Configurar actualizaciones en tiempo real
+    // Auto-actualización robusta con Realtime en 4 tablas
     const channel = supabase
       .channel('dashboard-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'registros_produccion'
-        },
-        () => {
-          loadDashboardData();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'detalle_produccion'
-        },
-        () => {
-          loadDashboardData();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registros_produccion' }, loadDashboardData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'detalle_produccion' }, loadDashboardData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'maquinas' }, loadDashboardData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, loadDashboardData)
       .subscribe();
+
+    // Polling de respaldo cada 60s
+    const pollInterval = setInterval(loadDashboardData, 60000);
+
+    // Refresh al volver al tab
+    const handleFocus = () => loadDashboardData();
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [loadDashboardData]);
 
   const getPerformanceColor = (percentage: number) => {
-    if (percentage >= 100) return 'bg-success text-success-foreground';
-    if (percentage >= 80) return 'bg-primary text-primary-foreground';
-    if (percentage >= 60) return 'bg-warning text-warning-foreground';
+    // Normalizar antes de evaluar
+    const normalizedPct = toPct100(percentage);
+    if (normalizedPct >= 100) return 'bg-success text-success-foreground';
+    if (normalizedPct >= 80) return 'bg-primary text-primary-foreground';
+    if (normalizedPct >= 60) return 'bg-warning text-warning-foreground';
     return 'bg-destructive text-destructive-foreground';
   };
 
   const getPerformanceIcon = (percentage: number) => {
-    if (percentage >= 100) return <CheckCircle className="h-4 w-4" />;
-    if (percentage >= 80) return <TrendingUp className="h-4 w-4" />;
+    // Normalizar antes de evaluar
+    const normalizedPct = toPct100(percentage);
+    if (normalizedPct >= 100) return <CheckCircle className="h-4 w-4" />;
+    if (normalizedPct >= 80) return <TrendingUp className="h-4 w-4" />;
     return <AlertTriangle className="h-4 w-4" />;
   };
 
@@ -360,9 +380,9 @@ export default function Dashboard() {
                           <span className="text-muted-foreground">
                             {detalle.productos?.nombre}: {detalle.produccion_real} unidades
                           </span>
-                          <Badge className={getPerformanceColor(detalle.porcentaje_cumplimiento)}>
-                            {detalle.porcentaje_cumplimiento.toFixed(1)}%
-                          </Badge>
+                           <Badge className={getPerformanceColor(detalle.porcentaje_cumplimiento)}>
+                             {toPct100(detalle.porcentaje_cumplimiento).toFixed(1)}%
+                           </Badge>
                         </div>
                       )) || []}
                     </div>
