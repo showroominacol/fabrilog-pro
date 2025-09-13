@@ -90,26 +90,27 @@ export default function RegistroProduccion() {
     loadInitialData();
   }, []);
 
-  useEffect(() => {
     if (formData.maquina_id) {
-      const filtered = productos.filter(p => {
-        const productoMaquinas = (p as any).productos_maquinas || [];
-        return productoMaquinas.some((pm: any) => pm.maquina_id === formData.maquina_id);
-      });
-      setFilteredProductos(filtered);
-      
-      // Reset productos selection if current selections don't match machine
-      const validProductos = formData.productos.filter(p => 
-        filtered.find(fp => fp.id === p.producto_id)
-      );
-      if (validProductos.length !== formData.productos.length) {
-        setFormData(prev => ({ ...prev, productos: validProductos }));
+      const maquinaSeleccionada = maquinas.find(m => m.id === formData.maquina_id);
+      if (maquinaSeleccionada?.categoria) {
+        const filtered = productos.filter(p => p.categoria === maquinaSeleccionada.categoria);
+        setFilteredProductos(filtered);
+        
+        // Reset productos selection if current selections don't match machine category
+        const validProductos = formData.productos.filter(p => 
+          filtered.find(fp => fp.id === p.producto_id)
+        );
+        if (validProductos.length !== formData.productos.length) {
+          setFormData(prev => ({ ...prev, productos: validProductos }));
+        }
+      } else {
+        setFilteredProductos([]);
+        setFormData(prev => ({ ...prev, productos: [] }));
       }
     } else {
       setFilteredProductos([]);
       setFormData(prev => ({ ...prev, productos: [] }));
     }
-  }, [formData.maquina_id, productos]);
 
   useEffect(() => {
     loadMetas();
@@ -125,12 +126,7 @@ export default function RegistroProduccion() {
       
       const [maquinasResult, productosResult, usuariosResult, disenosResult, nivelesResult] = await Promise.all([
         supabase.from('maquinas').select('*').eq('activa', true).order('nombre'),
-        supabase.from('productos').select(`
-          *,
-          productos_maquinas!fk_productos_maquinas_producto(
-            maquina_id
-          )
-        `).eq('activo', true).order('nombre'),
+        supabase.from('productos').select('*').eq('activo', true).order('nombre'),
         supabase.from('usuarios').select('*').eq('activo', true).neq('id', user?.id || '').order('nombre'),
         supabase.from('disenos_arboles').select('*').eq('activo', true).order('nombre'),
         supabase.from('niveles_ramas').select('*').eq('activo', true).order('nivel')

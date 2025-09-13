@@ -35,7 +35,7 @@ type NivelRama = Tables<'niveles_ramas'>;
 const formSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
   tope: z.number().min(0, 'El tope debe ser mayor o igual a 0').optional(),
-  maquinas_ids: z.array(z.string()).min(1, 'Debe seleccionar al menos una máquina'),
+  categoria: z.string().min(1, 'Debe seleccionar una categoría'),
   tipo_producto: z.enum(['general', 'arbol_navideno']),
   diseno_id: z.string().optional(),
   // Para crear nuevo diseño
@@ -51,13 +51,12 @@ type FormValues = z.infer<typeof formSchema>;
 
 interface ProductoFormProps {
   producto: Producto | null;
-  productoMaquinas: string[] | null;
   maquinas: Maquina[];
   onSubmit: (data: FormValues) => void;
   onCancel: () => void;
 }
 
-export function ProductoForm({ producto, productoMaquinas, maquinas, onSubmit, onCancel }: ProductoFormProps) {
+export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: ProductoFormProps) {
   const [disenosArboles, setDisenosArboles] = useState<DisenoArbol[]>([]);
   const [nivelesRamas, setNivelesRamas] = useState<{ nivel: number; festones_por_rama: number }[]>([]);
   const [creandoNuevoDiseno, setCreandoNuevoDiseno] = useState(false);
@@ -67,7 +66,7 @@ export function ProductoForm({ producto, productoMaquinas, maquinas, onSubmit, o
     defaultValues: {
       nombre: producto?.nombre || '',
       tope: producto?.tope ? Number(producto.tope) : undefined,
-      maquinas_ids: productoMaquinas || [],
+      categoria: producto?.categoria || '',
       tipo_producto: (producto?.tipo_producto as 'general' | 'arbol_navideno' | undefined) || 'general',
       diseno_id: producto?.diseno_id || undefined,
       diseno_nombre: '',
@@ -136,7 +135,12 @@ export function ProductoForm({ producto, productoMaquinas, maquinas, onSubmit, o
     form.setValue('niveles_ramas', nuevosNiveles);
   };
 
-  const maquinasActivas = maquinas.filter(m => m.activa);
+  // Obtener categorías únicas de máquinas activas
+  const categoriasUnicas = Array.from(new Set(
+    maquinas
+      .filter(m => m.activa && m.categoria)
+      .map(m => m.categoria)
+  )).filter(Boolean);
 
   return (
     <Dialog open={true} onOpenChange={onCancel}>
@@ -356,30 +360,24 @@ export function ProductoForm({ producto, productoMaquinas, maquinas, onSubmit, o
 
             <FormField
               control={form.control}
-              name="maquinas_ids"
+              name="categoria"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Máquinas</FormLabel>
-                  <div className="grid grid-cols-2 gap-2">
-                    {maquinasActivas.map((maquina) => (
-                      <div key={maquina.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={maquina.id}
-                          checked={field.value.includes(maquina.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              field.onChange([...field.value, maquina.id]);
-                            } else {
-                              field.onChange(field.value.filter((id) => id !== maquina.id));
-                            }
-                          }}
-                        />
-                        <label htmlFor={maquina.id} className="text-sm cursor-pointer">
-                          {maquina.nombre}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
+                  <FormLabel>Categoría de Máquinas</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona la categoría" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {categoriasUnicas.map((categoria) => (
+                        <SelectItem key={categoria} value={categoria}>
+                          {categoria}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

@@ -13,10 +13,7 @@ import { ProductoForm } from '@/components/admin/ProductoForm';
 import { Tables } from '@/integrations/supabase/types';
 
 type Maquina = Tables<'maquinas'>;
-type Producto = Tables<'productos'> & { 
-  maquinas?: { nombre: string }[];
-  productos_maquinas?: { maquina_id: string }[];
-};
+type Producto = Tables<'productos'>;
 
 export default function AdminMaquinasProductos() {
   const { isAdmin } = useAuth();
@@ -28,7 +25,6 @@ export default function AdminMaquinasProductos() {
   const [showProductoForm, setShowProductoForm] = useState(false);
   const [editingMaquina, setEditingMaquina] = useState<Maquina | null>(null);
   const [editingProducto, setEditingProducto] = useState<Producto | null>(null);
-  const [editingProductoMaquinas, setEditingProductoMaquinas] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -48,26 +44,14 @@ export default function AdminMaquinasProductos() {
       
       const [maquinasResult, productosResult] = await Promise.all([
         supabase.from('maquinas').select('*').order('nombre'),
-        supabase.from('productos').select(`
-          *,
-          productos_maquinas!fk_productos_maquinas_producto(
-            maquina_id,
-            maquinas!fk_productos_maquinas_maquina(nombre)
-          )
-        `).order('nombre')
+        supabase.from('productos').select('*').order('nombre')
       ]);
 
       if (maquinasResult.error) throw maquinasResult.error;
       if (productosResult.error) throw productosResult.error;
 
-      // Transform the data to match expected structure
-      const productosWithMaquinas = productosResult.data?.map(producto => ({
-        ...producto,
-        maquinas: (producto as any).productos_maquinas?.map((pm: any) => ({ nombre: pm.maquinas.nombre })) || []
-      })) || [];
-
       setMaquinas(maquinasResult.data || []);
-      setProductos(productosWithMaquinas);
+      setProductos(productosResult.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -80,7 +64,7 @@ export default function AdminMaquinasProductos() {
     }
   };
 
-  const handleMaquinaSubmit = async (data: { nombre: string; descripcion?: string }) => {
+  const handleMaquinaSubmit = async (data: { nombre: string; descripcion?: string; categoria?: string }) => {
     try {
       if (editingMaquina) {
         const { error } = await supabase
@@ -123,7 +107,7 @@ export default function AdminMaquinasProductos() {
   const handleProductoSubmit = async (data: { 
     nombre: string; 
     tope?: number; 
-    maquinas_ids: string[];
+    categoria: string;
     tipo_producto: 'general' | 'arbol_navideno';
     diseno_id?: string;
     diseno_nombre?: string;
@@ -164,12 +148,12 @@ export default function AdminMaquinasProductos() {
       }
       
       if (editingProducto) {
-        // Update existing product
         const { error: updateError } = await supabase
           .from('productos')
           .update({ 
             nombre: data.nombre, 
             tope: data.tope,
+            categoria: data.categoria,
             tipo_producto: data.tipo_producto,
             diseno_id: disenoId
           })
@@ -177,21 +161,13 @@ export default function AdminMaquinasProductos() {
         
         if (updateError) throw updateError;
         productoId = editingProducto.id;
-        
-        // Delete existing machine relationships
-        const { error: deleteError } = await supabase
-          .from('productos_maquinas')
-          .delete()
-          .eq('producto_id', productoId);
-        
-        if (deleteError) throw deleteError;
       } else {
-        // Create new product
         const { data: newProducto, error: insertError } = await supabase
           .from('productos')
           .insert([{ 
             nombre: data.nombre, 
             tope: data.tope,
+            categoria: data.categoria,
             tipo_producto: data.tipo_producto,
             diseno_id: disenoId
           }])
@@ -202,20 +178,6 @@ export default function AdminMaquinasProductos() {
         productoId = newProducto.id;
       }
       
-      // Insert new machine relationships
-      if (data.maquinas_ids.length > 0) {
-        const relationships = data.maquinas_ids.map(maquinaId => ({
-          producto_id: productoId,
-          maquina_id: maquinaId
-        }));
-        
-        const { error: relationError } = await supabase
-          .from('productos_maquinas')
-          .insert(relationships);
-        
-        if (relationError) throw relationError;
-      }
-      
       toast({
         title: "Éxito",
         description: editingProducto ? "Producto actualizado correctamente" : "Producto creado correctamente",
@@ -223,7 +185,6 @@ export default function AdminMaquinasProductos() {
       
       setShowProductoForm(false);
       setEditingProducto(null);
-      setEditingProductoMaquinas(null);
       fetchData();
     } catch (error) {
       console.error('Error saving producto:', error);
@@ -364,9 +325,8 @@ export default function AdminMaquinasProductos() {
             <CardContent>
               <ProductosTable
                 productos={productos}
-                onEdit={(producto, maquinasIds) => {
+                onEdit={(producto) => {
                   setEditingProducto(producto);
-                  setEditingProductoMaquinas(maquinasIds);
                   setShowProductoForm(true);
                 }}
                 onDelete={handleDeleteProducto}
@@ -390,13 +350,11 @@ export default function AdminMaquinasProductos() {
       {showProductoForm && (
         <ProductoForm
           producto={editingProducto}
-          productoMaquinas={editingProductoMaquinas}
           maquinas={maquinas}
           onSubmit={handleProductoSubmit}
           onCancel={() => {
             setShowProductoForm(false);
             setEditingProducto(null);
-            setEditingProductoMaquinas(null);
           }}
         />
       )}

@@ -9,8 +9,8 @@ type Producto = Tables<'productos'>;
 type Maquina = Tables<'maquinas'>;
 
 interface ProductosTableProps {
-  productos: (Producto & { maquinas?: { nombre: string }[] })[];
-  onEdit: (producto: Producto, maquinasIds: string[]) => void;
+  productos: Producto[];
+  onEdit: (producto: Producto) => void;
   onDelete: (id: string) => void;
 }
 
@@ -30,7 +30,7 @@ export function ProductosTable({ productos, onEdit, onDelete }: ProductosTablePr
         <TableRow>
           <TableHead>Nombre</TableHead>
           <TableHead>Tipo</TableHead>
-          <TableHead>Máquinas</TableHead>
+          <TableHead>Categoría</TableHead>
           <TableHead>Tope</TableHead>
           <TableHead>Estado</TableHead>
           <TableHead>Fecha Creación</TableHead>
@@ -47,13 +47,11 @@ export function ProductosTable({ productos, onEdit, onDelete }: ProductosTablePr
               </Badge>
             </TableCell>
             <TableCell>
-              <div className="flex flex-wrap gap-1">
-                {producto.maquinas?.map((maquina, index) => (
-                  <Badge key={index} variant="outline">
-                    {maquina.nombre}
-                  </Badge>
-                )) || <span className="text-muted-foreground">Sin máquinas</span>}
-              </div>
+              {producto.categoria ? (
+                <Badge variant="outline">{producto.categoria}</Badge>
+              ) : (
+                <span className="text-muted-foreground">Sin categoría</span>
+              )}
             </TableCell>
             <TableCell>
               {producto.tope ? Number(producto.tope).toLocaleString() : '-'}
@@ -71,10 +69,7 @@ export function ProductosTable({ productos, onEdit, onDelete }: ProductosTablePr
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    const maquinasIds = (producto as any).productos_maquinas?.map((pm: any) => pm.maquina_id) || [];
-                    onEdit(producto, maquinasIds);
-                  }}
+                  onClick={() => onEdit(producto)}
                 >
                   <Edit className="h-4 w-4" />
                 </Button>
