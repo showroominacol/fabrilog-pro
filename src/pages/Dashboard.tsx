@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   CheckCircle
 } from 'lucide-react';
+import { OperarioMetricsCard } from '@/components/operario/OperarioMetricsCard';
 
 interface DashboardMetrics {
   totalRegistros: number;
@@ -259,6 +260,13 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Métricas del Operario */}
+      {!isAdmin && user && (
+        <>
+          <OperarioMetricsCard />
+        </>
+      )}
 
       {/* Recent Records */}
       <Card className="metric-card">

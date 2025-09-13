@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { ExcelExportService } from '@/services/ExcelExportService';
+import { AdminMetricsReport } from '@/components/admin/AdminMetricsReport';
 
 type Usuario = Tables<'usuarios'>;
 type Maquina = Tables<'maquinas'>;
@@ -457,6 +458,9 @@ export default function Metricas() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Admin Metrics Report */}
+      {isAdmin && <AdminMetricsReport />}
 
       {/* Export to Excel */}
       {isAdmin && (
