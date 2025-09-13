@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,8 @@ import {
   Clock, 
   BarChart3,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  RefreshCw
 } from 'lucide-react';
 import { OperarioMetricsCard } from '@/components/operario/OperarioMetricsCard';
 
@@ -52,41 +53,41 @@ export default function Dashboard() {
   const [recentRecords, setRecentRecords] = useState<RegistroConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Obtener métricas generales
+      const hoy = new Date().toISOString().split('T')[0];
+
+      // Consulta optimizada para obtener todas las métricas en una sola llamada
       const [
         { count: totalRegistros },
         { count: maquinasActivas },
         { count: operariosActivos },
+        { data: registrosHoyData }
       ] = await Promise.all([
         supabase.from('registros_produccion').select('*', { count: 'exact', head: true }),
         supabase.from('maquinas').select('*', { count: 'exact', head: true }).eq('activa', true),
         supabase.from('usuarios').select('*', { count: 'exact', head: true }).eq('activo', true),
+        supabase
+          .from('registros_produccion')
+          .select(`
+            id,
+            fecha,
+            detalle_produccion(
+              produccion_real,
+              porcentaje_cumplimiento
+            )
+          `)
+          .eq('fecha', hoy)
       ]);
 
-      // Obtener registros de hoy con detalles
-      const hoy = new Date().toISOString().split('T')[0];
-      const { data: registrosHoy } = await supabase
-        .from('registros_produccion')
-        .select(`
-          *,
-          detalle_produccion(produccion_real, porcentaje_cumplimiento)
-        `)
-        .gte('fecha', hoy);
-
-      // Calcular métricas de producción
+      // Calcular métricas de producción del día
       let produccionTotal = 0;
       let cumplimientoTotal = 0;
       let cantidadDetalles = 0;
 
-      registrosHoy?.forEach(registro => {
+      registrosHoyData?.forEach(registro => {
         registro.detalle_produccion?.forEach(detalle => {
           produccionTotal += detalle.produccion_real || 0;
           cumplimientoTotal += detalle.porcentaje_cumplimiento || 0;
@@ -101,7 +102,7 @@ export default function Dashboard() {
         cumplimientoPromedio,
         maquinasActivas: maquinasActivas || 0,
         operariosActivos: operariosActivos || 0,
-        registrosHoy: registrosHoy?.length || 0,
+        registrosHoy: registrosHoyData?.length || 0,
         produccionHoy: produccionTotal,
       });
 
@@ -128,7 +129,42 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    loadDashboardData();
+
+    // Configurar actualizaciones en tiempo real
+    const channel = supabase
+      .channel('dashboard-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'registros_produccion'
+        },
+        () => {
+          loadDashboardData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'detalle_produccion'
+        },
+        () => {
+          loadDashboardData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadDashboardData]);
 
   const getPerformanceColor = (percentage: number) => {
     if (percentage >= 100) return 'bg-success text-success-foreground';
@@ -174,14 +210,24 @@ export default function Dashboard() {
             Bienvenido, <span className="font-semibold text-foreground">{user?.nombre}</span>
           </p>
         </div>
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-          <Clock className="h-4 w-4" />
-          <span>{new Date().toLocaleDateString('es-ES', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })}</span>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+            <Clock className="h-4 w-4" />
+            <span>{new Date().toLocaleDateString('es-ES', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}</span>
+          </div>
+          <button 
+            onClick={loadDashboardData}
+            className="flex items-center space-x-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Actualizar</span>
+          </button>
         </div>
       </div>
 
