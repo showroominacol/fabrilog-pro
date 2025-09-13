@@ -20,9 +20,11 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
+import { ExcelExportService } from '@/services/ExcelExportService';
 
 type Usuario = Tables<'usuarios'>;
 type Maquina = Tables<'maquinas'>;
@@ -60,6 +62,9 @@ export default function Metricas() {
   const [reporte, setReporte] = useState<ReporteMensual | null>(null);
   const [busquedaOperario, setBusquedaOperario] = useState<string>('');
   const [usuariosFiltrados, setUsuariosFiltrados] = useState<Usuario[]>([]);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [fechaInicioExport, setFechaInicioExport] = useState<string>('');
+  const [fechaFinExport, setFechaFinExport] = useState<string>('');
 
   useEffect(() => {
     loadUsuarios();
@@ -281,6 +286,45 @@ export default function Metricas() {
     return options;
   };
 
+  const handleExportExcel = async () => {
+    if (!fechaInicioExport || !fechaFinExport) {
+      toast({
+        title: "Error",
+        description: "Selecciona las fechas de inicio y fin para la exportación",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setExportLoading(true);
+    try {
+      const exportService = new ExcelExportService();
+      
+      // Validate permissions first
+      await exportService.validateExportPermissions();
+      
+      const startDate = new Date(fechaInicioExport);
+      const endDate = new Date(fechaFinExport);
+      
+      await exportService.generateProductionReport(startDate, endDate);
+      
+      toast({
+        title: "¡Exportación Exitosa!",
+        description: "El archivo Excel se ha descargado correctamente",
+      });
+      
+    } catch (error: any) {
+      console.error('Error exporting Excel:', error);
+      toast({
+        title: "Error en Exportación",
+        description: error.message || "No se pudo exportar el archivo Excel",
+        variant: "destructive",
+      });
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -413,6 +457,76 @@ export default function Metricas() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Export to Excel */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Download className="h-5 w-5 text-success" />
+              <span>Exportar a Excel</span>
+            </CardTitle>
+            <CardDescription>
+              Genera un reporte completo de producción en formato Excel con múltiples hojas por área
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fechaInicio">Fecha Inicio</Label>
+                <Input
+                  id="fechaInicio"
+                  type="date"
+                  value={fechaInicioExport}
+                  onChange={(e) => setFechaInicioExport(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="fechaFin">Fecha Fin</Label>
+                <Input
+                  id="fechaFin"
+                  type="date"
+                  value={fechaFinExport}
+                  onChange={(e) => setFechaFinExport(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>&nbsp;</Label>
+                <Button 
+                  onClick={handleExportExcel} 
+                  disabled={exportLoading || !fechaInicioExport || !fechaFinExport}
+                  className="w-full"
+                >
+                  {exportLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Exportando...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="mr-2 h-4 w-4" />
+                      Exportar Excel
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+            
+            <div className="mt-4 p-4 bg-muted/30 rounded-lg">
+              <h4 className="font-semibold text-sm mb-2">Características del archivo exportado:</h4>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• Múltiples hojas: MONTERREY, 4 CABEZAS, AMARRADORAS, DATA</li>
+                <li>• AutoFilter activado para fácil filtrado de datos</li>
+                <li>• Encabezados fijos para navegación</li>
+                <li>• Formato optimizado para impresión horizontal</li>
+                <li>• Formatos numéricos y porcentuales aplicados</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Reporte */}
       {reporte && (
