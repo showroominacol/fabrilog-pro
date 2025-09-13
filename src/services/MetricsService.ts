@@ -140,7 +140,8 @@ export class MetricsService {
             metaTotalDia += meta;
 
             if (detalle.productos) {
-              const porcentajeProducto = meta > 0 ? (detalle.produccion_real / meta) * 100 : 0;
+              // Usar el porcentaje almacenado en la base de datos
+              const porcentajeProducto = detalle.porcentaje_cumplimiento || 0;
               
               productosDetalle.push({
                 nombre: (detalle.productos as any).nombre,
