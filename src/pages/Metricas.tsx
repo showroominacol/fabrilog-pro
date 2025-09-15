@@ -26,6 +26,7 @@ import {
 import { Tables } from '@/integrations/supabase/types';
 import { ExcelExportService } from '@/services/ExcelExportService';
 import { AdminMetricsReport } from '@/components/admin/AdminMetricsReport';
+import { MachineProductionReport } from '@/components/admin/MachineProductionReport';
 
 type Usuario = Tables<'usuarios'>;
 type Maquina = Tables<'maquinas'>;
@@ -461,6 +462,9 @@ export default function Metricas() {
 
       {/* Admin Metrics Report */}
       {isAdmin && <AdminMetricsReport />}
+
+      {/* Machine Production Report */}
+      {isAdmin && <MachineProductionReport />}
 
       {/* Export to Excel */}
       {isAdmin && (
