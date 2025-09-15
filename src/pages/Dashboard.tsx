@@ -78,6 +78,27 @@ export default function Dashboard() {
 
       const { startISO, endISO } = getTodayRangeISO();
 
+      // Construir consultas según el rol del usuario
+      let registrosQuery = supabase.from('registros_produccion').select('*', { count: 'exact', head: true });
+      let registrosHoyQuery = supabase
+        .from('registros_produccion')
+        .select(`
+          id,
+          fecha_registro,
+          detalle_produccion!fk_detalle_produccion_registro(
+            produccion_real,
+            porcentaje_cumplimiento
+          )
+        `)
+        .gte('fecha_registro', startISO)
+        .lte('fecha_registro', endISO);
+
+      // Filtrar por operario si no es admin
+      if (!isAdmin && user?.id) {
+        registrosQuery = registrosQuery.eq('operario_id', user.id);
+        registrosHoyQuery = registrosHoyQuery.eq('operario_id', user.id);
+      }
+
       // Consultas optimizadas usando aliases específicos de FK
       const [
         { count: totalRegistros },
@@ -85,21 +106,10 @@ export default function Dashboard() {
         { count: operariosActivos },
         { data: registrosHoyData }
       ] = await Promise.all([
-        supabase.from('registros_produccion').select('*', { count: 'exact', head: true }),
+        registrosQuery,
         supabase.from('maquinas').select('*', { count: 'exact', head: true }).eq('activa', true),
         supabase.from('usuarios').select('*', { count: 'exact', head: true }).eq('activo', true),
-        supabase
-          .from('registros_produccion')
-          .select(`
-            id,
-            fecha_registro,
-            detalle_produccion!fk_detalle_produccion_registro(
-              produccion_real,
-              porcentaje_cumplimiento
-            )
-          `)
-          .gte('fecha_registro', startISO)
-          .lte('fecha_registro', endISO)
+        registrosHoyQuery
       ]);
 
       // Calcular métricas de producción del día con suma de porcentajes
@@ -128,7 +138,7 @@ export default function Dashboard() {
       });
 
       // Obtener registros recientes con aliases específicos
-      const { data: recentData } = await supabase
+      let recentQuery = supabase
         .from('registros_produccion')
         .select(`
           *,
@@ -142,6 +152,13 @@ export default function Dashboard() {
         `)
         .order('fecha_registro', { ascending: false })
         .limit(isAdmin ? 10 : 5);
+
+      // Filtrar por operario si no es admin
+      if (!isAdmin && user?.id) {
+        recentQuery = recentQuery.eq('operario_id', user.id);
+      }
+
+      const { data: recentData } = await recentQuery;
 
       setRecentRecords(recentData as RegistroConDetalles[] || []);
 
