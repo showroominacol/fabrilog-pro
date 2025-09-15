@@ -409,22 +409,30 @@ export class SummaryExcelService {
         const bloque = empleado.bloques.find(b => b.categoria === categoria);
         
         if (bloque) {
-          // OP data
-          row.push(
-            `${bloque.operario.porcentaje}%`,
-            bloque.operario.dias.toString(),
-            bloque.operario.horas
-          );
+          // OP data - mostrar vacío si no trabajó como operario
+          if (bloque.operario.dias > 0) {
+            row.push(
+              `${bloque.operario.porcentaje}%`,
+              bloque.operario.dias.toString(),
+              bloque.operario.horas
+            );
+          } else {
+            row.push('', '', '');
+          }
 
-          // AYU data
-          row.push(
-            `${bloque.ayudante.porcentaje}%`,
-            bloque.ayudante.dias.toString(),
-            bloque.ayudante.horas
-          );
+          // AYU data - mostrar vacío si no trabajó como asistente
+          if (bloque.ayudante.dias > 0) {
+            row.push(
+              `${bloque.ayudante.porcentaje}%`,
+              bloque.ayudante.dias.toString(),
+              bloque.ayudante.horas
+            );
+          } else {
+            row.push('', '', '');
+          }
         } else {
-          // Sin datos para esta categoría
-          row.push('0%', '0', '', '0%', '0', '');
+          // Sin datos para esta categoría - ambos campos vacíos
+          row.push('', '', '', '', '', '');
         }
       }
 
