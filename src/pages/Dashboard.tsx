@@ -102,10 +102,9 @@ export default function Dashboard() {
           .lte('fecha_registro', endISO)
       ]);
 
-      // Calcular métricas de producción del día con normalización
+      // Calcular métricas de producción del día con suma de porcentajes
       let produccionTotal = 0;
       let cumplimientoTotal = 0;
-      let cantidadDetalles = 0;
 
       registrosHoyData?.forEach(registro => {
         registro.detalle_produccion?.forEach(detalle => {
@@ -113,13 +112,11 @@ export default function Dashboard() {
           // Normalizar porcentaje antes de sumar
           const pctNormalizado = toPct100(detalle.porcentaje_cumplimiento || 0);
           cumplimientoTotal += pctNormalizado;
-          cantidadDetalles++;
         });
       });
 
-      // Asegurar que el promedio esté en rango 0-100
-      const cumplimientoPromedio = cantidadDetalles > 0 ? 
-        Math.min(100, Math.max(0, cumplimientoTotal / cantidadDetalles)) : 0;
+      // El cumplimiento es la suma total de porcentajes del día
+      const cumplimientoPromedio = Math.max(0, cumplimientoTotal);
 
       setMetrics({
         totalRegistros: totalRegistros || 0,
