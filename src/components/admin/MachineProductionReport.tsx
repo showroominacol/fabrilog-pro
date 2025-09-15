@@ -279,6 +279,7 @@ export function MachineProductionReport() {
                             <TableHead>Turno</TableHead>
                             <TableHead>Operario</TableHead>
                             <TableHead>Asistente</TableHead>
+                            <TableHead>Máquina</TableHead>
                             <TableHead>Producto</TableHead>
                             <TableHead className="text-center">Producido</TableHead>
                             <TableHead className="text-center">% Cumplimiento</TableHead>
@@ -303,6 +304,12 @@ export function MachineProductionReport() {
                               </TableCell>
                               <TableCell className="text-sm text-muted-foreground">
                                 {registro.asistente}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center space-x-2">
+                                  <Factory className="h-4 w-4 text-muted-foreground" />
+                                  <span className="font-medium">{registro.maquina}</span>
+                                </div>
                               </TableCell>
                               <TableCell className="font-medium">
                                 {registro.producto}
