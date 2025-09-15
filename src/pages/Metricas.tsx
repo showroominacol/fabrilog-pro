@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 import { ExcelExportService } from '@/services/ExcelExportService';
+import { summaryExcelService } from '@/services/SummaryExcelService';
 import { AdminMetricsReport } from '@/components/admin/AdminMetricsReport';
 import { MachineProductionReport } from '@/components/admin/MachineProductionReport';
 
@@ -65,8 +66,11 @@ export default function Metricas() {
   const [busquedaOperario, setBusquedaOperario] = useState<string>('');
   const [usuariosFiltrados, setUsuariosFiltrados] = useState<Usuario[]>([]);
   const [exportLoading, setExportLoading] = useState(false);
+  const [summaryExportLoading, setSummaryExportLoading] = useState(false);
   const [fechaInicioExport, setFechaInicioExport] = useState<string>('');
   const [fechaFinExport, setFechaFinExport] = useState<string>('');
+  const [fechaInicioSummary, setFechaInicioSummary] = useState<string>('');
+  const [fechaFinSummary, setFechaFinSummary] = useState<string>('');
 
   useEffect(() => {
     loadUsuarios();
@@ -327,6 +331,40 @@ export default function Metricas() {
     }
   };
 
+  const handleSummaryExport = async () => {
+    if (!fechaInicioSummary || !fechaFinSummary) {
+      toast({
+        title: "Error",
+        description: "Selecciona las fechas de inicio y fin para el reporte resumen",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSummaryExportLoading(true);
+    try {
+      const startDate = new Date(fechaInicioSummary);
+      const endDate = new Date(fechaFinSummary);
+      
+      await summaryExcelService.generateSummaryReport(startDate, endDate);
+      
+      toast({
+        title: "¡Reporte Resumen Generado!",
+        description: "El archivo Excel con formato resumen se ha descargado correctamente",
+      });
+      
+    } catch (error: any) {
+      console.error('Error generating summary report:', error);
+      toast({
+        title: "Error en Reporte Resumen",
+        description: error.message || "No se pudo generar el reporte resumen",
+        variant: "destructive",
+      });
+    } finally {
+      setSummaryExportLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -530,6 +568,76 @@ export default function Metricas() {
                 <li>• Encabezados fijos para navegación</li>
                 <li>• Formato optimizado para impresión horizontal</li>
                 <li>• Formatos numéricos y porcentuales aplicados</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary Report Export */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <span>Reporte Resumen</span>
+            </CardTitle>
+            <CardDescription>
+              Genera el reporte resumen con formato específico: encabezados combinados y bloques por categoría (% | DÍAS | HORAS)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fechaInicioSummary">Fecha Inicio</Label>
+                <Input
+                  id="fechaInicioSummary"
+                  type="date"
+                  value={fechaInicioSummary}
+                  onChange={(e) => setFechaInicioSummary(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="fechaFinSummary">Fecha Fin</Label>
+                <Input
+                  id="fechaFinSummary"
+                  type="date"
+                  value={fechaFinSummary}
+                  onChange={(e) => setFechaFinSummary(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>&nbsp;</Label>
+                <Button 
+                  onClick={handleSummaryExport}
+                  disabled={summaryExportLoading || !fechaInicioSummary || !fechaFinSummary}
+                  className="w-full bg-primary hover:bg-primary/90"
+                >
+                  {summaryExportLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generando...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Generar Resumen
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+            
+            <div className="mt-4 p-4 bg-muted/30 rounded-lg">
+              <h4 className="font-semibold text-sm mb-2">Características del reporte resumen:</h4>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• Formato único con encabezados combinados por categoría</li>
+                <li>• Bloques OP y AYU con métricas: % | DÍAS | HORAS</li>
+                <li>• Cálculo de % como promedio de sumas diarias por producto</li>
+                <li>• Incluye empleados sin actividad (valores en 0)</li>
+                <li>• Archivo: RESUMEN_YYYYMMDD_YYYYMMDD.xlsx</li>
               </ul>
             </div>
           </CardContent>
