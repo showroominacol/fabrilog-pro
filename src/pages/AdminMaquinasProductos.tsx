@@ -10,6 +10,8 @@ import { MaquinasTable } from '@/components/admin/MaquinasTable';
 import { ProductosTable } from '@/components/admin/ProductosTable';
 import { MaquinaForm } from '@/components/admin/MaquinaForm';
 import { ProductoForm } from '@/components/admin/ProductoForm';
+import { AdminMetricsReport } from '@/components/admin/AdminMetricsReport';
+import { MachineProductionReport } from '@/components/admin/MachineProductionReport';
 import { Tables } from '@/integrations/supabase/types';
 
 type Maquina = Tables<'maquinas'>;
@@ -285,6 +287,8 @@ export default function AdminMaquinasProductos() {
         <TabsList>
           <TabsTrigger value="maquinas">Máquinas</TabsTrigger>
           <TabsTrigger value="productos">Productos</TabsTrigger>
+          <TabsTrigger value="reportes">Reportes de Métricas</TabsTrigger>
+          <TabsTrigger value="maquinas-reporte">Reportes por Máquina</TabsTrigger>
         </TabsList>
         
         <TabsContent value="maquinas" className="space-y-4">
@@ -333,6 +337,14 @@ export default function AdminMaquinasProductos() {
               />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="reportes">
+          <AdminMetricsReport />
+        </TabsContent>
+
+        <TabsContent value="maquinas-reporte">
+          <MachineProductionReport />
         </TabsContent>
       </Tabs>
 
