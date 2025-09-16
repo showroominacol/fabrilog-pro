@@ -69,6 +69,8 @@ export default function RegistroProduccion() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [filteredUsuarios, setFilteredUsuarios] = useState<Usuario[]>([]);
+  const [searchUsuarios, setSearchUsuarios] = useState('');
   const [disenosArboles, setDisenosArboles] = useState<DisenoArbol[]>([]);
   const [nivelesRamas, setNivelesRamas] = useState<NivelRama[]>([]);
   const [porcentajeCumplimiento, setPorcentajeCumplimiento] = useState(0);
@@ -116,6 +118,14 @@ export default function RegistroProduccion() {
     calculatePerformance();
   }, [formData.productos, formData.turno, productos]);
 
+  useEffect(() => {
+    // Filtrar usuarios por búsqueda
+    const filtered = usuarios.filter(usuario =>
+      usuario.nombre.toLowerCase().includes(searchUsuarios.toLowerCase())
+    );
+    setFilteredUsuarios(filtered);
+  }, [usuarios, searchUsuarios]);
+
   const loadInitialData = async () => {
     try {
       setDataLoading(true);
@@ -123,7 +133,7 @@ export default function RegistroProduccion() {
       const [maquinasResult, productosResult, usuariosResult, disenosResult, nivelesResult] = await Promise.all([
         supabase.from('maquinas').select('*').eq('activa', true).order('nombre'),
         supabase.from('productos').select('*').eq('activo', true).order('nombre'),
-        supabase.from('usuarios').select('*').eq('activo', true).neq('id', user?.id || '').order('nombre'),
+        supabase.from('usuarios').select('*').eq('activo', true).neq('id', user?.id || '').neq('tipo_usuario', 'admin').order('nombre'),
         supabase.from('disenos_arboles').select('*').eq('activo', true).order('nombre'),
         supabase.from('niveles_ramas').select('*').eq('activo', true).order('nivel')
       ]);
@@ -673,25 +683,46 @@ export default function RegistroProduccion() {
                   No hay otros operarios disponibles
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-40 overflow-y-auto">
-                  {usuarios.map((usuario) => (
-                    <div key={usuario.id} className="flex items-center space-x-3 p-2 rounded-lg border hover:bg-muted/50">
-                      <Checkbox
-                        id={`asistente-${usuario.id}`}
-                        checked={formData.asistentes.includes(usuario.id)}
-                        onCheckedChange={() => toggleAsistente(usuario.id)}
-                      />
-                      <Label 
-                        htmlFor={`asistente-${usuario.id}`}
-                        className="text-sm font-medium cursor-pointer flex-1"
-                      >
-                        {usuario.nombre}
-                        <span className="text-xs text-muted-foreground block">
-                          {usuario.cedula}
-                        </span>
-                      </Label>
-                    </div>
-                  ))}
+                <div className="space-y-3">
+                  {/* Buscador */}
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      placeholder="Buscar operarios por nombre..."
+                      value={searchUsuarios}
+                      onChange={(e) => setSearchUsuarios(e.target.value)}
+                      className="pl-10 input-touch"
+                    />
+                    <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  </div>
+
+                  {/* Lista filtrada */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-40 overflow-y-auto">
+                    {filteredUsuarios.length === 0 ? (
+                      <div className="col-span-2 text-center py-4 text-muted-foreground">
+                        {searchUsuarios ? 'No se encontraron operarios con ese nombre' : 'No hay operarios disponibles'}
+                      </div>
+                    ) : (
+                      filteredUsuarios.map((usuario) => (
+                        <div key={usuario.id} className="flex items-center space-x-3 p-2 rounded-lg border hover:bg-muted/50">
+                          <Checkbox
+                            id={`asistente-${usuario.id}`}
+                            checked={formData.asistentes.includes(usuario.id)}
+                            onCheckedChange={() => toggleAsistente(usuario.id)}
+                          />
+                          <Label 
+                            htmlFor={`asistente-${usuario.id}`}
+                            className="text-sm font-medium cursor-pointer flex-1"
+                          >
+                            {usuario.nombre}
+                            <span className="text-xs text-muted-foreground block">
+                              {usuario.cedula}
+                            </span>
+                          </Label>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
 
