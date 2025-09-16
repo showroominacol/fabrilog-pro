@@ -44,7 +44,7 @@ export default function AdminMaquinasProductos() {
       setLoading(true);
       
       const [maquinasResult, productosResult] = await Promise.all([
-        supabase.from('maquinas').select('*').order('nombre'),
+        supabase.from('maquinas').select('*').order('activa', { ascending: false }).order('nombre'),
         supabase.from('productos').select('*').order('nombre')
       ]);
 
@@ -119,9 +119,7 @@ export default function AdminMaquinasProductos() {
       let productoId: string;
       let disenoId = data.diseno_id;
 
-      // Si es árbol navideño y se está creando un nuevo diseño
       if (data.tipo_producto === 'arbol_navideno' && data.diseno_nombre && data.niveles_ramas) {
-        // Crear nuevo diseño
         const { data: nuevoDiseno, error: disenoError } = await supabase
           .from('disenos_arboles')
           .insert([{
@@ -134,9 +132,8 @@ export default function AdminMaquinasProductos() {
         if (disenoError) throw disenoError;
         disenoId = nuevoDiseno.id;
 
-        // Crear niveles de ramas
         const nivelesRamas = data.niveles_ramas.map(nivel => ({
-          diseno_id: disenoId,
+          diseno_id: disenoId!,
           nivel: nivel.nivel,
           festones_por_rama: nivel.festones_por_rama
         }));
@@ -217,6 +214,31 @@ export default function AdminMaquinasProductos() {
       toast({
         title: "Error",
         description: "Error al desactivar la máquina",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleReactivateMaquina = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('maquinas')
+        .update({ activa: true })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Éxito",
+        description: "Máquina reactivada correctamente",
+      });
+
+      fetchData();
+    } catch (error) {
+      console.error('Error reactivating maquina:', error);
+      toast({
+        title: "Error",
+        description: "Error al reactivar la máquina",
         variant: "destructive",
       });
     }
@@ -308,6 +330,7 @@ export default function AdminMaquinasProductos() {
                   setShowMaquinaForm(true);
                 }}
                 onDelete={handleDeleteMaquina}
+                onReactivate={handleReactivateMaquina}
               />
             </CardContent>
           </Card>
