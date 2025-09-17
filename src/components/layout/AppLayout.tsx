@@ -40,7 +40,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       name: 'Métricas', 
       href: '/metricas', 
       icon: TrendingUp, 
-      roles: ['operario', 'admin'] 
+      roles: ['admin'] 
     },
     { 
       name: 'Admin Máquinas y Productos', 
