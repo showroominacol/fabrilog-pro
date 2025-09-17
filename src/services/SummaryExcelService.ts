@@ -31,6 +31,24 @@ export interface MachineData {
   horas: string;
 }
 
+export interface RegistroProduccion {
+  id: string;
+  fecha: string;
+  turno: string;
+  es_asistente: boolean;
+  maquinas?: {
+    nombre?: string;
+    categoria?: string;
+  };
+  detalle_produccion?: {
+    produccion_real: number;
+    productos?: {
+      nombre?: string;
+      tope?: number;
+    };
+  }[];
+}
+
 export class SummaryExcelService {
 
   /**
@@ -198,6 +216,7 @@ export class SummaryExcelService {
   /**
    * Genera los datos de un bloque (operario o ayudante)
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async generateBlockData(registros: any[], fechaInicio: Date, fechaFin: Date): Promise<BlockData> {
     if (registros.length === 0) {
       return {
@@ -261,6 +280,7 @@ export class SummaryExcelService {
   /**
    * Genera los datos específicos por máquina
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async generateMachineData(registros: any[]): Promise<MachineData[]> {
     const maquinasMap = new Map<string, {
       porcentajes: number[];
