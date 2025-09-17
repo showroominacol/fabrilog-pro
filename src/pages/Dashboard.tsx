@@ -7,7 +7,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { TrendingUp, Target, Users, Factory, Clock, BarChart3, AlertTriangle, CheckCircle, RefreshCw, CalendarIcon } from 'lucide-react';
 import { OperarioMetricsCard } from '@/components/operario/OperarioMetricsCard';
 import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -74,6 +73,12 @@ export default function Dashboard() {
   });
   const [recentRecords, setRecentRecords] = useState<RegistroConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Declarar el rango de fechas para el cumplimiento promedio
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: undefined,
+    to: undefined
+  });
   
   // Guard para evitar llamadas concurrentes
   const loadingRef = useRef(false);
@@ -209,7 +214,7 @@ export default function Dashboard() {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [isAdmin, dateRange]);
+  }, [dateRange.from, dateRange.to, isAdmin, user.id]);
   useEffect(() => {
     loadDashboardData();
 
@@ -451,7 +456,8 @@ export default function Dashboard() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {recentRecords.length === 0 ? <div className="text-center py-8">
+          {recentRecords.length === 0 ? (
+            <div className="text-center py-8">
               <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">No hay registros recientes</p>
             </div>
@@ -479,14 +485,16 @@ export default function Dashboard() {
                     
                     {/* Mostrar productos */}
                     <div className="space-y-1">
-                      {record.detalle_produccion?.map((detalle, idx) => <div key={idx} className="flex items-center justify-between text-sm">
+                      {record.detalle_produccion?.map((detalle, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">
                             {detalle.productos?.nombre}: {detalle.produccion_real} unidades
                           </span>
-                           <Badge className={getPerformanceColor(detalle.porcentaje_cumplimiento)}>
-                             {toPct100(detalle.porcentaje_cumplimiento).toFixed(1)}%
-                           </Badge>
-                        </div>) || []}
+                          <Badge className={getPerformanceColor(detalle.porcentaje_cumplimiento)}>
+                            {toPct100(detalle.porcentaje_cumplimiento).toFixed(1)}%
+                          </Badge>
+                        </div>
+                      )) || []}
                     </div>
                   </div>
                   
