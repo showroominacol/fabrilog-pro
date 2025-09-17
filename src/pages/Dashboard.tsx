@@ -12,6 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
+
+
 // Helper para obtener rango del día en horario local
 const getTodayRangeISO = () => {
   const start = new Date();
@@ -73,6 +75,8 @@ export default function Dashboard() {
   });
   const [recentRecords, setRecentRecords] = useState<RegistroConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showMoreRecent, setShowMoreRecent] = useState(false);
+
 
   // Declarar el rango de fechas para el cumplimiento promedio
   const [dateRange, setDateRange] = useState<DateRange>({
@@ -82,6 +86,12 @@ export default function Dashboard() {
   
   // Guard para evitar llamadas concurrentes
   const loadingRef = useRef(false);
+
+  // Para 'Registros Recientes': 3 por defecto en operario; 18 al expandir; Admin ve todo lo que trajo el .limit()
+const recentVisible = isAdmin
+  ? recentRecords
+  : (showMoreRecent ? recentRecords.slice(0, 18) : recentRecords.slice(0, 3));
+
 
   const loadDashboardData = useCallback(async () => {
     // Evitar llamadas duplicadas
@@ -198,7 +208,7 @@ export default function Dashboard() {
           )
         `)
         .order('fecha_registro', { ascending: false })
-        .limit(isAdmin ? 10 : 5);
+        .limit(isAdmin ? 10 : 18);
 
       // Filtrar por operario si no es admin
       if (!isAdmin && user?.id) {
@@ -463,7 +473,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {recentRecords.map((record) => (
+              {recentVisible.map((record) => (
                 <div 
                   key={record.id}
                   className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
@@ -500,13 +510,22 @@ export default function Dashboard() {
                   
                   <div className="text-right ml-4">
                     <p className="text-sm text-muted-foreground">
-                      {new Date(record.fecha).toLocaleDateString('es-ES')}
+                      {new Date(record.fecha_registro).toLocaleDateString('es-ES')}
                     </p>
                   </div>
                 </div>
               ))}
             </div>
+            
           )}
+          {!isAdmin && recentRecords.length > 3 && (
+  <div className="flex justify-center mt-4">
+    <Button variant="outline" onClick={() => setShowMoreRecent(v => !v)}>
+      {showMoreRecent ? 'Mostrar menos' : 'Mostrar más'}
+    </Button>
+  </div>
+)}
+
         </CardContent>
       </Card>
     </div>;
