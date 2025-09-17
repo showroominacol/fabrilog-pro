@@ -349,8 +349,13 @@ const getProgressBarClass = (percentage: number) => {
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <div className="p-4">
+                    <PopoverContent
+            align="start"
+            side="bottom"
+            sideOffset={4}
+            className="w-auto p-0 z-50 bg-background border border-border shadow-xl backdrop-blur-0"
+          >
+                    <div className="p-4 bg-background rounded-md">
                       <div className="text-sm font-medium text-foreground mb-3">
                         Seleccionar fecha de inicio
                       </div>
@@ -363,7 +368,7 @@ const getProgressBarClass = (percentage: number) => {
                           from: date
                         }))} 
                         numberOfMonths={1} 
-                        className="pointer-events-auto" 
+                        className="pointer-events-auto bg-background" 
                       />
                     </div>
                   </PopoverContent>
