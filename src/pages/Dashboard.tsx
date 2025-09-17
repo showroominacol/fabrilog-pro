@@ -12,10 +12,16 @@ import {
   BarChart3,
   AlertTriangle,
   CheckCircle,
-  RefreshCw
+  RefreshCw,
+  CalendarIcon
 } from 'lucide-react';
 import { OperarioMetricsCard } from '@/components/operario/OperarioMetricsCard';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 // Helper para obtener rango del día en horario local
 const getTodayRangeISO = () => {
@@ -36,6 +42,11 @@ interface DashboardMetrics {
   operariosActivos: number;
   registrosHoy: number;
   produccionHoy: number;
+}
+
+interface DateRange {
+  from: Date | undefined;
+  to: Date | undefined;
 }
 
 interface RegistroConDetalles {
@@ -65,6 +76,10 @@ export default function Dashboard() {
   });
   const [recentRecords, setRecentRecords] = useState<RegistroConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Primer día del mes actual
+    to: new Date() // Fecha actual
+  });
   
   // Guard para evitar llamadas concurrentes
   const loadingRef = useRef(false);
@@ -94,10 +109,34 @@ export default function Dashboard() {
         .gte('fecha_registro', startISO)
         .lte('fecha_registro', endISO);
 
+      // Consulta para rango de fechas personalizado (cumplimiento promedio)
+      let registrosRangeQuery = supabase
+        .from('registros_produccion')
+        .select(`
+          id,
+          fecha_registro,
+          detalle_produccion!fk_detalle_produccion_registro(
+            produccion_real,
+            porcentaje_cumplimiento
+          )
+        `);
+
+      if (dateRange.from && dateRange.to) {
+        const rangeStart = new Date(dateRange.from);
+        rangeStart.setHours(0, 0, 0, 0);
+        const rangeEnd = new Date(dateRange.to);
+        rangeEnd.setHours(23, 59, 59, 999);
+        
+        registrosRangeQuery = registrosRangeQuery
+          .gte('fecha_registro', rangeStart.toISOString())
+          .lte('fecha_registro', rangeEnd.toISOString());
+      }
+
       // Filtrar por operario si no es admin
       if (!isAdmin && user?.id) {
         registrosQuery = registrosQuery.eq('operario_id', user.id);
         registrosHoyQuery = registrosHoyQuery.eq('operario_id', user.id);
+        registrosRangeQuery = registrosRangeQuery.eq('operario_id', user.id);
       }
 
       // Consultas optimizadas usando aliases específicos de FK
@@ -105,29 +144,46 @@ export default function Dashboard() {
         { count: totalRegistros },
         { count: maquinasActivas },
         { count: operariosActivos },
-        { data: registrosHoyData }
+        { data: registrosHoyData },
+        { data: registrosRangeData }
       ] = await Promise.all([
         registrosQuery,
         supabase.from('maquinas').select('*', { count: 'exact', head: true }).eq('activa', true),
         supabase.from('usuarios').select('*', { count: 'exact', head: true }).eq('activo', true),
-        registrosHoyQuery
+        registrosHoyQuery,
+        registrosRangeQuery
       ]);
 
       // Calcular métricas de producción del día con suma de porcentajes
       let produccionTotal = 0;
-      let cumplimientoTotal = 0;
+      let cumplimientoHoy = 0;
 
       registrosHoyData?.forEach(registro => {
         registro.detalle_produccion?.forEach(detalle => {
           produccionTotal += detalle.produccion_real || 0;
           // Normalizar porcentaje antes de sumar
           const pctNormalizado = toPct100(detalle.porcentaje_cumplimiento || 0);
-          cumplimientoTotal += pctNormalizado;
+          cumplimientoHoy += pctNormalizado;
         });
       });
 
-      // El cumplimiento es la suma total de porcentajes del día
-      const cumplimientoPromedio = Math.max(0, cumplimientoTotal);
+      // Calcular cumplimiento promedio para el rango de fechas personalizado
+      let cumplimientoTotalRange = 0;
+      let cantidadDetallesRange = 0;
+
+      registrosRangeData?.forEach(registro => {
+        registro.detalle_produccion?.forEach(detalle => {
+          // Normalizar porcentaje antes de sumar
+          const pctNormalizado = toPct100(detalle.porcentaje_cumplimiento || 0);
+          cumplimientoTotalRange += pctNormalizado;
+          cantidadDetallesRange++;
+        });
+      });
+
+      // El cumplimiento promedio es el promedio de todos los porcentajes en el rango
+      const cumplimientoPromedio = cantidadDetallesRange > 0 
+        ? cumplimientoTotalRange / cantidadDetallesRange 
+        : 0;
 
       setMetrics({
         totalRegistros: totalRegistros || 0,
@@ -169,7 +225,7 @@ export default function Dashboard() {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [isAdmin]);
+  }, [isAdmin, dateRange]);
 
   useEffect(() => {
     loadDashboardData();
@@ -270,9 +326,50 @@ export default function Dashboard() {
       <div className={`grid gap-6 ${isAdmin ? 'md:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1'}`}>
         <Card className={`metric-card ${!isAdmin ? 'col-span-full w-full' : ''}`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Cumplimiento Mensual
-            </CardTitle>
+            <div className="flex flex-col space-y-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Cumplimiento promedio
+              </CardTitle>
+              <div className="flex items-center space-x-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "justify-start text-left font-normal text-xs",
+                        !dateRange.from && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="h-3 w-3" />
+                      {dateRange.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, "dd/MM/yy")} -{" "}
+                            {format(dateRange.to, "dd/MM/yy")}
+                          </>
+                        ) : (
+                          format(dateRange.from, "dd/MM/yy")
+                        )
+                      ) : (
+                        <span>Seleccionar rango</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateRange.from}
+                      selected={dateRange}
+                      onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
+                      numberOfMonths={2}
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
             <Target className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
