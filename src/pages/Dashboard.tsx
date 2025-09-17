@@ -4,6 +4,7 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { Progress } from '@/components/ui/progress';
 import { TrendingUp, Target, Users, Clock, BarChart3, AlertTriangle, CheckCircle, RefreshCw, CalendarIcon } from 'lucide-react';
 import { OperarioMetricsCard } from '@/components/operario/OperarioMetricsCard';
 
@@ -274,13 +275,22 @@ const recentVisible = isAdmin
     if (normalizedPct >= 80) return <TrendingUp className="h-4 w-4" />;
     return <AlertTriangle className="h-4 w-4" />;
   };
+  // Color dinámico para la barra de progreso (sincronizado con el Badge)
+const getProgressBarClass = (percentage: number) => {
+  const p = toPct100(percentage);
+  if (p >= 100) return '[&>div]:bg-success';       // verde (Excelente)
+  if (p >= 80)  return '[&>div]:bg-primary';       // primario (Bueno)
+  if (p >= 60)  return '[&>div]:bg-warning';       // amarillo (Regular)
+  return '[&>div]:bg-destructive';                 // rojo (Crítico)
+};
+
   if (loading) {
     return <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
           <div className="animate-pulse bg-muted h-8 w-32 rounded"></div>
         </div>
-        <div className={`grid gap-6 ${isAdmin ? 'md:grid-cols-2 lg:grid-cols-2' : 'grid-cols-1'}`}>
+        <div className={`grid gap-6 ${isAdmin ? 'md:grid-cols-4' : 'grid-cols-1'}`}>
           {[...Array(4)].map((_, i) => <Card key={i} className="animate-pulse">
               <CardHeader className="pb-2">
                 <div className="h-4 bg-muted rounded w-3/4"></div>
@@ -318,7 +328,7 @@ const recentVisible = isAdmin
 
       {/* Metrics Cards */}
       <div className={`grid gap-6 ${isAdmin ? 'md:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1'}`}>
-        <Card className={`metric-card ${!isAdmin ? 'col-span-full w-full' : ''}`}>
+        <Card className={`metric-card ${isAdmin ? 'md:col-span-3' : 'col-span-full w-full'}`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div className="flex flex-col space-y-2">
               <CardTitle className="text-gray-950 font-semibold text-center text-4xl">
@@ -403,6 +413,18 @@ const recentVisible = isAdmin
             <div className="text-2xl font-bold text-foreground">
               {metrics.cumplimientoPromedio.toFixed(1)}%
             </div>
+
+            {isAdmin && (
+  <div className="mt-2">
+    <Progress
+      value={Math.max(0, Math.min(metrics.cumplimientoPromedio, 100))}
+      className={cn('w-full mb-3', getProgressBarClass(metrics.cumplimientoPromedio))}
+    />
+  </div>
+)}
+
+
+
             <Badge className={`mt-2 ${getPerformanceColor(metrics.cumplimientoPromedio)}`}>
               {getPerformanceIcon(metrics.cumplimientoPromedio)}
               <span className="ml-1">
@@ -416,7 +438,8 @@ const recentVisible = isAdmin
         
         
 
-        {isAdmin && <Card className="metric-card">
+        {isAdmin && <Card className="metric-card md:col-span-1">
+
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Operarios Activos
