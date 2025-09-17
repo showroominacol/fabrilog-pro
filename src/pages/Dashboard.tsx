@@ -87,11 +87,10 @@ export default function Dashboard() {
   
   // Guard para evitar llamadas concurrentes
   const loadingRef = useRef(false);
-
-  // Para 'Registros Recientes': 3 por defecto en operario; 18 al expandir; Admin ve todo lo que trajo el .limit()
-const recentVisible = isAdmin
-  ? recentRecords
-  : (showMoreRecent ? recentRecords.slice(0, 18) : recentRecords.slice(0, 3));
+  // Registros visibles: 3 por defecto; 18 al expandir
+const recentVisible = showMoreRecent
+  ? recentRecords.slice(0, 18)
+  : recentRecords.slice(0, 3);
 
 
   const loadDashboardData = useCallback(async () => {
@@ -209,7 +208,7 @@ const recentVisible = isAdmin
           )
         `)
         .order('fecha_registro', { ascending: false })
-        .limit(isAdmin ? 10 : 18);
+        .limit(18);
 
       // Filtrar por operario si no es admin
       if (!isAdmin && user?.id) {
@@ -526,13 +525,13 @@ const getProgressBarClass = (percentage: number) => {
             </div>
             
           )}
-          {!isAdmin && recentRecords.length > 3 && (
-  <div className="flex justify-center mt-4">
-    <Button variant="outline" onClick={() => setShowMoreRecent(v => !v)}>
-      {showMoreRecent ? 'Mostrar menos' : 'Mostrar más'}
-    </Button>
-  </div>
-)}
+          {recentRecords.length > 3 && (
+            <div className="flex justify-center mt-4">
+            <Button variant="outline" onClick={() => setShowMoreRecent(v => !v)}>
+              {showMoreRecent ? 'Mostrar menos' : 'Mostrar más'}
+            </Button>
+            </div>
+          )}
 
         </CardContent>
       </Card>
