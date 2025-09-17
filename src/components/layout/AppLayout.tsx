@@ -57,10 +57,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   const handleSignOut = async () => {
     await signOut();
   };
-/* 
+
   return (
     <div className="min-h-screen bg-background"> 
-      {/* Header }
+      {/* Header */}
       <header className="bg-card border-b border-border shadow-[var(--shadow-card)] sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -92,9 +92,9 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
       </header>
 
-      {/* Main Layout }
+      {/* Main Layout*/ }
       <div className="flex h-[calc(100vh-4rem)]">
-        {/* Sidebar Navigation }
+        {/* Sidebar Navigation*/ }
         <nav className="w-64 bg-card border-r border-border shadow-[var(--shadow-card)] flex-shrink-0">
           <div className="p-4 space-y-2">
             {filteredNavigation.map((item) => {
@@ -105,7 +105,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                     variant={isActive ? "default" : "ghost"}
                     className={`w-full justify-start btn-touch ${
                       isActive 
-                        /? 'bg-primary text-primary-foreground shadow-[var(--shadow-button)]' 
+                        ? 'bg-primary text-primary-foreground shadow-[var(--shadow-button)]' 
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                     }`}
                   >
@@ -118,7 +118,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
         </nav>
 
-        {/* Main Content }
+        {/* Main Content */}
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             {children}
@@ -126,5 +126,5 @@ export function AppLayout({ children }: AppLayoutProps) {
         </main>
       </div>
     </div>
-  ); */
+  ); 
 }
