@@ -62,6 +62,23 @@ interface RegistroConDetalles {
     } | null;
   }[];
 }
+// Cuenta días laborales (Lun–Sáb) entre 2 fechas (incluye ambos extremos). Excluye domingos.
+const countWorkingDaysMonSat = (from?: Date, to?: Date) => {
+  if (!from || !to) return 0;
+  const start = new Date(from); start.setHours(0,0,0,0);
+  const end = new Date(to);     end.setHours(23,59,59,999);
+  let days = 0; 
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const w = d.getDay(); // 0 dom, 1 lun, ... 6 sab
+    if (w !== 0) days++;   // cuenta lun–sab
+  }
+  return days;
+};
+
+// Obtiene clave YYYY-MM-DD desde un ISO
+const toDayKey = (iso: string) => (iso ?? '').slice(0, 10);
+
+
 export default function Dashboard() {
   const {
     user,
@@ -178,27 +195,44 @@ const recentVisible = showMoreRecent
       });
 
       // Calcular cumplimiento promedio para el rango de fechas personalizado
-      let cumplimientoTotalRange = 0;
-      let cantidadDetallesRange = 0;
-      registrosRangeData?.forEach(registro => {
-        registro.detalle_produccion?.forEach(detalle => {
-          // Normalizar porcentaje antes de sumar
-          const pctNormalizado = toPct100(detalle.porcentaje_cumplimiento || 0);
-          cumplimientoTotalRange += pctNormalizado;
-          cantidadDetallesRange++;
-        });
-      });
+      // 1) Promedio por día (no por detalle)
+const byDay: Record<string, { sumPct: number; count: number }> = {};
+registrosRangeData?.forEach(registro => {
+  const dayKey = toDayKey(registro.fecha_registro as string);
+  registro.detalle_produccion?.forEach(detalle => {
+    const pct = toPct100(detalle.porcentaje_cumplimiento || 0);
+    if (!byDay[dayKey]) byDay[dayKey] = { sumPct: 0, count: 0 };
+    byDay[dayKey].sumPct += pct;
+    byDay[dayKey].count += 1;
+  });
+});
 
-      // El cumplimiento promedio es el promedio de todos los porcentajes en el rango
-      const cumplimientoPromedio = cantidadDetallesRange > 0 ? cumplimientoTotalRange / cantidadDetallesRange : 0;
-      setMetrics({
-        totalRegistros: totalRegistros || 0,
-        cumplimientoPromedio,
-        maquinasActivas: maquinasActivas || 0,
-        operariosActivos: operariosActivos || 0,
-        registrosHoy: registrosHoyData?.length || 0,
-        produccionHoy: produccionTotal
-      });
+// 2) Suma de promedios diarios
+let sumDailyAverages = 0;
+Object.values(byDay).forEach(d => {
+  sumDailyAverages += d.count > 0 ? (d.sumPct / d.count) : 0;
+});
+
+// 3) Si hay rango definido: normalizar por días laborales esperados (Lun–Sáb). Si no, dejar promedio por detalle (comportamiento anterior).
+let cumplimientoPromedioCalc = 0;
+if (dateRange.from || dateRange.to) {
+  const expectedDays = countWorkingDaysMonSat(dateRange.from, dateRange.to);
+  cumplimientoPromedioCalc = expectedDays > 0 ? (sumDailyAverages / expectedDays) : 0;
+} else {
+  const totalPct = Object.values(byDay).reduce((acc, d) => acc + d.sumPct, 0);
+  const totalCount = Object.values(byDay).reduce((acc, d) => acc + d.count, 0);
+  cumplimientoPromedioCalc = totalCount > 0 ? (totalPct / totalCount) : 0;
+}
+
+setMetrics({
+  totalRegistros: totalRegistros || 0,
+  cumplimientoPromedio: cumplimientoPromedioCalc,
+  maquinasActivas: maquinasActivas || 0,
+  operariosActivos: operariosActivos || 0,
+  registrosHoy: registrosHoyData?.length || 0,
+  produccionHoy: produccionTotal
+});
+
 
       // Obtener registros recientes con aliases específicos
       let recentQuery = supabase.from('registros_produccion').select(`
