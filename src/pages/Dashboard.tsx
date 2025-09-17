@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { Progress } from '@/components/ui/progress';
-import { TrendingUp, Target, Users, Clock, BarChart3, AlertTriangle, CheckCircle, RefreshCw, CalendarIcon } from 'lucide-react';
+import { TrendingUp, Target, Users, Clock, BarChart3, AlertTriangle, CheckCircle, RefreshCw, CalendarIcon, Trash2 } from 'lucide-react';
+
 import { OperarioMetricsCard } from '@/components/operario/OperarioMetricsCard';
 
 import { Calendar } from '@/components/ui/calendar';
@@ -76,8 +77,9 @@ export default function Dashboard() {
   });
   const [recentRecords, setRecentRecords] = useState<RegistroConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showMoreRecent, setShowMoreRecent] = useState(false);
-
+  const [showMoreRecent, setShowMoreRecent] = useState(false); // si ya lo tienes, no lo dupliques
+const [deletingId, setDeletingId] = useState<string | null>(null);
+ 
 
   // Declarar el rango de fechas para el cumplimiento promedio
   const [dateRange, setDateRange] = useState<DateRange>({
@@ -87,6 +89,8 @@ export default function Dashboard() {
   
   // Guard para evitar llamadas concurrentes
   const loadingRef = useRef(false);
+  
+
   // Registros visibles: 3 por defecto; 18 al expandir
 const recentVisible = showMoreRecent
   ? recentRecords.slice(0, 18)
@@ -225,6 +229,33 @@ const recentVisible = showMoreRecent
       loadingRef.current = false;
     }
   }, [dateRange.from, dateRange.to, isAdmin, user.id]);
+  const handleDeleteRecord = useCallback(async (registroId: string) => {
+  if (!registroId) return;
+  const ok = window.confirm('¿Eliminar este registro y sus detalles?');
+  if (!ok) return;
+
+  try {
+    setDeletingId(registroId);
+
+    // 1) Borrar detalles (si tu FK ya tiene ON DELETE CASCADE, este paso puede omitirse)
+    await supabase.from('detalle_produccion').delete().eq('registro_id', registroId);
+    // Si tu columna se llama distinto (p.ej. registro_produccion_id), usa esa:
+    // await supabase.from('detalle_produccion').delete().eq('registro_produccion_id', registroId);
+
+    // 2) Borrar registro principal
+    await supabase.from('registros_produccion').delete().eq('id', registroId);
+
+    // 3) Refrescar UI rápido
+    setRecentRecords(prev => prev.filter(r => r.id !== registroId));
+    await loadDashboardData();
+  } catch (err) {
+    console.error('Error eliminando registro:', err);
+    alert('No se pudo eliminar el registro. Revisa permisos RLS en Supabase.');
+  } finally {
+    setDeletingId(null);
+  }
+}, [loadDashboardData]);
+
   useEffect(() => {
     loadDashboardData();
 
@@ -511,11 +542,22 @@ const getProgressBarClass = (percentage: number) => {
                     </div>
                   </div>
                   
-                  <div className="text-right ml-4">
+                    <div className="flex items-center gap-2 ml-4 self-start">
                     <p className="text-sm text-muted-foreground">
                       {new Date(record.fecha_registro).toLocaleDateString('es-ES')}
                     </p>
-                  </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive"
+                      title="Eliminar registro"
+                      onClick={() => handleDeleteRecord(record.id)}
+                      disabled={deletingId === record.id}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                    </div>
+
                 </div>
               ))}
             </div>
