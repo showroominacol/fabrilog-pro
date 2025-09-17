@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -65,9 +66,15 @@ export default function Dashboard() {
   });
   const [recentRecords, setRecentRecords] = useState<RegistroConDetalles[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showMoreRecent, setShowMoreRecent] = useState(false);
+
   
   // Guard para evitar llamadas concurrentes
   const loadingRef = useRef(false);
+  const recentVisible = isAdmin 
+  ? recentRecords 
+  : (showMoreRecent ? recentRecords.slice(0, 18) : recentRecords.slice(0, 3));
+
 
   const loadDashboardData = useCallback(async () => {
     // Evitar llamadas duplicadas
@@ -152,7 +159,7 @@ export default function Dashboard() {
           )
         `)
         .order('fecha_registro', { ascending: false })
-        .limit(isAdmin ? 10 : 5);
+        .limit(isAdmin ? 10 : 18);
 
       // Filtrar por operario si no es admin
       if (!isAdmin && user?.id) {
@@ -384,7 +391,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {recentRecords.map((record) => (
+              {recentVisible.map((record) => (
                 <div 
                   key={record.id}
                   className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
@@ -428,6 +435,14 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+          {!isAdmin && recentRecords.length > 3 && (
+            <div className="flex justify-center mt-4">
+             <Button variant="outline" onClick={() => setShowMoreRecent(v => !v)}>
+             {showMoreRecent ? 'Mostrar menos' : 'Mostrar más'}
+             </Button>
+           </div>
+          )}
+
         </CardContent>
       </Card>
     </div>
