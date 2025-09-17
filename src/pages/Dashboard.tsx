@@ -4,9 +4,9 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { TrendingUp, Target, Users, Factory, Clock, BarChart3, AlertTriangle, CheckCircle, RefreshCw, CalendarIcon } from 'lucide-react';
+import { TrendingUp, Target, Users, Clock, BarChart3, AlertTriangle, CheckCircle, RefreshCw, CalendarIcon } from 'lucide-react';
 import { OperarioMetricsCard } from '@/components/operario/OperarioMetricsCard';
-import { Progress } from '@/components/ui/progress';
+
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
@@ -280,7 +280,7 @@ const recentVisible = isAdmin
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
           <div className="animate-pulse bg-muted h-8 w-32 rounded"></div>
         </div>
-        <div className={`grid gap-6 ${isAdmin ? 'md:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1'}`}>
+        <div className={`grid gap-6 ${isAdmin ? 'md:grid-cols-2 lg:grid-cols-2' : 'grid-cols-1'}`}>
           {[...Array(4)].map((_, i) => <Card key={i} className="animate-pulse">
               <CardHeader className="pb-2">
                 <div className="h-4 bg-muted rounded w-3/4"></div>
@@ -413,43 +413,8 @@ const recentVisible = isAdmin
         </Card>
 
         
-        {isAdmin && <Card className={`metric-card ${!isAdmin ? 'col-span-full w-full' : ''}`}>
-           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Target className="h-5 w-5 text-primary" />
-              <span className="font-semibold">Rendimiento mensual</span>
-              </CardTitle>
-             </CardHeader>
-            <CardContent>
-            <div className="text-4xl font-bold text-foreground mb-2">
-            {metrics.cumplimientoPromedio.toFixed(1)}%
-            </div>
-            <Progress value={Math.min(metrics.cumplimientoPromedio, 100)} className="w-full mb-2" />
-             <Badge className={`mt-1 ${getPerformanceColor(metrics.cumplimientoPromedio)}`}>
-             {getPerformanceIcon(metrics.cumplimientoPromedio)}
-             <span className="ml-1">
-            {metrics.cumplimientoPromedio >= 100 ? 'Excelente' : metrics.cumplimientoPromedio >= 80 ? 'Bueno' : metrics.cumplimientoPromedio >= 60 ? 'Regular' : 'Crítico'}
-            </span>
-            </Badge>
-           </CardContent>
-          </Card>}
-
-        {isAdmin && <Card className="metric-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Máquinas Activas
-              </CardTitle>
-              <Factory className="h-4 w-4 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-foreground">
-                {metrics.maquinasActivas}
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                En producción
-              </p>
-            </CardContent>
-          </Card>}
+        
+        
 
         {isAdmin && <Card className="metric-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
