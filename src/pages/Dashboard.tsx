@@ -15,6 +15,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { OperarioMetricsCard } from '@/components/operario/OperarioMetricsCard';
+import { Progress } from '@/components/ui/progress';
 
 // Helper para obtener rango del día en horario local
 const getTodayRangeISO = () => {
@@ -220,7 +221,7 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
           <div className="animate-pulse bg-muted h-8 w-32 rounded"></div>
         </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className={`grid gap-6 ${isAdmin ? 'md:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1'}`}>
           {[...Array(4)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardHeader className="pb-2">
@@ -266,11 +267,11 @@ export default function Dashboard() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="metric-card">
+      <div className={`grid gap-6 ${isAdmin ? 'md:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1'}`}>
+        <Card className={`metric-card ${!isAdmin ? 'col-span-full w-full' : ''}`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Cumplimiento Promedio
+              Cumplimiento Mensual
             </CardTitle>
             <Target className="h-4 w-4 text-primary" />
           </CardHeader>
@@ -289,56 +290,72 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="metric-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Producción Hoy
-            </CardTitle>
-            <BarChart3 className="h-4 w-4 text-accent" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">
-              {metrics.produccionHoy.toLocaleString()}
+        
+        {isAdmin && (
+          <Card className={`metric-card ${!isAdmin ? 'col-span-full w-full' : ''}`}>
+           <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Target className="h-5 w-5 text-primary" />
+              <span className="font-semibold">Rendimiento mensual</span>
+              </CardTitle>
+             </CardHeader>
+            <CardContent>
+            <div className="text-4xl font-bold text-foreground mb-2">
+            {metrics.cumplimientoPromedio.toFixed(1)}%
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              {metrics.registrosHoy} registros hoy
-            </p>
-          </CardContent>
-        </Card>
+            <Progress 
+             value={Math.min(metrics.cumplimientoPromedio, 100)} 
+             className="w-full mb-2" 
+               />
+             <Badge className={`mt-1 ${getPerformanceColor(metrics.cumplimientoPromedio)}`}>
+             {getPerformanceIcon(metrics.cumplimientoPromedio)}
+             <span className="ml-1">
+            {metrics.cumplimientoPromedio >= 100 ? 'Excelente' : 
+             metrics.cumplimientoPromedio >= 80 ? 'Bueno' :
+            metrics.cumplimientoPromedio >= 60 ? 'Regular' : 'Crítico'}
+            </span>
+            </Badge>
+           </CardContent>
+          </Card>
+        )}
 
-        <Card className="metric-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Máquinas Activas
-            </CardTitle>
-            <Factory className="h-4 w-4 text-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">
-              {metrics.maquinasActivas}
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              En producción
-            </p>
-          </CardContent>
-        </Card>
+        {isAdmin && (
+          <Card className="metric-card">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Máquinas Activas
+              </CardTitle>
+              <Factory className="h-4 w-4 text-success" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">
+                {metrics.maquinasActivas}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                En producción
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card className="metric-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Operarios Activos
-            </CardTitle>
-            <Users className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-foreground">
-              {metrics.operariosActivos}
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Usuarios registrados
-            </p>
-          </CardContent>
-        </Card>
+        {isAdmin && (
+          <Card className="metric-card">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Operarios Activos
+              </CardTitle>
+              <Users className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">
+                {metrics.operariosActivos}
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Usuarios registrados
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Métricas del Operario */}
