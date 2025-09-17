@@ -328,91 +328,83 @@ const getProgressBarClass = (percentage: number) => {
       {/* Metrics Cards */}
       <div className={`grid gap-6 ${isAdmin ? 'md:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1'}`}>
         <Card className={`metric-card ${isAdmin ? 'md:col-span-3' : 'col-span-full w-full'}`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div className="flex flex-col space-y-2">
-              <CardTitle className="text-gray-950 font-semibold text-center text-4xl">
-                Cumplimiento promedio
-              </CardTitle>
-              <div className="flex items-center space-x-2">
-                {/* Botón para fecha de inicio */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal text-xs min-w-[140px]", !dateRange.from && "text-muted-foreground")}>
-                      <CalendarIcon className="h-3 w-3 mr-2" />
-                      {dateRange.from ? (
-                        <span className="flex items-center gap-1">
-                          <span className="text-muted-foreground">Desde:</span>
-                          <span className="font-medium">{format(dateRange.from, "dd/MM/yyyy")}</span>
-                        </span>
-                      ) : (
-                        <span>Fecha inicio</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                    <PopoverContent
-            align="start"
-            side="bottom"
-            sideOffset={4}
-            className="w-auto p-0 z-50 bg-background border border-border shadow-xl backdrop-blur-0"
-          >
-                    <div className="p-4 bg-background rounded-md">
-                      <div className="text-sm font-medium text-foreground mb-3">
-                        Seleccionar fecha de inicio
-                      </div>
-                      <Calendar 
-                        initialFocus 
-                        mode="single" 
-                        selected={dateRange.from} 
-                        onSelect={(date) => setDateRange(prev => ({
-                          ...prev,
-                          from: date
-                        }))} 
-                        numberOfMonths={1} 
-                        className="pointer-events-auto bg-background" 
-                      />
-                    </div>
-                  </PopoverContent>
-                </Popover>
+          <CardHeader className="pb-2">
+  {/* Título con icono azul a la izquierda (igual a Mi rendimiento hoy) */}
+  <CardTitle className="flex items-center gap-2 text-foreground font-semibold text-xl">
+    <Target className="h-5 w-5 text-primary" />
+    <span>Cumplimiento promedio</span>
+  </CardTitle>
 
-                {/* Botón para fecha de fin */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal text-xs min-w-[140px]", !dateRange.to && "text-muted-foreground")}>
-                      <CalendarIcon className="h-3 w-3 mr-2" />
-                      {dateRange.to ? (
-                        <span className="flex items-center gap-1">
-                          <span className="text-muted-foreground">Hasta:</span>
-                          <span className="font-medium">{format(dateRange.to, "dd/MM/yyyy")}</span>
-                        </span>
-                      ) : (
-                        <span>Fecha fin</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <div className="p-4">
-                      <div className="text-sm font-medium text-foreground mb-3">
-                        Seleccionar fecha de fin
-                      </div>
-                      <Calendar 
-                        initialFocus 
-                        mode="single" 
-                        selected={dateRange.to} 
-                        onSelect={(date) => setDateRange(prev => ({
-                          ...prev,
-                          to: date
-                        }))} 
-                        numberOfMonths={1} 
-                        className="pointer-events-auto"
-                        disabled={(date) => dateRange.from ? date < dateRange.from : false}
-                      />
-                    </div>
-                  </PopoverContent>
-                </Popover>
+  {/* Botones de fechas debajo del título */}
+  <div className="mt-2 flex items-center gap-2">
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            "justify-start text-left font-normal text-xs min-w-[200px]",
+            !dateRange.from && "text-muted-foreground"
+          )}
+        >
+          <CalendarIcon className="h-3 w-3 mr-2" />
+          {dateRange.from ? (
+            dateRange.to ? (
+              <span className="flex items-center gap-2">
+                <span className="text-muted-foreground">Desde:</span>
+                <span className="font-medium">{format(dateRange.from, "dd/MM/yyyy")}</span>
+                <span className="text-muted-foreground">Hasta:</span>
+                <span className="font-medium">{format(dateRange.to, "dd/MM/yyyy")}</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <span className="text-muted-foreground">Desde:</span>
+                <span className="font-medium">{format(dateRange.from, "dd/MM/yyyy")}</span>
+                <span className="text-muted-foreground">- Seleccionar fin</span>
+              </span>
+            )
+          ) : (
+            <span>Seleccionar rango de fechas</span>
+          )}
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="start"
+        className="w-auto p-0 z-50 bg-background border border-border shadow-xl backdrop-blur-0"
+      >
+        <div className="p-4 bg-background rounded-md">
+          <div className="text-sm font-medium text-foreground mb-3">
+            Seleccionar período para el cumplimiento promedio
+          </div>
+          <Calendar
+            initialFocus
+            mode="range"
+            defaultMonth={dateRange.from}
+            selected={dateRange}
+            onSelect={(range) =>
+              setDateRange({
+                from: range?.from,
+                to: range?.to,
+              })
+            }
+            numberOfMonths={1}
+            className="pointer-events-auto bg-background"
+          />
+          {dateRange.from && dateRange.to && (
+            <div className="mt-3 p-2 bg-muted/50 rounded-md text-sm">
+              <div className="text-muted-foreground mb-1">Rango seleccionado:</div>
+              <div className="font-medium">
+                {format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}
               </div>
             </div>
-            <Target className="h-4 w-4 text-primary" />
-          </CardHeader>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  </div>
+</CardHeader>
+
           <CardContent>
             <div className="text-2xl font-bold text-foreground">
               {metrics.cumplimientoPromedio.toFixed(1)}%
