@@ -418,14 +418,13 @@ const getProgressBarClass = (percentage: number) => {
               {metrics.cumplimientoPromedio.toFixed(1)}%
             </div>
 
-            {isAdmin && (
-  <div className="mt-2">
-    <Progress
-      value={Math.max(0, Math.min(metrics.cumplimientoPromedio, 100))}
-      className={cn('w-full mb-3', getProgressBarClass(metrics.cumplimientoPromedio))}
-    />
-  </div>
-)}
+            <div className="mt-2 flex items-center">
+        <Progress
+        value={Math.max(0, Math.min(metrics.cumplimientoPromedio, 100))}
+        className={cn('w-full mb-3', getProgressBarClass(metrics.cumplimientoPromedio))}
+        />
+      </div>
+
 
 
 
