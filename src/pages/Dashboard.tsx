@@ -315,19 +315,52 @@ export default function Dashboard() {
               <div className="flex items-center space-x-2">
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal text-xs", !dateRange.from && "text-muted-foreground")}>
-                      <CalendarIcon className="h-3 w-3" />
-                      {dateRange.from ? dateRange.to ? <>
-                            {format(dateRange.from, "dd/MM/yy")} -{" "}
-                            {format(dateRange.to, "dd/MM/yy")}
-                          </> : format(dateRange.from, "dd/MM/yy") : <span>Seleccionar rango</span>}
+                    <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal text-xs min-w-[200px]", !dateRange.from && "text-muted-foreground")}>
+                      <CalendarIcon className="h-3 w-3 mr-2" />
+                      {dateRange.from ? dateRange.to ? (
+                        <span className="flex items-center gap-2">
+                          <span className="text-muted-foreground">Desde:</span>
+                          <span className="font-medium">{format(dateRange.from, "dd/MM/yyyy")}</span>
+                          <span className="text-muted-foreground">Hasta:</span>
+                          <span className="font-medium">{format(dateRange.to, "dd/MM/yyyy")}</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <span className="text-muted-foreground">Desde:</span>
+                          <span className="font-medium">{format(dateRange.from, "dd/MM/yyyy")}</span>
+                          <span className="text-muted-foreground">- Seleccionar fin</span>
+                        </span>
+                      ) : (
+                        <span>Seleccionar rango de fechas</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar initialFocus mode="range" defaultMonth={dateRange.from} selected={dateRange} onSelect={range => setDateRange({
-                    from: range?.from,
-                    to: range?.to
-                  })} numberOfMonths={2} className="p-3 pointer-events-auto" />
+                    <div className="p-4">
+                      <div className="text-sm font-medium text-foreground mb-3">
+                        Seleccionar período para el cumplimiento promedio
+                      </div>
+                      <Calendar 
+                        initialFocus 
+                        mode="range" 
+                        defaultMonth={dateRange.from} 
+                        selected={dateRange} 
+                        onSelect={range => setDateRange({
+                          from: range?.from,
+                          to: range?.to
+                        })} 
+                        numberOfMonths={1} 
+                        className="pointer-events-auto" 
+                      />
+                      {dateRange.from && dateRange.to && (
+                        <div className="mt-3 p-2 bg-muted/50 rounded-md text-sm">
+                          <div className="text-muted-foreground mb-1">Rango seleccionado:</div>
+                          <div className="font-medium">
+                            {format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </PopoverContent>
                 </Popover>
               </div>
