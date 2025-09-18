@@ -26,7 +26,6 @@ import {
 import { Tables } from '@/integrations/supabase/types';
 import { ExcelExportService } from '@/services/ExcelExportService';
 import { summaryExcelService } from '@/services/SummaryExcelService';
-import { AdminMetricsReport } from '@/components/admin/AdminMetricsReport';
 import { MachineProductionReport } from '@/components/admin/MachineProductionReport';
 
 type Usuario = Tables<'usuarios'>;
@@ -498,81 +497,8 @@ export default function Metricas() {
         </CardContent>
       </Card>
 
-      {/* Admin Metrics Report */}
-      {isAdmin && <AdminMetricsReport />}
-
       {/* Machine Production Report */}
       {isAdmin && <MachineProductionReport />}
-
-      {/* Export to Excel */}
-      {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Download className="h-5 w-5 text-success" />
-              <span>Exportar a Excel</span>
-            </CardTitle>
-            <CardDescription>
-              Genera un reporte completo de producción en formato Excel con múltiples hojas por área
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="fechaInicio">Fecha Inicio</Label>
-                <Input
-                  id="fechaInicio"
-                  type="date"
-                  value={fechaInicioExport}
-                  onChange={(e) => setFechaInicioExport(e.target.value)}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="fechaFin">Fecha Fin</Label>
-                <Input
-                  id="fechaFin"
-                  type="date"
-                  value={fechaFinExport}
-                  onChange={(e) => setFechaFinExport(e.target.value)}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>&nbsp;</Label>
-                <Button 
-                  onClick={handleExportExcel} 
-                  disabled={exportLoading || !fechaInicioExport || !fechaFinExport}
-                  className="w-full"
-                >
-                  {exportLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Exportando...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="mr-2 h-4 w-4" />
-                      Exportar Excel
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-            
-            <div className="mt-4 p-4 bg-muted/30 rounded-lg">
-              <h4 className="font-semibold text-sm mb-2">Características del archivo exportado:</h4>
-              <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• Múltiples hojas: MONTERREY, 4 CABEZAS, AMARRADORAS, DATA</li>
-                <li>• AutoFilter activado para fácil filtrado de datos</li>
-                <li>• Encabezados fijos para navegación</li>
-                <li>• Formato optimizado para impresión horizontal</li>
-                <li>• Formatos numéricos y porcentuales aplicados</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Summary Report Export */}
       {isAdmin && (

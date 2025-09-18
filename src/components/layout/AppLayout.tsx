@@ -34,7 +34,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       name: 'Registro Producción', 
       href: '/registro', 
       icon: FileText, 
-      roles: ['operario', 'admin'] 
+      roles: ['operario'] 
     },
     { 
       name: 'Métricas', 
