@@ -166,6 +166,8 @@ export type Database = {
           nombre: string
           tipo_producto: string
           tope: number | null
+          tope_jornada_10h: number | null
+          tope_jornada_8h: number | null
         }
         Insert: {
           activo?: boolean
@@ -176,6 +178,8 @@ export type Database = {
           nombre: string
           tipo_producto?: string
           tope?: number | null
+          tope_jornada_10h?: number | null
+          tope_jornada_8h?: number | null
         }
         Update: {
           activo?: boolean
@@ -186,6 +190,8 @@ export type Database = {
           nombre?: string
           tipo_producto?: string
           tope?: number | null
+          tope_jornada_10h?: number | null
+          tope_jornada_8h?: number | null
         }
         Relationships: [
           {

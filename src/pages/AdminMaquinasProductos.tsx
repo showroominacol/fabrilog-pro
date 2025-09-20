@@ -108,11 +108,13 @@ export default function AdminMaquinasProductos() {
     nombre: string; 
     tope?: number; 
     categoria: string;
-    tipo_producto: 'general' | 'arbol_navideno';
+    tipo_producto: 'general' | 'arbol_navideno' | 'producido_molino';
     diseno_id?: string;
     diseno_nombre?: string;
     diseno_descripcion?: string;
     niveles_ramas?: { nivel: number; festones_por_rama: number }[];
+    tope_jornada_8h?: number;
+    tope_jornada_10h?: number;
   }) => {
     try {
       let productoId: string;
@@ -152,7 +154,9 @@ export default function AdminMaquinasProductos() {
             tope: data.tope,
             categoria: data.categoria,
             tipo_producto: data.tipo_producto,
-            diseno_id: disenoId
+            diseno_id: disenoId,
+            tope_jornada_8h: data.tipo_producto === 'producido_molino' ? data.tope_jornada_8h : null,
+            tope_jornada_10h: data.tipo_producto === 'producido_molino' ? data.tope_jornada_10h : null
           })
           .eq('id', editingProducto.id);
         
@@ -166,7 +170,9 @@ export default function AdminMaquinasProductos() {
             tope: data.tope,
             categoria: data.categoria,
             tipo_producto: data.tipo_producto,
-            diseno_id: disenoId
+            diseno_id: disenoId,
+            tope_jornada_8h: data.tipo_producto === 'producido_molino' ? data.tope_jornada_8h : null,
+            tope_jornada_10h: data.tipo_producto === 'producido_molino' ? data.tope_jornada_10h : null
           }])
           .select()
           .single();

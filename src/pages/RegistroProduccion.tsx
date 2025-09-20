@@ -162,6 +162,19 @@ export default function RegistroProduccion() {
   };
 
 
+  const getTopeForProduct = (productoInfo: Producto, turno: string): number => {
+    if (productoInfo.tipo_producto === 'producido_molino') {
+      // Si el turno es de 7:00 a 5:00 (10 horas), usar tope_jornada_10h
+      if (turno === "7:00am - 5:00pm") {
+        return Number(productoInfo.tope_jornada_10h) || 0;
+      }
+      // Para otros turnos, usar tope_jornada_8h
+      return Number(productoInfo.tope_jornada_8h) || 0;
+    }
+    // Para productos normales, usar el tope regular
+    return Number(productoInfo.tope) || 0;
+  };
+
   const calculatePerformance = () => {
     if (!formData.productos.length || !formData.turno) {
       setPorcentajeCumplimiento(0);
@@ -173,9 +186,12 @@ export default function RegistroProduccion() {
 
     formData.productos.forEach(producto => {
       const productoInfo = productos.find(p => p.id === producto.producto_id);
-      if (productoInfo && productoInfo.tope) {
-        totalProduccionReal += producto.produccion_real;
-        totalMeta += productoInfo.tope;
+      if (productoInfo) {
+        const tope = getTopeForProduct(productoInfo, formData.turno);
+        if (tope > 0) {
+          totalProduccionReal += producto.produccion_real;
+          totalMeta += tope;
+        }
       }
     });
 
@@ -370,7 +386,7 @@ export default function RegistroProduccion() {
       // 2. Crear detalles de productos
       const detallesPromises = formData.productos.map(producto => {
         const productoInfo = productos.find(p => p.id === producto.producto_id);
-        const tope = productoInfo?.tope || 0;
+        const tope = productoInfo ? getTopeForProduct(productoInfo, formData.turno) : 0;
         const porcentajeProducto = tope > 0 ? (producto.produccion_real / tope) * 100 : 0;
 
         return supabase.from('detalle_produccion').insert({
