@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Edit, Trash2, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -44,7 +45,8 @@ export default function AdminMaquinasProductos() {
       
       const [maquinasResult, productosResult] = await Promise.all([
         supabase.from('maquinas').select('*').order('activa', { ascending: false }).order('nombre'),
-        supabase.from('productos').select('*').order('nombre')
+        // ⬇️ Ordena productos por activo DESC y luego por nombre
+        supabase.from('productos').select('*').order('activo', { ascending: false }).order('nombre')
       ]);
 
       if (maquinasResult.error) throw maquinasResult.error;
@@ -274,6 +276,32 @@ export default function AdminMaquinasProductos() {
     }
   };
 
+  // ⬇️ NUEVO: reactivar producto (soft-delete invertido)
+  const handleReactivateProducto = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('productos')
+        .update({ activo: true })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Éxito",
+        description: "Producto reactivado correctamente",
+      });
+
+      fetchData();
+    } catch (error) {
+      console.error('Error reactivating producto:', error);
+      toast({
+        title: "Error",
+        description: "Error al reactivar el producto",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (!isAdmin) {
     return (
       <div className="container mx-auto p-6">
@@ -359,6 +387,7 @@ export default function AdminMaquinasProductos() {
                   setShowProductoForm(true);
                 }}
                 onDelete={handleDeleteProducto}
+                onReactivate={handleReactivateProducto} // ⬅️ agregado
               />
             </CardContent>
           </Card>

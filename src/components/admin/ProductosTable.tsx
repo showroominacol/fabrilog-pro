@@ -2,7 +2,7 @@ import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Trash2 } from 'lucide-react';
+import { Edit, Trash2, RotateCcw } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 
 type Producto = Tables<'productos'>;
@@ -12,9 +12,11 @@ interface ProductosTableProps {
   productos: Producto[];
   onEdit: (producto: Producto) => void;
   onDelete: (id: string) => void;
+  // NUEVO: callback opcional para reactivar producto
+  onReactivate?: (id: string) => void;
 }
 
-export function ProductosTable({ productos, onEdit, onDelete }: ProductosTableProps) {
+export function ProductosTable({ productos, onEdit, onDelete, onReactivate }: ProductosTableProps) {
 
   if (productos.length === 0) {
     return (
@@ -73,7 +75,8 @@ export function ProductosTable({ productos, onEdit, onDelete }: ProductosTablePr
                 >
                   <Edit className="h-4 w-4" />
                 </Button>
-                {producto.activo && (
+
+                {producto.activo ? (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -81,6 +84,19 @@ export function ProductosTable({ productos, onEdit, onDelete }: ProductosTablePr
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
+                ) : (
+                  onReactivate && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onReactivate(producto.id)}
+                      className="gap-1"
+                      title="Reactivar"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Reactivar
+                    </Button>
+                  )
                 )}
               </div>
             </TableCell>
