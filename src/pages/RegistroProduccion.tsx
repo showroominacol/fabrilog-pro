@@ -71,6 +71,7 @@ export default function RegistroProduccion() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [filteredUsuarios, setFilteredUsuarios] = useState<Usuario[]>([]);
   const [searchUsuarios, setSearchUsuarios] = useState('');
+  const [searchProductos, setSearchProductos] = useState('');
   const [disenosArboles, setDisenosArboles] = useState<DisenoArbol[]>([]);
   const [nivelesRamas, setNivelesRamas] = useState<NivelRama[]>([]);
   const [porcentajeCumplimiento, setPorcentajeCumplimiento] = useState(0);
@@ -94,12 +95,16 @@ export default function RegistroProduccion() {
     if (formData.maquina_id) {
       const maquinaSeleccionada = maquinas.find(m => m.id === formData.maquina_id);
       if (maquinaSeleccionada?.categoria) {
-        const filtered = productos.filter(p => p.categoria === maquinaSeleccionada.categoria);
-        setFilteredProductos(filtered);
+        const filteredByCategory = productos.filter(p => p.categoria === maquinaSeleccionada.categoria);
+        // Apply search filter on top of category filter
+        const filteredWithSearch = filteredByCategory.filter(p =>
+          p.nombre.toLowerCase().includes(searchProductos.toLowerCase())
+        );
+        setFilteredProductos(filteredWithSearch);
         
         // Reset productos selection if current selections don't match machine category
         const validProductos = formData.productos.filter(p => 
-          filtered.find(fp => fp.id === p.producto_id)
+          filteredByCategory.find(fp => fp.id === p.producto_id)
         );
         if (validProductos.length !== formData.productos.length) {
           setFormData(prev => ({ ...prev, productos: validProductos }));
@@ -112,7 +117,7 @@ export default function RegistroProduccion() {
       setFilteredProductos([]);
       setFormData(prev => ({ ...prev, productos: [] }));
     }
-  }, [formData.maquina_id, productos, maquinas]);
+  }, [formData.maquina_id, productos, maquinas, searchProductos]);
 
   useEffect(() => {
     calculatePerformance();
@@ -584,6 +589,20 @@ export default function RegistroProduccion() {
                   <span>Agregar Producto</span>
                 </Button>
               </div>
+
+              {/* Buscador de productos */}
+              {formData.maquina_id && (
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="Buscar productos por nombre..."
+                    value={searchProductos}
+                    onChange={(e) => setSearchProductos(e.target.value)}
+                    className="pl-10 input-touch"
+                  />
+                  <Package className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                </div>
+              )}
 
               {formData.productos.length === 0 && (
                 <div className="text-center py-8 border-2 border-dashed border-muted rounded-lg">
