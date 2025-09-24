@@ -135,11 +135,12 @@ export class SummaryExcelService {
       Date.UTC(fechaFin.getFullYear(), fechaFin.getMonth(), fechaFin.getDate())
     );
 
-    while (current <= end) {
-      const dayOfWeek = current.getUTCDay(); // 0 dom, 6 sáb
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) count++;
-      current.setUTCDate(current.getUTCDate() + 1);
-    }
+   while (current <= end) {
+    const dayOfWeek = current.getUTCDay(); // 0 dom, 6 sáb
+    // Incluir lunes a sábado
+    if (dayOfWeek !== 0) count++;
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
     return count;
   }
 
