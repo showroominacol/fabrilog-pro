@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Edit, Trash2, Settings } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Plus, Edit, Trash2, Settings, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { MaquinasTable } from '@/components/admin/MaquinasTable';
 import { ProductosTable } from '@/components/admin/ProductosTable';
@@ -26,6 +27,7 @@ export default function AdminMaquinasProductos() {
   const [showProductoForm, setShowProductoForm] = useState(false);
   const [editingMaquina, setEditingMaquina] = useState<Maquina | null>(null);
   const [editingProducto, setEditingProducto] = useState<Producto | null>(null);
+  const [searchProducto, setSearchProducto] = useState('');
 
   useEffect(() => {
     if (!isAdmin) {
@@ -379,15 +381,28 @@ export default function AdminMaquinasProductos() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Buscar producto por nombre, tipo o categoría..."
+                  value={searchProducto}
+                  onChange={(e) => setSearchProducto(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
               <ProductosTable
-                productos={productos}
+                productos={productos.filter(producto => 
+                  producto.nombre.toLowerCase().includes(searchProducto.toLowerCase()) ||
+                  (producto.tipo_producto && producto.tipo_producto.toLowerCase().includes(searchProducto.toLowerCase())) ||
+                  (producto.categoria && producto.categoria.toLowerCase().includes(searchProducto.toLowerCase()))
+                )}
                 onEdit={(producto) => {
                   setEditingProducto(producto);
                   setShowProductoForm(true);
                 }}
                 onDelete={handleDeleteProducto}
-                onReactivate={handleReactivateProducto} // ⬅️ agregado
+                onReactivate={handleReactivateProducto}
               />
             </CardContent>
           </Card>
