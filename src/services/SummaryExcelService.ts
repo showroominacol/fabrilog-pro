@@ -9,6 +9,7 @@ export interface EmployeeData {
   diasXLaborar: number;
   diasRealLaborados: number;
   observacion: string;
+  bonoTotal: number;
   bloques: CategoryBlock[];
 }
 
@@ -103,13 +104,19 @@ export class SummaryExcelService {
         )
       );
 
+      const bloquesFiltered = (bloques.filter(Boolean) as CategoryBlock[]) ?? [];
+      
+      // Calcular bono total: suma de porcentajes operario de todas las máquinas / días del rango
+      const bonoTotal = this.calculateBonoTotal(bloquesFiltered, diasXLaborar);
+
       return {
         id: empleado.id,
         nombre: empleado.nombre,
         diasXLaborar,
         diasRealLaborados,
         observacion: '',
-        bloques: (bloques.filter(Boolean) as CategoryBlock[]) ?? [],
+        bonoTotal,
+        bloques: bloquesFiltered,
       };
     });
 
@@ -134,6 +141,27 @@ export class SummaryExcelService {
       current.setUTCDate(current.getUTCDate() + 1);
     }
     return count;
+  }
+
+  /**
+   * Calcula el bono total del empleado
+   */
+  private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): number {
+    if (diasDelRango === 0) return 0;
+    
+    // Sumar todos los porcentajes del operario de todas las categorías/máquinas
+    let sumaPorcentajes = 0;
+    
+    for (const bloque of bloques) {
+      // Solo tomar porcentajes cuando el operario trabajó en esa categoría
+      if (bloque.operario.dias > 0) {
+        sumaPorcentajes += bloque.operario.porcentaje;
+      }
+    }
+    
+    // Dividir por el número de días del rango
+    const bonoTotal = sumaPorcentajes / diasDelRango;
+    return Math.round(bonoTotal * 10) / 10; // Redondear a 1 decimal
   }
 
   /**
@@ -433,8 +461,8 @@ private async generateCategoryBlock(
    * Crea los encabezados del Excel (dos filas)
    */
   private createHeaders(categorias: string[]): string[][] {
-    const header1 = ['NOMBRE', 'DIAS X LABORAR', 'DIAS REAL LABORADOS', 'OBSERVACIÓN'];
-    const header2 = ['', '', '', ''];
+    const header1 = ['NOMBRE', 'DIAS X LABORAR', 'DIAS REAL LABORADOS', 'OBSERVACIÓN', 'BONO TOTAL'];
+    const header2 = ['', '', '', '', ''];
 
     for (const categoria of categorias) {
       // OP
@@ -460,6 +488,7 @@ private async generateCategoryBlock(
         String(empleado.diasXLaborar),
         String(empleado.diasRealLaborados),
         empleado.observacion ?? '',
+        String(empleado.bonoTotal),
       ];
 
       for (const categoria of categorias) {
@@ -503,6 +532,7 @@ private async generateCategoryBlock(
       { width: 15 }, // DIAS X LABORAR
       { width: 18 }, // DIAS REAL LABORADOS
       { width: 18 }, // OBSERVACIÓN
+      { width: 12 }, // BONO TOTAL
     ];
 
     // Por cada categoría: OP(3) + AYU(3)
