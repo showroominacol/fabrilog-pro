@@ -233,8 +233,16 @@ export default function Auth() {
           </CardContent>
         </Card>
 
-        <div className="text-center text-sm text-muted-foreground">
+        <div className="text-center text-sm text-muted-foreground space-y-2">
           <p>© 2024 FabriLog Pro. Sistema optimizado para tablets.</p>
+          <div>
+            <a 
+              href="/consulta-cumplimiento"
+              className="text-primary hover:text-primary/90 underline"
+            >
+              Consultar cumplimiento sin registro
+            </a>
+          </div>
         </div>
       </div>
     </div>

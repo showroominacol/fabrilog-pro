@@ -6,7 +6,7 @@ interface Usuario {
   id: string;
   nombre: string;
   cedula: string;
-  tipo_usuario: 'operario' | 'admin';
+  tipo_usuario: 'operario' | 'admin' | 'escribano';
   activo: boolean;
 }
 
@@ -14,7 +14,7 @@ interface AuthContextType {
   user: Usuario | null;
   loading: boolean;
   signIn: (cedula: string, password: string) => Promise<{ error: any }>;
-  signUp: (nombre: string, cedula: string, password: string, tipo_usuario?: 'operario' | 'admin') => Promise<{ error: any }>;
+  signUp: (nombre: string, cedula: string, password: string, tipo_usuario?: 'operario' | 'admin' | 'escribano') => Promise<{ error: any }>;
   signOut: () => Promise<{ error: any }>;
   isAdmin: boolean;
 }
@@ -64,6 +64,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: { message: 'Usuario no encontrado o inactivo' } };
       }
       
+      // Verificar que solo admin y escribano pueden acceder
+      if (userData.tipo_usuario === 'operario') {
+        await signOut(); // Cerrar sesión inmediatamente
+        return { error: { message: 'Acceso solo para administradores y escribanos' } };
+      }
+      
       // For now, we'll use a simple password check
       // In production, you should use proper password hashing
       if (userData.password_hash !== password) {
@@ -96,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUp = async (nombre: string, cedula: string, password: string, tipo_usuario: 'operario' | 'admin' = 'operario') => {
+  const signUp = async (nombre: string, cedula: string, password: string, tipo_usuario: 'operario' | 'admin' | 'escribano' = 'operario') => {
     try {
       setLoading(true);
       

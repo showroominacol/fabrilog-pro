@@ -383,7 +383,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      consultar_cumplimiento_operario: {
+        Args: {
+          cedula_operario: string
+          fecha_fin?: string
+          fecha_inicio?: string
+        }
+        Returns: {
+          cedula: string
+          dias_con_produccion: number
+          dias_laborales: number
+          fecha_fin_periodo: string
+          fecha_inicio_periodo: string
+          nombre: string
+          porcentaje_cumplimiento: number
+        }[]
+      }
     }
     Enums: {
       turno_produccion:
@@ -393,8 +408,10 @@ export type Database = {
         | "7:00am - 5:00pm"
         | "7:00am - 3:00pm"
         | "7:00am - 3:30pm"
+        | "12:00pm - 6:00pm"
+        | "2:00pm - 5:00pm"
       turno_tipo: "6:00am - 2:00pm" | "2:00pm - 10:00pm" | "10:00pm - 6:00am"
-      user_type: "operario" | "admin"
+      user_type: "operario" | "admin" | "escribano"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -529,9 +546,11 @@ export const Constants = {
         "7:00am - 5:00pm",
         "7:00am - 3:00pm",
         "7:00am - 3:30pm",
+        "12:00pm - 6:00pm",
+        "2:00pm - 5:00pm",
       ],
       turno_tipo: ["6:00am - 2:00pm", "2:00pm - 10:00pm", "10:00pm - 6:00am"],
-      user_type: ["operario", "admin"],
+      user_type: ["operario", "admin", "escribano"],
     },
   },
 } as const

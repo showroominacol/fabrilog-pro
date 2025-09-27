@@ -21,6 +21,7 @@ import {
   Factory,
   Package,
   Users,
+  User,
   Plus,
   Minus,
   X
@@ -49,6 +50,7 @@ interface FormData {
   fecha: string;
   turno: Enums<'turno_produccion'> | '';
   maquina_id: string;
+  operario_principal_id: string;
   productos: ProductoDetalle[];
   asistentes: string[];
 }
@@ -61,6 +63,7 @@ export default function RegistroProduccion() {
     fecha: new Date().toISOString().split('T')[0],
     turno: '',
     maquina_id: '',
+    operario_principal_id: '',
     productos: [],
     asistentes: [],
   });
@@ -218,7 +221,7 @@ export default function RegistroProduccion() {
     return fecha;
   };
 
-  const handleInputChange = (field: 'fecha' | 'turno' | 'maquina_id', value: string) => {
+  const handleInputChange = (field: 'fecha' | 'turno' | 'maquina_id' | 'operario_principal_id', value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -329,10 +332,10 @@ export default function RegistroProduccion() {
       return;
     }
 
-    if (!formData.turno || !formData.maquina_id || !formData.productos.length) {
+    if (!formData.turno || !formData.maquina_id || !formData.operario_principal_id || !formData.productos.length) {
       toast({
         title: "Campos Requeridos",
-        description: "Por favor completa todos los campos del formulario y agrega al menos un producto",
+        description: "Por favor completa todos los campos del formulario, selecciona el operario principal y agrega al menos un producto",
         variant: "destructive",
       });
       return;
@@ -379,7 +382,7 @@ export default function RegistroProduccion() {
         .insert({
           fecha: fechaAjustada,
           turno: formData.turno,
-          operario_id: user.id,
+          operario_id: formData.operario_principal_id,
           maquina_id: formData.maquina_id,
           es_asistente: false
         })
@@ -434,6 +437,7 @@ export default function RegistroProduccion() {
         fecha: new Date().toISOString().split('T')[0],
         turno: '',
         maquina_id: '',
+        operario_principal_id: '',
         productos: [],
         asistentes: [],
       });
@@ -568,6 +572,41 @@ export default function RegistroProduccion() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Operario Principal */}
+            <div className="space-y-2">
+              <Label htmlFor="operario" className="flex items-center space-x-2">
+                <User className="h-4 w-4" />
+                <span>Operario Principal *</span>
+              </Label>
+              <div className="space-y-2">
+                {/* Buscador de operarios */}
+                <Input
+                  type="text"
+                  placeholder="Buscar operario por nombre o cédula..."
+                  value={searchUsuarios}
+                  onChange={(e) => setSearchUsuarios(e.target.value)}
+                  className="input-touch"
+                />
+                <Select 
+                  value={formData.operario_principal_id} 
+                  onValueChange={(value) => handleInputChange('operario_principal_id', value)}
+                >
+                  <SelectTrigger className="input-touch">
+                    <SelectValue placeholder="Selecciona el operario principal" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50 max-h-48 overflow-y-auto">
+                    {filteredUsuarios
+                      .filter(u => u.tipo_usuario === 'operario' && u.activo)
+                      .map((usuario) => (
+                        <SelectItem key={usuario.id} value={usuario.id}>
+                          {usuario.nombre} - {usuario.cedula}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Productos */}

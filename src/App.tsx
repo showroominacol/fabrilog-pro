@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import RegistroProduccion from "./pages/RegistroProduccion";
 import AdminMaquinasProductos from "./pages/AdminMaquinasProductos";
 import Metricas from "./pages/Metricas";
+import ConsultaCumplimiento from "./pages/ConsultaCumplimiento";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,7 +52,11 @@ function AppRoutes() {
       />
       <Route 
         path="/" 
-        element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth" replace />} 
+        element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/consulta-cumplimiento" replace />} 
+      />
+      <Route 
+        path="/consulta-cumplimiento" 
+        element={<ConsultaCumplimiento />} 
       />
       <Route 
         path="/dashboard" 
