@@ -4,13 +4,10 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Target, 
-  TrendingUp, 
   Calendar,
   Award,
   AlertTriangle,
-  CheckCircle,
-  Clock,
-  BarChart3
+  Clock
 } from 'lucide-react';
 import { metricsService, DailyMetrics } from '@/services/MetricsService';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -18,7 +15,6 @@ import { useAuth } from '@/components/auth/AuthProvider';
 export function OperarioMetricsCard() {
   const { user } = useAuth();
   const [dailyMetrics, setDailyMetrics] = useState<DailyMetrics | null>(null);
-  const [weeklyMetrics, setWeeklyMetrics] = useState<DailyMetrics[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,18 +25,11 @@ export function OperarioMetricsCard() {
 
   const loadMetrics = async () => {
     if (!user) return;
-    
     try {
       setLoading(true);
-      
-      // Cargar métricas del día actual
+      // Solo métricas del día actual
       const today = await metricsService.getOperarioDailyMetrics(user.id);
       setDailyMetrics(today);
-      
-      // Cargar historial semanal
-      const weekly = await metricsService.getOperarioWeeklyMetrics(user.id);
-      setWeeklyMetrics(weekly);
-      
     } catch (error) {
       console.error('Error loading operario metrics:', error);
     } finally {
@@ -87,22 +76,15 @@ export function OperarioMetricsCard() {
     }
   };
 
-  const getPerformanceIcon = (percentage: number) => {
-    if (percentage >= 80) return <CheckCircle className="h-4 w-4" />;
-    return <AlertTriangle className="h-4 w-4" />;
-  };
-
   if (loading) {
     return (
       <div className="space-y-4">
-        {[...Array(2)].map((_, i) => (
-          <Card key={i} className="animate-pulse">
-            <CardHeader className="pb-2">
-              <div className="h-4 bg-muted rounded w-3/4"></div>
-              <div className="h-8 bg-muted rounded w-1/2"></div>
-            </CardHeader>
-          </Card>
-        ))}
+        <Card className="animate-pulse">
+          <CardHeader className="pb-2">
+            <div className="h-4 bg-muted rounded w-3/4"></div>
+            <div className="h-8 bg-muted rounded w-1/2"></div>
+          </CardHeader>
+        </Card>
       </div>
     );
   }
@@ -191,87 +173,6 @@ export function OperarioMetricsCard() {
               <p className="text-muted-foreground">No hay registros de producción para hoy</p>
               <p className="text-sm text-muted-foreground mt-2">
                 Registra tu primera producción para ver tus métricas
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Historial semanal */}
-      <Card className="metric-card">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <BarChart3 className="h-5 w-5 text-accent" />
-            <span>Historial de los Últimos 7 Días</span>
-          </CardTitle>
-          <CardDescription>
-            Rendimiento como operario principal (solo días laborales)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {weeklyMetrics.length > 0 ? (
-            <div className="space-y-3">
-              {weeklyMetrics.map((metrica, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    {getPerformanceIcon(metrica.porcentajeCumplimiento)}
-                    <div>
-                      <p className="font-medium text-foreground">
-                        {new Date(metrica.fecha).toLocaleDateString('es-ES', { 
-                          weekday: 'short', 
-                          month: 'short', 
-                          day: 'numeric' 
-                        })}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {metrica.produccionReal}/{metrica.metaTotal} unidades
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <div className="text-right">
-                      <div className="font-semibold text-foreground">
-                        {metrica.porcentajeCumplimiento.toFixed(1)}%
-                      </div>
-                    </div>
-                    <Badge className={getBonusColor(metrica.tipoBono)} variant="outline">
-                      {metrica.tipoBono === 'positivo' ? '+' : metrica.tipoBono === 'negativo' ? '-' : '○'}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-
-              {/* Resumen semanal */}
-              <div className="mt-4 p-3 bg-primary/5 border border-primary/10 rounded-lg">
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-lg font-semibold text-success">
-                      {weeklyMetrics.filter(m => m.tipoBono === 'positivo').length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Días con Bono</p>
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-warning">
-                      {weeklyMetrics.filter(m => m.tipoBono === 'neutro').length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Días Neutros</p>
-                  </div>
-                  <div>
-                    <div className="text-lg font-semibold text-destructive">
-                      {weeklyMetrics.filter(m => m.tipoBono === 'negativo').length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Días con Penalización</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No hay historial disponible</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Trabaja como operario principal para generar métricas
               </p>
             </div>
           )}
