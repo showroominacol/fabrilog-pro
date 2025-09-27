@@ -156,7 +156,24 @@ export default function Auth() {
           </CardContent>
         </Card>
 
-        {/* Opción para registro (solo para admins crear nuevos usuarios) */}
+        {/* Botón para operarios - Consulta de cumplimiento */}
+        <Card className="shadow-[var(--shadow-card)] border-primary/20">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-3">
+              <h3 className="font-semibold text-foreground">¿Eres operario?</h3>
+              <p className="text-sm text-muted-foreground">
+                Consulta tu porcentaje de cumplimiento sin necesidad de registro
+              </p>
+              <Button
+                variant="outline"
+                className="w-full btn-touch font-semibold border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                onClick={() => window.location.href = '/consulta-cumplimiento'}
+              >
+                Consultar Mi Cumplimiento
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
         <Card className="shadow-[var(--shadow-card)]">
           <CardHeader className="pb-4">
             <CardTitle className="text-center text-lg">¿Nuevo usuario?</CardTitle>
