@@ -52,7 +52,9 @@ function AppRoutes() {
       />
       <Route 
         path="/" 
-        element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/consulta-cumplimiento" replace />} 
+        element={user ? (
+          user.tipo_usuario === 'escribano' ? <Navigate to="/registro" replace /> : <Navigate to="/dashboard" replace />
+        ) : <Navigate to="/consulta-cumplimiento" replace />} 
       />
       <Route 
         path="/consulta-cumplimiento" 
@@ -62,7 +64,7 @@ function AppRoutes() {
         path="/dashboard" 
         element={
           <ProtectedRoute>
-            <Dashboard />
+            {user?.tipo_usuario === 'escribano' ? <Navigate to="/registro" replace /> : <Dashboard />}
           </ProtectedRoute>
         } 
       />

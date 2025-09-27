@@ -93,6 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: `Hola ${userData.nombre}!`,
       });
       
+      // Redirigir según el tipo de usuario
+      if (userData.tipo_usuario === 'escribano') {
+        setTimeout(() => window.location.href = '/registro', 100);
+      }
+      
       return { error: null };
     } catch (error) {
       console.error('Sign in error:', error);

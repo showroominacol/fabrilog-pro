@@ -28,13 +28,13 @@ export function AppLayout({ children }: AppLayoutProps) {
       name: 'Dashboard', 
       href: '/dashboard', 
       icon: BarChart3, 
-      roles: ['operario', 'admin'] 
+      roles: ['admin'] 
     },
     { 
       name: 'Registro Producción', 
       href: '/registro', 
       icon: FileText, 
-      roles: ['operario'] 
+      roles: ['escribano'] 
     },
     { 
       name: 'Métricas', 
