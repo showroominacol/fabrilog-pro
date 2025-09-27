@@ -32,11 +32,8 @@ export default function ConsultaCumplimiento() {
   const { toast } = useToast();
   
   const [cedula, setCedula] = useState('');
-  const [fechaInicio, setFechaInicio] = useState(
-    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
-  );
-  const [fechaFin, setFechaFin] = useState(
-    new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
+  const [mesSeleccionado, setMesSeleccionado] = useState(
+    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
   );
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState<CumplimientoData | null>(null);
@@ -55,6 +52,11 @@ export default function ConsultaCumplimiento() {
     setResultado(null);
 
     try {
+      // Convertir el mes seleccionado a fechas de inicio y fin
+      const [year, month] = mesSeleccionado.split('-');
+      const fechaInicio = `${year}-${month}-01`;
+      const fechaFin = new Date(parseInt(year), parseInt(month), 0).toISOString().split('T')[0];
+
       const { data, error: rpcError } = await supabase.rpc('consultar_cumplimiento_operario', {
         cedula_operario: cedula.trim(),
         fecha_inicio: fechaInicio,
@@ -131,7 +133,7 @@ export default function ConsultaCumplimiento() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleConsulta} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="cedula">Cédula *</Label>
                   <Input
@@ -144,21 +146,12 @@ export default function ConsultaCumplimiento() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="fechaInicio">Fecha Inicio</Label>
+                  <Label htmlFor="mes">Mes de Consulta</Label>
                   <Input
-                    id="fechaInicio"
-                    type="date"
-                    value={fechaInicio}
-                    onChange={(e) => setFechaInicio(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="fechaFin">Fecha Fin</Label>
-                  <Input
-                    id="fechaFin"
-                    type="date"
-                    value={fechaFin}
-                    onChange={(e) => setFechaFin(e.target.value)}
+                    id="mes"
+                    type="month"
+                    value={mesSeleccionado}
+                    onChange={(e) => setMesSeleccionado(e.target.value)}
                   />
                 </div>
               </div>
