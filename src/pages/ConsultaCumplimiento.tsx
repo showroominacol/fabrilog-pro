@@ -276,6 +276,15 @@ export default function ConsultaCumplimiento() {
         )}
 
         {/* Footer */}
+              <div>
+                <a 
+                  href="/auth"
+                  className="block text-center text-primary hover:text-primary/90 underline"
+                >
+                  Inicia sesión
+                </a>
+              </div>
+
         <div className="text-center mt-8 text-sm text-muted-foreground">
           <p>© 2024 FabriLog Pro - Sistema de Gestión de Producción</p>
         </div>
