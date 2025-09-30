@@ -23,7 +23,6 @@ import {
   Users,
   User,
   Plus,
-  Minus,
   X
 } from 'lucide-react';
 import { Tables, Enums } from '@/integrations/supabase/types';
@@ -73,13 +72,17 @@ export default function RegistroProduccion() {
   const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [filteredUsuarios, setFilteredUsuarios] = useState<Usuario[]>([]);
-  const [searchUsuarios, setSearchUsuarios] = useState('');
+  const [searchUsuarios, setSearchUsuarios] = useState(''); // buscador operario principal
   const [searchProductos, setSearchProductos] = useState('');
   const [disenosArboles, setDisenosArboles] = useState<DisenoArbol[]>([]);
   const [nivelesRamas, setNivelesRamas] = useState<NivelRama[]>([]);
   const [porcentajeCumplimiento, setPorcentajeCumplimiento] = useState(0);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+
+  // NUEVO: estado para UI de asistentes (sin listar por defecto)
+  const [asistentesOpen, setAsistentesOpen] = useState(false);
+  const [searchAsistente, setSearchAsistente] = useState('');
 
   const turnos: Enums<'turno_produccion'>[] = [
     "6:00am - 2:00pm", 
@@ -99,13 +102,11 @@ export default function RegistroProduccion() {
       const maquinaSeleccionada = maquinas.find(m => m.id === formData.maquina_id);
       if (maquinaSeleccionada?.categoria) {
         const filteredByCategory = productos.filter(p => p.categoria === maquinaSeleccionada.categoria);
-        // Apply search filter on top of category filter
         const filteredWithSearch = filteredByCategory.filter(p =>
           p.nombre.toLowerCase().includes(searchProductos.toLowerCase())
         );
         setFilteredProductos(filteredWithSearch);
         
-        // Reset productos selection if current selections don't match machine category
         const validProductos = formData.productos.filter(p => 
           filteredByCategory.find(fp => fp.id === p.producto_id)
         );
@@ -127,7 +128,6 @@ export default function RegistroProduccion() {
   }, [formData.productos, formData.turno, productos]);
 
   useEffect(() => {
-    // Filtrar usuarios por búsqueda
     const filtered = usuarios.filter(usuario =>
       usuario.nombre.toLowerCase().includes(searchUsuarios.toLowerCase())
     );
@@ -169,17 +169,13 @@ export default function RegistroProduccion() {
     }
   };
 
-
   const getTopeForProduct = (productoInfo: Producto, turno: string): number => {
     if (productoInfo.tipo_producto === 'producido_molino') {
-      // Si el turno es de 7:00 a 5:00 (10 horas), usar tope_jornada_10h
       if (turno === "7:00am - 5:00pm") {
         return Number(productoInfo.tope_jornada_10h) || 0;
       }
-      // Para otros turnos, usar tope_jornada_8h
       return Number(productoInfo.tope_jornada_8h) || 0;
     }
-    // Para productos normales, usar el tope regular
     return Number(productoInfo.tope) || 0;
   };
 
@@ -213,7 +209,6 @@ export default function RegistroProduccion() {
 
   const adjustDateForNightShift = (fecha: string, turno: string): string => {
     if (turno === "10:00pm - 6:00am") {
-      // Para turno nocturno, asignar fecha del día siguiente
       const date = new Date(fecha);
       date.setDate(date.getDate() + 1);
       return date.toISOString().split('T')[0];
@@ -341,7 +336,6 @@ export default function RegistroProduccion() {
       return;
     }
 
-    // Validar que todos los productos tengan cantidad mayor a 0
     const invalidProducts = formData.productos.filter(p => p.produccion_real <= 0);
     if (invalidProducts.length > 0) {
       toast({
@@ -352,7 +346,6 @@ export default function RegistroProduccion() {
       return;
     }
 
-    // Validar que los productos de árbol tengan al menos un nivel con ramas
     const invalidTreeProducts = formData.productos.filter(producto => {
       const selectedProduct = filteredProductos.find(p => p.id === producto.producto_id);
       if (selectedProduct?.tipo_producto === 'arbol_navideno' && producto.niveles) {
@@ -376,7 +369,6 @@ export default function RegistroProduccion() {
     try {
       const fechaAjustada = adjustDateForNightShift(formData.fecha, formData.turno);
       
-      // 1. Crear registro principal
       const { data: registro, error: registroError } = await supabase
         .from('registros_produccion')
         .insert({
@@ -391,7 +383,6 @@ export default function RegistroProduccion() {
 
       if (registroError) throw registroError;
 
-      // 2. Crear detalles de productos
       const detallesPromises = formData.productos.map(producto => {
         const productoInfo = productos.find(p => p.id === producto.producto_id);
         const tope = productoInfo ? getTopeForProduct(productoInfo, formData.turno) : 0;
@@ -411,7 +402,6 @@ export default function RegistroProduccion() {
         throw detallesErrors[0].error;
       }
 
-      // 3. Crear registros de asistentes
       if (formData.asistentes.length > 0) {
         const asistentesPromises = formData.asistentes.map(asistenteId =>
           supabase.from('registro_asistentes').insert({
@@ -432,7 +422,6 @@ export default function RegistroProduccion() {
         description: `Producción registrada exitosamente con ${porcentajeCumplimiento.toFixed(1)}% de cumplimiento`,
       });
 
-      // Reset form
       setFormData({
         fecha: new Date().toISOString().split('T')[0],
         turno: '',
@@ -442,6 +431,8 @@ export default function RegistroProduccion() {
         asistentes: [],
       });
       setPorcentajeCumplimiento(0);
+      setAsistentesOpen(false);
+      setSearchAsistente('');
 
     } catch (error: any) {
       console.error('Error saving record:', error);
@@ -492,6 +483,16 @@ export default function RegistroProduccion() {
     );
   }
 
+  // Candidatos a asistentes (no listado por defecto; se filtra sólo cuando hay búsqueda)
+  const candidatosAsistentes = usuarios
+    .filter(u => u.tipo_usuario === 'operario' && u.activo)
+    .filter(u => u.id !== formData.operario_principal_id) // evitar duplicar operario principal
+    .filter(u => !formData.asistentes.includes(u.id))     // evitar repetidos
+    .filter(u => searchAsistente.length >= 2
+      ? (u.nombre.toLowerCase().includes(searchAsistente.toLowerCase()) || (u.cedula || '').toLowerCase().includes(searchAsistente.toLowerCase()))
+      : false
+    );
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
       {/* Header */}
@@ -516,6 +517,130 @@ export default function RegistroProduccion() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* === PRIMERO: Operario principal y Asistentes (UI nueva para asistentes) === */}
+            {/* Operario Principal */}
+            <div className="space-y-2">
+              <Label htmlFor="operario" className="flex items-center space-x-2">
+                <User className="h-4 w-4" />
+                <span>Operario Principal *</span>
+              </Label>
+              <div className="space-y-2">
+                {/* Buscador de operarios */}
+                <Input
+                  type="text"
+                  placeholder="Buscar operario por nombre o cédula..."
+                  value={searchUsuarios}
+                  onChange={(e) => setSearchUsuarios(e.target.value)}
+                  className="input-touch"
+                />
+                <Select 
+                  value={formData.operario_principal_id} 
+                  onValueChange={(value) => handleInputChange('operario_principal_id', value)}
+                >
+                  <SelectTrigger className="input-touch">
+                    <SelectValue placeholder="Selecciona el operario principal" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50 max-h-48 overflow-y-auto">
+                    {filteredUsuarios
+                      .filter(u => u.tipo_usuario === 'operario' && u.activo)
+                      .map((usuario) => (
+                        <SelectItem key={usuario.id} value={usuario.id}>
+                          {usuario.nombre} - {usuario.cedula}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Operarios Asistentes - UI compacta (no lista por defecto) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center space-x-2">
+                  <Users className="h-4 w-4" />
+                  <span>Operarios Asistentes</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAsistentesOpen((v) => !v)}
+                  >
+                    {asistentesOpen ? 'Cerrar' : 'Agregar asistente'}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Chips con asistentes seleccionados */}
+              {formData.asistentes.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {formData.asistentes.map((asistenteId) => {
+                    const asistente = usuarios.find(u => u.id === asistenteId);
+                    return asistente ? (
+                      <Badge key={asistenteId} variant="secondary" className="flex items-center space-x-1">
+                        <span>{asistente.nombre}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleAsistente(asistenteId)}
+                          className="ml-1 text-muted-foreground hover:text-foreground"
+                          aria-label={`Quitar ${asistente.nombre}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sin asistentes seleccionados.</p>
+              )}
+
+              {/* Picker colapsable: no lista por defecto, sólo al escribir >= 2 chars */}
+              {asistentesOpen && (
+                <div className="space-y-2 border rounded-lg p-3">
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      placeholder="Escribe al menos 2 caracteres para buscar…"
+                      value={searchAsistente}
+                      onChange={(e) => setSearchAsistente(e.target.value)}
+                      className="pl-10 input-touch"
+                    />
+                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  </div>
+
+                  {searchAsistente.length < 2 ? (
+                    <p className="text-xs text-muted-foreground">Empieza a escribir para ver resultados.</p>
+                  ) : candidatosAsistentes.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No se encontraron coincidencias.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-44 overflow-y-auto">
+                      {candidatosAsistentes.map((usuario) => (
+                        <div key={usuario.id} className="flex items-center space-x-3 p-2 rounded-lg border hover:bg-muted/50">
+                          <Checkbox
+                            id={`asistente-${usuario.id}`}
+                            checked={formData.asistentes.includes(usuario.id)}
+                            onCheckedChange={() => toggleAsistente(usuario.id)}
+                          />
+                          <Label 
+                            htmlFor={`asistente-${usuario.id}`}
+                            className="text-sm font-medium cursor-pointer flex-1"
+                          >
+                            {usuario.nombre}
+                            <span className="text-xs text-muted-foreground block">
+                              {usuario.cedula}
+                            </span>
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* === LUEGO: Fecha y Turno === */}
             <div className="grid gap-6 md:grid-cols-2">
               {/* Fecha */}
               <div className="space-y-2">
@@ -574,41 +699,6 @@ export default function RegistroProduccion() {
               </Select>
             </div>
 
-            {/* Operario Principal */}
-            <div className="space-y-2">
-              <Label htmlFor="operario" className="flex items-center space-x-2">
-                <User className="h-4 w-4" />
-                <span>Operario Principal *</span>
-              </Label>
-              <div className="space-y-2">
-                {/* Buscador de operarios */}
-                <Input
-                  type="text"
-                  placeholder="Buscar operario por nombre o cédula..."
-                  value={searchUsuarios}
-                  onChange={(e) => setSearchUsuarios(e.target.value)}
-                  className="input-touch"
-                />
-                <Select 
-                  value={formData.operario_principal_id} 
-                  onValueChange={(value) => handleInputChange('operario_principal_id', value)}
-                >
-                  <SelectTrigger className="input-touch">
-                    <SelectValue placeholder="Selecciona el operario principal" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background z-50 max-h-48 overflow-y-auto">
-                    {filteredUsuarios
-                      .filter(u => u.tipo_usuario === 'operario' && u.activo)
-                      .map((usuario) => (
-                        <SelectItem key={usuario.id} value={usuario.id}>
-                          {usuario.nombre} - {usuario.cedula}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
             {/* Productos */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -662,7 +752,7 @@ export default function RegistroProduccion() {
                 return (
                   <Card key={index} className="p-4">
                     <div className="space-y-4">
-                      {/* Product Selection and Remove Button */}
+                      {/* Producto y eliminar */}
                       <div className="flex items-center space-x-4">
                         <div className="flex-1">
                           <Label className="text-sm font-medium">Producto</Label>
@@ -694,7 +784,7 @@ export default function RegistroProduccion() {
                         </Button>
                       </div>
 
-                      {/* Tree Levels Input or Regular Quantity */}
+                      {/* Niveles árbol o cantidad regular */}
                       {isTreeProduct && producto.niveles ? (
                         <div className="space-y-3">
                           <Label className="text-sm font-medium text-primary">Niveles de Ramas</Label>
@@ -743,82 +833,6 @@ export default function RegistroProduccion() {
                   </Card>
                 );
               })}
-            </div>
-
-            {/* Operarios Asistentes */}
-            <div className="space-y-4">
-              <Label className="flex items-center space-x-2">
-                <Users className="h-4 w-4" />
-                <span>Operarios Asistentes</span>
-              </Label>
-              
-              {usuarios.length === 0 ? (
-                <div className="text-center py-4 text-muted-foreground">
-                  No hay otros operarios disponibles
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Buscador */}
-                  <div className="relative">
-                    <Input
-                      type="text"
-                      placeholder="Buscar operarios por nombre..."
-                      value={searchUsuarios}
-                      onChange={(e) => setSearchUsuarios(e.target.value)}
-                      className="pl-10 input-touch"
-                    />
-                    <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  </div>
-
-                  {/* Lista filtrada */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-40 overflow-y-auto">
-                    {filteredUsuarios.length === 0 ? (
-                      <div className="col-span-2 text-center py-4 text-muted-foreground">
-                        {searchUsuarios ? 'No se encontraron operarios con ese nombre' : 'No hay operarios disponibles'}
-                      </div>
-                    ) : (
-                      filteredUsuarios.map((usuario) => (
-                        <div key={usuario.id} className="flex items-center space-x-3 p-2 rounded-lg border hover:bg-muted/50">
-                          <Checkbox
-                            id={`asistente-${usuario.id}`}
-                            checked={formData.asistentes.includes(usuario.id)}
-                            onCheckedChange={() => toggleAsistente(usuario.id)}
-                          />
-                          <Label 
-                            htmlFor={`asistente-${usuario.id}`}
-                            className="text-sm font-medium cursor-pointer flex-1"
-                          >
-                            {usuario.nombre}
-                            <span className="text-xs text-muted-foreground block">
-                              {usuario.cedula}
-                            </span>
-                          </Label>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {formData.asistentes.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {formData.asistentes.map((asistenteId) => {
-                    const asistente = usuarios.find(u => u.id === asistenteId);
-                    return asistente ? (
-                      <Badge key={asistenteId} variant="secondary" className="flex items-center space-x-1">
-                        <span>{asistente.nombre}</span>
-                        <button
-                          type="button"
-                          onClick={() => toggleAsistente(asistenteId)}
-                          className="ml-1 text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ) : null;
-                  })}
-                </div>
-              )}
             </div>
 
             {/* Meta y Cumplimiento */}
@@ -873,7 +887,7 @@ export default function RegistroProduccion() {
               </Card>
             )}
 
-            {/* Warning for night shift */}
+            {/* Advertencia turno nocturno */}
             {formData.turno === "10:00pm - 6:00am" && (
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
@@ -883,7 +897,7 @@ export default function RegistroProduccion() {
               </Alert>
             )}
 
-            {/* Submit Button */}
+            {/* Botón enviar */}
             <Button
               type="submit"
               className="w-full btn-touch text-lg font-semibold"
