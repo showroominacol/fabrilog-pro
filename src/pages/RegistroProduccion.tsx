@@ -42,7 +42,6 @@ interface NivelDetalle {
 interface ProductoDetalle {
   producto_id: string;
   produccion_real: number;
-  observaciones?: string;
   niveles?: NivelDetalle[];
 }
 
@@ -279,7 +278,6 @@ export default function RegistroProduccion() {
       const newProducto: ProductoDetalle = {
         producto_id: firstProduct.id,
         produccion_real: 0,
-        observaciones: '',
         niveles: firstProduct.tipo_producto === 'arbol_navideno' ? initializeNiveles(firstProduct.diseno_id!) : undefined
       };
       setFormData(prev => ({
@@ -329,7 +327,7 @@ export default function RegistroProduccion() {
     }));
   };
 
-  const updateProducto = (index: number, field: 'producto_id' | 'produccion_real' | 'observaciones', value: string | number) => {
+  const updateProducto = (index: number, field: 'producto_id' | 'produccion_real', value: string | number) => {
     setFormData(prev => ({
       ...prev,
       productos: prev.productos.map((producto, i) => {
@@ -340,18 +338,14 @@ export default function RegistroProduccion() {
               return { 
                 producto_id: value as string,
                 niveles: initializeNiveles(selectedProduct.diseno_id!),
-                produccion_real: 0,
-                observaciones: producto.observaciones || ''
+                produccion_real: 0
               };
             } else {
               return { 
                 producto_id: value as string,
-                produccion_real: producto.produccion_real,
-                observaciones: producto.observaciones || ''
+                produccion_real: producto.produccion_real
               };
             }
-          } else if (field === 'observaciones') {
-            return { ...producto, observaciones: value as string };
           } else {
             return { ...producto, [field]: value as number };
           }
@@ -457,8 +451,7 @@ export default function RegistroProduccion() {
           registro_id: registro.id,
           producto_id: producto.producto_id,
           produccion_real: producto.produccion_real,
-          porcentaje_cumplimiento: porcentajeProducto,
-          observaciones: producto.observaciones || null
+          porcentaje_cumplimiento: porcentajeProducto
         });
       });
 
@@ -927,18 +920,6 @@ export default function RegistroProduccion() {
                           />
                         </div>
                       )}
-
-                      {/* Campo de observaciones */}
-                      <div>
-                        <Label className="text-sm font-medium">Observaciones</Label>
-                        <Input
-                          type="text"
-                          value={producto.observaciones || ''}
-                          onChange={(e) => updateProducto(index, 'observaciones', e.target.value)}
-                          placeholder="Anota cualquier observación necesaria..."
-                          className="input-touch"
-                        />
-                      </div>
                     </div>
                   </Card>
                 );

@@ -74,7 +74,7 @@ export default function ConsultaCumplimiento() {
         return;
       }
 
-      setResultado(data[0] as unknown as CumplimientoData);
+      setResultado(data[0]);
       
       toast({
         title: "Consulta exitosa",
