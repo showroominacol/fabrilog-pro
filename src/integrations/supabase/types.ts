@@ -394,6 +394,38 @@ export type Database = {
         }
         Returns: Record<string, unknown>[]
       }
+      get_user_for_auth: {
+        Args: { p_cedula: string }
+        Returns: {
+          activo: boolean
+          cedula: string
+          id: string
+          nombre: string
+          password_hash: string
+          tipo_usuario: Database["public"]["Enums"]["user_type"]
+        }[]
+      }
+      get_usuario_by_cedula: {
+        Args: { p_cedula: string }
+        Returns: {
+          activo: boolean
+          cedula: string
+          id: string
+          nombre: string
+          tipo_usuario: Database["public"]["Enums"]["user_type"]
+        }[]
+      }
+      get_usuarios_list: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          activo: boolean
+          cedula: string
+          fecha_creacion: string
+          id: string
+          nombre: string
+          tipo_usuario: Database["public"]["Enums"]["user_type"]
+        }[]
+      }
     }
     Enums: {
       turno_produccion:

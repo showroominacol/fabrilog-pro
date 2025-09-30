@@ -36,14 +36,15 @@ export default function AdminUsuarios() {
   const fetchUsuarios = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .order('activo', { ascending: false })
-        .order('nombre');
+      
+      // Use secure Edge Function to fetch users
+      const { data: response, error } = await supabase.functions.invoke('users-list');
 
       if (error) throw error;
-      setUsuarios(data || []);
+      
+      // The response includes all users with their roles
+      const allUsers = response?.users || [];
+      setUsuarios(allUsers);
     } catch (error) {
       console.error('Error fetching usuarios:', error);
       toast({
@@ -64,54 +65,43 @@ export default function AdminUsuarios() {
   }) => {
     try {
       if (editingUsuario) {
-        const updateData: any = {
-          nombre: data.nombre,
-          cedula: data.cedula,
-          tipo_usuario: data.tipo_usuario,
-        };
-        
-        if (data.password && data.password.trim() !== '') {
-          updateData.password_hash = data.password;
-        }
+        // Update existing user via Edge Function
+        const { data: response, error } = await supabase.functions.invoke('users-management', {
+          body: {
+            action: 'update',
+            userId: editingUsuario.id,
+            userData: {
+              nombre: data.nombre,
+              cedula: data.cedula,
+              tipo_usuario: data.tipo_usuario,
+              password: data.password && data.password.trim() !== '' ? data.password : undefined
+            }
+          }
+        });
 
-        const { error } = await supabase
-          .from('usuarios')
-          .update(updateData)
-          .eq('id', editingUsuario.id);
-        
         if (error) throw error;
+        if (response?.error) throw new Error(response.error);
         
         toast({
           title: "Éxito",
           description: "Usuario actualizado correctamente",
         });
       } else {
-        const { data: existingUser } = await supabase
-          .from('usuarios')
-          .select('id')
-          .eq('cedula', data.cedula)
-          .single();
+        // Create new user via Edge Function
+        const { data: response, error } = await supabase.functions.invoke('users-management', {
+          body: {
+            action: 'create',
+            userData: {
+              nombre: data.nombre,
+              cedula: data.cedula,
+              password: data.password || '1234',
+              tipo_usuario: data.tipo_usuario
+            }
+          }
+        });
 
-        if (existingUser) {
-          toast({
-            title: "Error",
-            description: "Ya existe un usuario con esta cédula",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        const { error } = await supabase
-          .from('usuarios')
-          .insert([{
-            nombre: data.nombre,
-            cedula: data.cedula,
-            password_hash: data.password || '1234',
-            tipo_usuario: data.tipo_usuario,
-            activo: true,
-          }]);
-        
         if (error) throw error;
+        if (response?.error) throw new Error(response.error);
         
         toast({
           title: "Éxito",
@@ -122,11 +112,11 @@ export default function AdminUsuarios() {
       setShowUsuarioForm(false);
       setEditingUsuario(null);
       fetchUsuarios();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving usuario:', error);
       toast({
         title: "Error",
-        description: "Error al guardar el usuario",
+        description: error.message || "Error al guardar el usuario",
         variant: "destructive",
       });
     }
@@ -134,12 +124,16 @@ export default function AdminUsuarios() {
 
   const handleDeleteUsuario = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('usuarios')
-        .update({ activo: false })
-        .eq('id', id);
-      
+      // Delete user via Edge Function (soft delete - marks as inactive)
+      const { data: response, error } = await supabase.functions.invoke('users-management', {
+        body: {
+          action: 'delete',
+          userId: id
+        }
+      });
+
       if (error) throw error;
+      if (response?.error) throw new Error(response.error);
       
       toast({
         title: "Éxito",
@@ -147,11 +141,11 @@ export default function AdminUsuarios() {
       });
       
       fetchUsuarios();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deactivating usuario:', error);
       toast({
         title: "Error",
-        description: "Error al desactivar el usuario",
+        description: error.message || "Error al desactivar el usuario",
         variant: "destructive",
       });
     }
@@ -159,12 +153,19 @@ export default function AdminUsuarios() {
 
   const handleReactivateUsuario = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('usuarios')
-        .update({ activo: true })
-        .eq('id', id);
+      // Reactivate user via Edge Function
+      const { data: response, error } = await supabase.functions.invoke('users-management', {
+        body: {
+          action: 'update',
+          userId: id,
+          userData: {
+            activo: true
+          }
+        }
+      });
 
       if (error) throw error;
+      if (response?.error) throw new Error(response.error);
 
       toast({
         title: "Éxito",
@@ -172,11 +173,11 @@ export default function AdminUsuarios() {
       });
 
       fetchUsuarios();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error reactivating usuario:', error);
       toast({
         title: "Error",
-        description: "Error al reactivar el usuario",
+        description: error.message || "Error al reactivar el usuario",
         variant: "destructive",
       });
     }

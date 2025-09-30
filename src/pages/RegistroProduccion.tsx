@@ -154,25 +154,34 @@ export default function RegistroProduccion() {
     try {
       setDataLoading(true);
       
-      const [maquinasResult, productosResult, usuariosResult, disenosResult, nivelesResult] = await Promise.all([
+      // Load maquinas, productos, diseños y niveles with direct queries (these are safe)
+      const [maquinasResult, productosResult, disenosResult, nivelesResult] = await Promise.all([
         supabase.from('maquinas').select('*').eq('activa', true).order('nombre'),
         supabase.from('productos').select('*').eq('activo', true).order('nombre'),
-        supabase.from('usuarios').select('*').eq('activo', true).neq('id', user?.id || '').neq('tipo_usuario', 'admin').order('nombre'),
         supabase.from('disenos_arboles').select('*').eq('activo', true).order('nombre'),
         supabase.from('niveles_ramas').select('*').eq('activo', true).order('nivel')
       ]);
 
+      // Load usuarios via secure Edge Function
+      const { data: usersResponse, error: usersError } = await supabase.functions.invoke('users-list');
+
       if (maquinasResult.error) throw maquinasResult.error;
       if (productosResult.error) throw productosResult.error;
-      if (usuariosResult.error) throw usuariosResult.error;
       if (disenosResult.error) throw disenosResult.error;
       if (nivelesResult.error) throw nivelesResult.error;
+      if (usersError) throw usersError;
 
       setMaquinas(maquinasResult.data || []);
       setProductos(productosResult.data || []);
-      setUsuarios(usuariosResult.data || []);
       setDisenosArboles(disenosResult.data || []);
       setNivelesRamas(nivelesResult.data || []);
+      
+      // Filter usuarios - exclude admins and current user
+      const allUsers = usersResponse?.users || [];
+      const filteredUsers = allUsers.filter((u: any) => 
+        u.id !== user?.id && u.tipo_usuario !== 'admin'
+      );
+      setUsuarios(filteredUsers);
       
       // Extraer categorías únicas de máquinas
       const categorias = Array.from(
