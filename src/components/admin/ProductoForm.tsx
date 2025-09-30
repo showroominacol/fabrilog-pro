@@ -34,9 +34,11 @@ type NivelRama = Tables<'niveles_ramas'>;
 
 const formSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
-  tope: z.number().min(0, 'El tope debe ser mayor o igual a 0').optional(),
   categoria: z.string().min(1, 'Debe seleccionar una categoría'),
   tipo_producto: z.enum(['general', 'arbol_navideno', 'producido_molino']),
+  // Topes por jornada - 8h obligatorio, 10h opcional
+  tope_jornada_8h: z.number().min(0, 'El tope debe ser mayor o igual a 0'),
+  tope_jornada_10h: z.number().min(0, 'El tope debe ser mayor o igual a 0').optional(),
   diseno_id: z.string().optional(),
   // Para crear nuevo diseño
   diseno_nombre: z.string().optional(),
@@ -45,9 +47,6 @@ const formSchema = z.object({
     nivel: z.number(),
     festones_por_rama: z.number()
   })).optional(),
-  // Para productos de molino
-  tope_jornada_8h: z.number().min(0, 'El tope debe ser mayor o igual a 0').optional(),
-  tope_jornada_10h: z.number().min(0, 'El tope debe ser mayor o igual a 0').optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -68,15 +67,14 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
     resolver: zodResolver(formSchema),
     defaultValues: {
       nombre: producto?.nombre || '',
-      tope: producto?.tope ? Number(producto.tope) : undefined,
       categoria: producto?.categoria || '',
       tipo_producto: (producto?.tipo_producto as 'general' | 'arbol_navideno' | 'producido_molino' | undefined) || 'general',
+      tope_jornada_8h: producto?.tope_jornada_8h ? Number(producto.tope_jornada_8h) : 0,
+      tope_jornada_10h: producto?.tope_jornada_10h ? Number(producto.tope_jornada_10h) : undefined,
       diseno_id: producto?.diseno_id || undefined,
       diseno_nombre: '',
       diseno_descripcion: '',
       niveles_ramas: [],
-      tope_jornada_8h: producto?.tope_jornada_8h ? Number(producto.tope_jornada_8h) : undefined,
-      tope_jornada_10h: producto?.tope_jornada_10h ? Number(producto.tope_jornada_10h) : undefined,
     },
   });
 
@@ -179,16 +177,36 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
             
             <FormField
               control={form.control}
-              name="tope"
+              name="tope_jornada_8h"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tope de Producción</FormLabel>
+                  <FormLabel>Tope de Producción 8 Horas *</FormLabel>
                   <FormControl>
                     <Input 
                       type="number" 
-                      placeholder="Tope de producción" 
+                      placeholder="Tope para jornadas de 8 horas" 
                       {...field}
-                      value={field.value || ''}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : 0)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="tope_jornada_10h"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tope de Producción 10 Horas (Opcional)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      placeholder="Tope para jornadas de 10 horas" 
+                      {...field}
+                      value={field.value ?? ''}
                       onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
                     />
                   </FormControl>
@@ -364,54 +382,6 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
               </Card>
             )}
 
-            {tipoProducto === 'producido_molino' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Configuración de Topes por Jornada</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="tope_jornada_8h"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tope Jornada 8 Horas</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            placeholder="Tope para jornadas de 8 horas" 
-                            {...field}
-                            value={field.value || ''}
-                            onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="tope_jornada_10h"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tope Jornada 10 Horas</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            placeholder="Tope para jornadas de 10 horas" 
-                            {...field}
-                            value={field.value || ''}
-                            onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </CardContent>
-              </Card>
-            )}
 
             <FormField
               control={form.control}
