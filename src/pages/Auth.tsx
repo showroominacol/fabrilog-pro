@@ -174,81 +174,8 @@ export default function Auth() {
             </div>
           </CardContent>
         </Card>
-        <Card className="shadow-[var(--shadow-card)]">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-center text-lg">¿Nuevo usuario?</CardTitle>
-            <CardDescription className="text-center">
-              Solo administradores pueden crear nuevas cuentas
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="signup" className="w-full">
-              <TabsContent value="signup" className="space-y-4">
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-nombre">Nombre Completo</Label>
-                    <Input
-                      id="signup-nombre"
-                      name="nombre"
-                      type="text"
-                      required
-                      placeholder="Juan Pérez"
-                      className="input-touch"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-cedula">Cédula</Label>
-                    <Input
-                      id="signup-cedula"
-                      name="cedula"
-                      type="text"
-                      required
-                      placeholder="12345678"
-                      className="input-touch"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Contraseña</Label>
-                    <Input
-                      id="signup-password"
-                      name="password"
-                      type="password"
-                      required
-                      placeholder="••••••••"
-                      className="input-touch"
-                      minLength={6}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">Tipo de Usuario</Label>
-                    <div className="p-3 bg-muted rounded-md text-sm">
-                      <span className="font-medium">Operario</span> - Los nuevos usuarios se crean automáticamente como operarios
-                    </div>
-                  </div>
-                  
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    className="w-full btn-touch font-semibold"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Registrando...
-                      </>
-                    ) : (
-                      'Crear Nuevo Usuario'
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+        
+
 
         <div className="text-center text-sm text-muted-foreground space-y-2">
           <p>© 2024 FabriLog Pro. Sistema optimizado para tablets.</p>
