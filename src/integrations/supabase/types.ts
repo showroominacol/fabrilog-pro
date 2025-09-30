@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           fecha_creacion: string
           id: string
+          observaciones: string | null
           porcentaje_cumplimiento: number
           produccion_real: number
           producto_id: string
@@ -26,6 +27,7 @@ export type Database = {
         Insert: {
           fecha_creacion?: string
           id?: string
+          observaciones?: string | null
           porcentaje_cumplimiento?: number
           produccion_real?: number
           producto_id: string
@@ -34,6 +36,7 @@ export type Database = {
         Update: {
           fecha_creacion?: string
           id?: string
+          observaciones?: string | null
           porcentaje_cumplimiento?: number
           produccion_real?: number
           producto_id?: string
@@ -386,18 +389,10 @@ export type Database = {
       consultar_cumplimiento_operario: {
         Args: {
           cedula_operario: string
-          fecha_fin?: string
-          fecha_inicio?: string
+          fecha_fin: string
+          fecha_inicio: string
         }
-        Returns: {
-          cedula: string
-          dias_con_produccion: number
-          dias_laborales: number
-          fecha_fin_periodo: string
-          fecha_inicio_periodo: string
-          nombre: string
-          porcentaje_cumplimiento: number
-        }[]
+        Returns: Record<string, unknown>[]
       }
     }
     Enums: {
