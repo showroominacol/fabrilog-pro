@@ -1,14 +1,1 @@
 project_id = "vempycjxxbbcefunizwo"
-
-# Edge Functions Configuration
-[functions.auth-login]
-verify_jwt = false
-
-[functions.auth-signup]
-verify_jwt = false
-
-[functions.users-list]
-verify_jwt = false
-
-[functions.users-management]
-verify_jwt = false

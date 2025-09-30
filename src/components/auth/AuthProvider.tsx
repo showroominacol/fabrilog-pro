@@ -52,37 +52,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       
-      // Call secure Edge Function for authentication
-      const { data: responseData, error: functionError } = await supabase.functions.invoke('auth-login', {
-        body: { cedula, password }
-      });
-
-      if (functionError) {
-        console.error('Function error:', functionError);
-        return { error: { message: 'Error al iniciar sesión' } };
+      // Query user by cedula
+      const { data: userData, error: userError } = await supabase
+        .from('usuarios')
+        .select('*')
+        .eq('cedula', cedula)
+        .eq('activo', true)
+        .single();
+      
+      if (userError || !userData) {
+        return { error: { message: 'Usuario no encontrado o inactivo' } };
       }
-
-      if (responseData?.error) {
-        return { error: { message: responseData.error } };
+      
+      // Verificar que solo admin y escribano pueden acceder
+      if (userData.tipo_usuario === 'operario') {
+        await signOut(); // Cerrar sesión inmediatamente
+        return { error: { message: 'Acceso solo para administradores y escribanos' } };
       }
-
-      if (!responseData?.user) {
-        return { error: { message: 'Respuesta inválida del servidor' } };
+      
+      // For now, we'll use a simple password check
+      // In production, you should use proper password hashing
+      if (userData.password_hash !== password) {
+        return { error: { message: 'Contraseña incorrecta' } };
       }
-
+      
       // Store user session
-      const userSession = responseData.user;
+      const userSession = {
+        id: userData.id,
+        nombre: userData.nombre,
+        cedula: userData.cedula,
+        tipo_usuario: userData.tipo_usuario,
+        activo: userData.activo
+      };
       
       localStorage.setItem('fabrilog_user', JSON.stringify(userSession));
       setUser(userSession);
       
       toast({
         title: "Bienvenido",
-        description: `Hola ${userSession.nombre}!`,
+        description: `Hola ${userData.nombre}!`,
       });
       
       // Redirigir según el tipo de usuario
-      if (userSession.tipo_usuario === 'escribano') {
+      if (userData.tipo_usuario === 'escribano') {
         setTimeout(() => window.location.href = '/registro', 100);
       }
       
@@ -99,18 +111,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       
-      // Call secure Edge Function for user registration
-      const { data: responseData, error: functionError } = await supabase.functions.invoke('auth-signup', {
-        body: { nombre, cedula, password, tipo_usuario }
-      });
-
-      if (functionError) {
-        console.error('Function error:', functionError);
-        return { error: { message: 'Error al registrar usuario' } };
+      // Check if user already exists
+      const { data: existingUser } = await supabase
+        .from('usuarios')
+        .select('id')
+        .eq('cedula', cedula)
+        .single();
+      
+      if (existingUser) {
+        return { error: { message: 'Ya existe un usuario con esta cédula' } };
       }
-
-      if (responseData?.error) {
-        return { error: { message: responseData.error } };
+      
+      // Create new user
+      const { data: newUser, error } = await supabase
+        .from('usuarios')
+        .insert({
+          nombre,
+          cedula,
+          password_hash: password, // In production, hash this properly
+          tipo_usuario,
+          activo: true
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        return { error };
       }
       
       toast({
