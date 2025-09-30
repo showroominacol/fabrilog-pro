@@ -48,6 +48,7 @@ interface ProductoDetalle {
 interface FormData {
   fecha: string;
   turno: Enums<'turno_produccion'> | '';
+  categoria_maquina: string;
   maquina_id: string;
   operario_principal_id: string;
   productos: ProductoDetalle[];
@@ -61,6 +62,7 @@ export default function RegistroProduccion() {
   const [formData, setFormData] = useState<FormData>({
     fecha: new Date().toISOString().split('T')[0],
     turno: '',
+    categoria_maquina: '',
     maquina_id: '',
     operario_principal_id: '',
     productos: [],
@@ -68,6 +70,8 @@ export default function RegistroProduccion() {
   });
   
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
+  const [filteredMaquinas, setFilteredMaquinas] = useState<Maquina[]>([]);
+  const [categoriasMaquinas, setCategoriasMaquinas] = useState<string[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -97,6 +101,17 @@ export default function RegistroProduccion() {
     loadInitialData();
   }, []);
 
+  // Filtrar máquinas por categoría
+  useEffect(() => {
+    if (formData.categoria_maquina) {
+      const filtered = maquinas.filter(m => m.categoria === formData.categoria_maquina);
+      setFilteredMaquinas(filtered);
+    } else {
+      setFilteredMaquinas([]);
+    }
+  }, [formData.categoria_maquina, maquinas]);
+
+  // Filtrar productos por máquina seleccionada
   useEffect(() => {
     if (formData.maquina_id) {
       const maquinaSeleccionada = maquinas.find(m => m.id === formData.maquina_id);
@@ -157,6 +172,16 @@ export default function RegistroProduccion() {
       setUsuarios(usuariosResult.data || []);
       setDisenosArboles(disenosResult.data || []);
       setNivelesRamas(nivelesResult.data || []);
+      
+      // Extraer categorías únicas de máquinas
+      const categorias = Array.from(
+        new Set(
+          (maquinasResult.data || [])
+            .map(m => m.categoria)
+            .filter((c): c is string => c !== null && c !== undefined && c !== '')
+        )
+      ).sort();
+      setCategoriasMaquinas(categorias);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -216,11 +241,28 @@ export default function RegistroProduccion() {
     return fecha;
   };
 
-  const handleInputChange = (field: 'fecha' | 'turno' | 'maquina_id' | 'operario_principal_id', value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+  const handleInputChange = (field: 'fecha' | 'turno' | 'categoria_maquina' | 'maquina_id' | 'operario_principal_id', value: string) => {
+    if (field === 'categoria_maquina') {
+      // Al cambiar categoría, resetear máquina y productos
+      setFormData(prev => ({
+        ...prev,
+        categoria_maquina: value,
+        maquina_id: '',
+        productos: []
+      }));
+    } else if (field === 'maquina_id') {
+      // Al cambiar máquina, resetear productos
+      setFormData(prev => ({
+        ...prev,
+        maquina_id: value,
+        productos: []
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
   };
 
   const addProducto = () => {
@@ -425,6 +467,7 @@ export default function RegistroProduccion() {
       setFormData({
         fecha: new Date().toISOString().split('T')[0],
         turno: '',
+        categoria_maquina: '',
         maquina_id: '',
         operario_principal_id: '',
         productos: [],
@@ -676,28 +719,59 @@ export default function RegistroProduccion() {
               </div>
             </div>
 
-            {/* Máquina */}
+            {/* Categoría de Máquina */}
             <div className="space-y-2">
-              <Label htmlFor="maquina" className="flex items-center space-x-2">
+              <Label htmlFor="categoria" className="flex items-center space-x-2">
                 <Factory className="h-4 w-4" />
-                <span>Máquina</span>
+                <span>Categoría de Máquina *</span>
               </Label>
               <Select 
-                value={formData.maquina_id} 
-                onValueChange={(value) => handleInputChange('maquina_id', value)}
+                value={formData.categoria_maquina} 
+                onValueChange={(value) => handleInputChange('categoria_maquina', value)}
               >
                 <SelectTrigger className="input-touch">
-                  <SelectValue placeholder="Selecciona la máquina" />
+                  <SelectValue placeholder="Selecciona la categoría" />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
-                  {maquinas.map((maquina) => (
-                    <SelectItem key={maquina.id} value={maquina.id}>
-                      {maquina.nombre}
+                  {categoriasMaquinas.map((categoria) => (
+                    <SelectItem key={categoria} value={categoria}>
+                      {categoria}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Máquina - Solo se muestra si hay categoría seleccionada */}
+            {formData.categoria_maquina && (
+              <div className="space-y-2">
+                <Label htmlFor="maquina" className="flex items-center space-x-2">
+                  <Factory className="h-4 w-4" />
+                  <span>Máquina *</span>
+                </Label>
+                <Select 
+                  value={formData.maquina_id} 
+                  onValueChange={(value) => handleInputChange('maquina_id', value)}
+                >
+                  <SelectTrigger className="input-touch">
+                    <SelectValue placeholder="Selecciona la máquina" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    {filteredMaquinas.length === 0 ? (
+                      <div className="p-2 text-sm text-muted-foreground">
+                        No hay máquinas en esta categoría
+                      </div>
+                    ) : (
+                      filteredMaquinas.map((maquina) => (
+                        <SelectItem key={maquina.id} value={maquina.id}>
+                          {maquina.nombre}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Productos */}
             <div className="space-y-4">
