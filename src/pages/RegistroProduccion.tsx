@@ -257,6 +257,13 @@ export default function RegistroProduccion() {
         maquina_id: value,
         productos: []
       }));
+    } else if (field === 'operario_principal_id') {
+      // Si cambia el operario principal, removerlo de asistentes si está
+      setFormData(prev => ({
+        ...prev,
+        operario_principal_id: value,
+        asistentes: prev.asistentes.filter(id => id !== value)
+      }));
     } else {
       setFormData(prev => ({
         ...prev,
@@ -349,6 +356,16 @@ export default function RegistroProduccion() {
   };
 
   const toggleAsistente = (asistenteId: string) => {
+    // Validar que el operario principal no pueda ser asistente
+    if (asistenteId === formData.operario_principal_id) {
+      toast({
+        title: "Validación",
+        description: "El operario principal no puede ser asistente en el mismo registro",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setFormData(prev => ({
       ...prev,
       asistentes: prev.asistentes.includes(asistenteId)

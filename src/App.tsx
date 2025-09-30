@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import RegistroProduccion from "./pages/RegistroProduccion";
 import AdminMaquinasProductos from "./pages/AdminMaquinasProductos";
+import AdminUsuarios from "./pages/AdminUsuarios";
 import Metricas from "./pages/Metricas";
 import ConsultaCumplimiento from "./pages/ConsultaCumplimiento";
 import NotFound from "./pages/NotFound";
@@ -89,6 +90,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Metricas />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/usuarios" 
+        element={
+          <ProtectedRoute>
+            <AdminUsuarios />
           </ProtectedRoute>
         } 
       />

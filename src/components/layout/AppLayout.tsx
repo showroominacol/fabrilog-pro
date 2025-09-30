@@ -48,6 +48,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       icon: Settings, 
       roles: ['admin'] 
     },
+    { 
+      name: 'Gestión de Usuarios', 
+      href: '/admin/usuarios', 
+      icon: Users, 
+      roles: ['admin'] 
+    },
   ];
 
   const filteredNavigation = navigation.filter(item => 
