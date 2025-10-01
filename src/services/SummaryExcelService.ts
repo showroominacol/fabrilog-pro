@@ -23,6 +23,7 @@ export interface BlockData {
   porcentaje: number;
   dias: number;
   horas: string;
+  observaciones: string;
   maquinas: MachineData[];
 }
 
@@ -31,12 +32,14 @@ export interface MachineData {
   porcentaje: number;
   dias: number;
   horas: string;
+  observaciones: string;
 }
 
 // ================== Tipos para consultas Supabase ==================
 // FKs duplicadas obligan a "pistar" relaciones con !<constraint_name>
 type DetalleRow = {
   produccion_real: number;
+  observaciones?: string | null;
   productos?: { nombre: string; tope: number | null } | null;
 };
 
@@ -234,6 +237,7 @@ private async generateCategoryBlock(
       maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
       detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
         produccion_real,
+        observaciones,
         productos:productos!detalle_produccion_producto_id_fkey ( nombre, tope )
       )
     `)
@@ -270,6 +274,7 @@ private async generateCategoryBlock(
         maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
         detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
           produccion_real,
+          observaciones,
           productos:productos!detalle_produccion_producto_id_fkey ( nombre, tope )
         )
       `)
@@ -318,12 +323,13 @@ private async generateCategoryBlock(
     _fechaFin: Date
   ): Promise<BlockData> {
     if (!registros || registros.length === 0) {
-      return { porcentaje: 0, dias: 0, horas: '', maquinas: [] };
+      return { porcentaje: 0, dias: 0, horas: '', observaciones: '', maquinas: [] };
     }
 
     // % promedio por día, días y horas (turnos únicos)
     const porcentajesPorDia = new Map<string, number>();
     const turnosPorDia = new Map<string, string>();
+    const observacionesSet = new Set<string>();
 
     for (const registro of registros) {
       const fecha = registro.fecha;
@@ -339,6 +345,11 @@ private async generateCategoryBlock(
           const tope = detalle.productos?.tope ?? 0;
           const pct = tope > 0 ? (detalle.produccion_real / Number(tope)) * 100 : 0;
           sumaPorcentajeDia += pct;
+          
+          // Recopilar observaciones
+          if (detalle.observaciones && detalle.observaciones.trim()) {
+            observacionesSet.add(detalle.observaciones.trim());
+          }
         }
         porcentajesPorDia.set(fecha, sumaPorcentajeDia);
       }
@@ -352,6 +363,7 @@ private async generateCategoryBlock(
 
     const dias = porcentajesPorDia.size;
     const horas = [...new Set(Array.from(turnosPorDia.values()))].join(', ');
+    const observaciones = Array.from(observacionesSet).join(' | ');
 
     // Por máquina
     const maquinasData = await this.generateMachineData(registros);
@@ -360,6 +372,7 @@ private async generateCategoryBlock(
       porcentaje: Math.round(porcentajePromedio * 10) / 10,
       dias,
       horas,
+      observaciones,
       maquinas: maquinasData,
     };
   }
@@ -370,7 +383,7 @@ private async generateCategoryBlock(
   private async generateMachineData(registros: RegistroProduccionRow[]): Promise<MachineData[]> {
     const maquinasMap = new Map<
       string,
-      { porcentajes: number[]; dias: Set<string>; turnos: Set<string> }
+      { porcentajes: number[]; dias: Set<string>; turnos: Set<string>; observaciones: Set<string> }
     >();
 
     for (const registro of registros) {
@@ -380,6 +393,7 @@ private async generateCategoryBlock(
           porcentajes: [],
           dias: new Set<string>(),
           turnos: new Set<string>(),
+          observaciones: new Set<string>(),
         });
       }
 
@@ -392,6 +406,11 @@ private async generateCategoryBlock(
         for (const d of registro.detalle_produccion) {
           const tope = d.productos?.tope ?? 0;
           pctRegistro += tope > 0 ? (d.produccion_real / Number(tope)) * 100 : 0;
+          
+          // Recopilar observaciones
+          if (d.observaciones && d.observaciones.trim()) {
+            agg.observaciones.add(d.observaciones.trim());
+          }
         }
       }
       agg.porcentajes.push(pctRegistro);
@@ -408,6 +427,7 @@ private async generateCategoryBlock(
           porcentaje: Math.round(promedio * 10) / 10,
           dias: data.dias.size,
           horas: Array.from(data.turnos).join(', '),
+          observaciones: Array.from(data.observaciones).join(' | '),
         };
       })
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -467,11 +487,11 @@ private async generateCategoryBlock(
 
     for (const categoria of categorias) {
       // OP
-      header1.push(`OP. ${categoria.toUpperCase()}`, '', '');
-      header2.push('%', 'DÍAS', 'HORAS');
+      header1.push(`OP. ${categoria.toUpperCase()}`, '', '', '');
+      header2.push('%', 'DÍAS', 'HORAS', 'OBSERVACIONES');
       // AYU
-      header1.push(`AYU. ${categoria.toUpperCase()}`, '', '');
-      header2.push('%', 'DÍAS', 'HORAS');
+      header1.push(`AYU. ${categoria.toUpperCase()}`, '', '', '');
+      header2.push('%', 'DÍAS', 'HORAS', 'OBSERVACIONES');
     }
 
     return [header1, header2];
@@ -498,19 +518,29 @@ private async generateCategoryBlock(
         if (bloque) {
           // OP
           if (bloque.operario.dias > 0) {
-            row.push(`${bloque.operario.porcentaje}%`, String(bloque.operario.dias), bloque.operario.horas);
+            row.push(
+              `${bloque.operario.porcentaje}%`, 
+              String(bloque.operario.dias), 
+              bloque.operario.horas,
+              bloque.operario.observaciones || ''
+            );
           } else {
-            row.push('', '', '');
+            row.push('', '', '', '');
           }
           // AYU
           if (bloque.ayudante.dias > 0) {
-            row.push(`${bloque.ayudante.porcentaje}%`, String(bloque.ayudante.dias), bloque.ayudante.horas);
+            row.push(
+              `${bloque.ayudante.porcentaje}%`, 
+              String(bloque.ayudante.dias), 
+              bloque.ayudante.horas,
+              bloque.ayudante.observaciones || ''
+            );
           } else {
-            row.push('', '', '');
+            row.push('', '', '', '');
           }
         } else {
           // Sin datos en la categoría
-          row.push('', '', '', '', '', '');
+          row.push('', '', '', '', '', '', '', '');
         }
       }
 
@@ -536,15 +566,17 @@ private async generateCategoryBlock(
       { width: 12 }, // BONO TOTAL
     ];
 
-    // Por cada categoría: OP(3) + AYU(3)
+    // Por cada categoría: OP(4) + AYU(4)
     for (let i = 0; i < categorias.length; i++) {
       colWidths.push(
         { width: 8 },  // OP %
         { width: 8 },  // OP DÍAS
         { width: 15 }, // OP HORAS
+        { width: 30 }, // OP OBSERVACIONES
         { width: 8 },  // AYU %
         { width: 8 },  // AYU DÍAS
-        { width: 15 }  // AYU HORAS
+        { width: 15 }, // AYU HORAS
+        { width: 30 }  // AYU OBSERVACIONES
       );
     }
     (worksheet as any)['!cols'] = colWidths;
