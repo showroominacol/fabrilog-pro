@@ -482,8 +482,8 @@ private async generateCategoryBlock(
    * Crea los encabezados del Excel (dos filas)
    */
   private createHeaders(categorias: string[]): string[][] {
-    const header1 = ['NOMBRE', 'DIAS X LABORAR', 'DIAS REAL LABORADOS', 'OBSERVACIÓN', 'BONO TOTAL'];
-    const header2 = ['', '', '', '', ''];
+    const header1 = ['NOMBRE', 'DIAS X LABORAR', 'DIAS REAL LABORADOS', 'BONO TOTAL'];
+    const header2 = ['', '', '', ''];
 
     for (const categoria of categorias) {
       // OP
@@ -508,7 +508,6 @@ private async generateCategoryBlock(
         empleado.nombre,
         String(empleado.diasXLaborar),
         String(empleado.diasRealLaborados),
-        empleado.observacion ?? '',
         String(empleado.bonoTotal),
       ];
 
@@ -562,7 +561,6 @@ private async generateCategoryBlock(
       { width: 25 }, // NOMBRE
       { width: 15 }, // DIAS X LABORAR
       { width: 18 }, // DIAS REAL LABORADOS
-      { width: 18 }, // OBSERVACIÓN
       { width: 12 }, // BONO TOTAL
     ];
 
