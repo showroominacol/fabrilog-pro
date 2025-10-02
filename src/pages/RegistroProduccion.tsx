@@ -40,7 +40,7 @@ interface NivelDetalle {
 }
 
 interface ProductoDetalle {
-  producto_id: string;
+  producto_id: string;             // quedará vacío hasta que el usuario seleccione
   produccion_real: number;
   observaciones?: string;
   niveles?: NivelDetalle[];
@@ -112,7 +112,7 @@ export default function RegistroProduccion() {
     }
   }, [formData.categoria_maquina, maquinas]);
 
-  // Filtrar productos por máquina seleccionada
+  // Filtrar productos por máquina seleccionada + buscador
   useEffect(() => {
     if (formData.maquina_id) {
       const maquinaSeleccionada = maquinas.find(m => m.id === formData.maquina_id);
@@ -123,6 +123,7 @@ export default function RegistroProduccion() {
         );
         setFilteredProductos(filteredWithSearch);
         
+        // limpiar productos no válidos según la nueva máquina
         const validProductos = formData.productos.filter(p => 
           filteredByCategory.find(fp => fp.id === p.producto_id)
         );
@@ -215,9 +216,10 @@ export default function RegistroProduccion() {
     let totalMeta = 0;
 
     formData.productos.forEach(producto => {
+      if (!producto.producto_id) return; // ignorar líneas sin selección
       const productoInfo = productos.find(p => p.id === producto.producto_id);
       if (productoInfo) {
-        const tope = getTopeForProduct(productoInfo, formData.turno);
+        const tope = getTopeForProduct(productoInfo, formData.turno as string);
         if (tope > 0) {
           totalProduccionReal += producto.produccion_real;
           totalMeta += tope;
@@ -273,20 +275,18 @@ export default function RegistroProduccion() {
     }
   };
 
+  // ——— CAMBIO CLAVE: no se preselecciona ningún producto
   const addProducto = () => {
-    if (filteredProductos.length > 0) {
-      const firstProduct = filteredProductos[0];
-      const newProducto: ProductoDetalle = {
-        producto_id: firstProduct.id,
-        produccion_real: 0,
-        observaciones: '',
-        niveles: firstProduct.tipo_producto === 'arbol_navideno' ? initializeNiveles(firstProduct.diseno_id!) : undefined
-      };
-      setFormData(prev => ({
-        ...prev,
-        productos: [...prev.productos, newProducto]
-      }));
-    }
+    const newProducto: ProductoDetalle = {
+      producto_id: '',           // vacío hasta que el usuario elija
+      produccion_real: 0,
+      observaciones: '',
+      niveles: undefined
+    };
+    setFormData(prev => ({
+      ...prev,
+      productos: [...prev.productos, newProducto]
+    }));
   };
 
   const initializeNiveles = (disenoId: string): NivelDetalle[] => {
@@ -347,7 +347,8 @@ export default function RegistroProduccion() {
               return { 
                 producto_id: value as string,
                 produccion_real: producto.produccion_real,
-                observaciones: producto.observaciones || ''
+                observaciones: producto.observaciones || '',
+                niveles: undefined
               };
             }
           } else if (field === 'observaciones') {
@@ -401,17 +402,33 @@ export default function RegistroProduccion() {
       return;
     }
 
-    const invalidProducts = formData.productos.filter(p => p.produccion_real <= 0);
-    if (invalidProducts.length > 0) {
+    // ——— Validar que todas las líneas tengan producto seleccionado
+    const productosSinSeleccion = formData.productos.filter(p => !p.producto_id);
+    if (productosSinSeleccion.length > 0) {
       toast({
-        title: "Cantidades Inválidas",
-        description: "Todos los productos deben tener una cantidad mayor a 0",
+        title: "Productos incompletos",
+        description: "Hay líneas de producto sin selección. Elige un producto o elimínalas.",
         variant: "destructive",
       });
       return;
     }
 
+    // ——— Validar cantidades (> 0) solo para seleccionados
+    const invalidProducts = formData.productos
+      .filter(p => !!p.producto_id)
+      .filter(p => p.produccion_real <= 0);
+    if (invalidProducts.length > 0) {
+      toast({
+        title: "Cantidades Inválidas",
+        description: "Todos los productos seleccionados deben tener una cantidad mayor a 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // ——— Validar niveles para árboles
     const invalidTreeProducts = formData.productos.filter(producto => {
+      if (!producto.producto_id) return false;
       const selectedProduct = filteredProductos.find(p => p.id === producto.producto_id);
       if (selectedProduct?.tipo_producto === 'arbol_navideno' && producto.niveles) {
         const totalRamas = producto.niveles.reduce((sum, nivel) => sum + nivel.cantidad_ramas, 0);
@@ -419,7 +436,6 @@ export default function RegistroProduccion() {
       }
       return false;
     });
-    
     if (invalidTreeProducts.length > 0) {
       toast({
         title: "Niveles Requeridos",
@@ -432,7 +448,7 @@ export default function RegistroProduccion() {
     setLoading(true);
 
     try {
-      const fechaAjustada = adjustDateForNightShift(formData.fecha, formData.turno);
+      const fechaAjustada = adjustDateForNightShift(formData.fecha, formData.turno as string);
       
       const { data: registro, error: registroError } = await supabase
         .from('registros_produccion')
@@ -448,24 +464,26 @@ export default function RegistroProduccion() {
 
       if (registroError) throw registroError;
 
-      const detallesPromises = formData.productos.map(producto => {
-        const productoInfo = productos.find(p => p.id === producto.producto_id);
-        const tope = productoInfo ? getTopeForProduct(productoInfo, formData.turno) : 0;
-        const porcentajeProducto = tope > 0 ? (producto.produccion_real / tope) * 100 : 0;
+      const detallesPromises = formData.productos
+        .filter(p => !!p.producto_id) // seguridad extra
+        .map(producto => {
+          const productoInfo = productos.find(p => p.id === producto.producto_id)!;
+          const tope = getTopeForProduct(productoInfo, formData.turno as string);
+          const porcentajeProducto = tope > 0 ? (producto.produccion_real / tope) * 100 : 0;
 
-        return supabase.from('detalle_produccion').insert({
-          registro_id: registro.id,
-          producto_id: producto.producto_id,
-          produccion_real: producto.produccion_real,
-          porcentaje_cumplimiento: porcentajeProducto,
-          observaciones: producto.observaciones || null
+          return supabase.from('detalle_produccion').insert({
+            registro_id: registro.id,
+            producto_id: producto.producto_id,
+            produccion_real: producto.produccion_real,
+            porcentaje_cumplimiento: porcentajeProducto,
+            observaciones: producto.observaciones || null
+          });
         });
-      });
 
       const detallesResults = await Promise.all(detallesPromises);
-      const detallesErrors = detallesResults.filter(result => result.error);
+      const detallesErrors = detallesResults.filter(result => (result as any).error);
       if (detallesErrors.length > 0) {
-        throw detallesErrors[0].error;
+        throw (detallesErrors[0] as any).error;
       }
 
       if (formData.asistentes.length > 0) {
@@ -477,9 +495,9 @@ export default function RegistroProduccion() {
         );
 
         const asistentesResults = await Promise.all(asistentesPromises);
-        const asistentesErrors = asistentesResults.filter(result => result.error);
+        const asistentesErrors = asistentesResults.filter(result => (result as any).error);
         if (asistentesErrors.length > 0) {
-          throw asistentesErrors[0].error;
+          throw (asistentesErrors[0] as any).error;
         }
       }
 
@@ -584,8 +602,7 @@ export default function RegistroProduccion() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* === PRIMERO: Operario principal y Asistentes (UI nueva para asistentes) === */}
-            {/* Operario Principal */}
+            {/* === Operario principal y Asistentes === */}
             <div className="space-y-2">
               <Label htmlFor="operario" className="flex items-center space-x-2">
                 <User className="h-4 w-4" />
@@ -620,7 +637,7 @@ export default function RegistroProduccion() {
               </div>
             </div>
 
-            {/* Operarios Asistentes - UI compacta (no lista por defecto) */}
+            {/* Operarios Asistentes */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="flex items-center space-x-2">
@@ -707,9 +724,8 @@ export default function RegistroProduccion() {
               )}
             </div>
 
-            {/* === LUEGO: Fecha y Turno === */}
+            {/* Fecha y Turno */}
             <div className="grid gap-6 md:grid-cols-2">
-              {/* Fecha */}
               <div className="space-y-2">
                 <Label htmlFor="fecha">Fecha de Producción</Label>
                 <Input
@@ -722,7 +738,6 @@ export default function RegistroProduccion() {
                 />
               </div>
 
-              {/* Turno */}
               <div className="space-y-2">
                 <Label htmlFor="turno">Turno</Label>
                 <Select 
@@ -844,9 +859,10 @@ export default function RegistroProduccion() {
               )}
 
               {formData.productos.map((producto, index) => {
-                const selectedProduct = filteredProductos.find(p => p.id === producto.producto_id);
-                const isTreeProduct = selectedProduct?.tipo_producto === 'arbol_navideno';
-                
+                const selectedProduct = producto.producto_id
+                  ? filteredProductos.find(p => p.id === producto.producto_id) || productos.find(p => p.id === producto.producto_id)
+                  : undefined;
+
                 return (
                   <Card key={index} className="p-4">
                     <div className="space-y-4">
@@ -882,63 +898,75 @@ export default function RegistroProduccion() {
                         </Button>
                       </div>
 
-                      {/* Niveles árbol o cantidad regular */}
-                      {isTreeProduct && producto.niveles ? (
-                        <div className="space-y-3">
-                          <Label className="text-sm font-medium text-primary">Niveles de Ramas</Label>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
-                            {producto.niveles.map((nivel, nivelIndex) => (
-                              <div key={nivel.nivel} className="p-3 border rounded-lg bg-muted/30">
-                                <Label className="text-xs font-medium text-muted-foreground">
-                                  Nivel {nivel.nivel} ({nivel.festones_por_rama} festones/rama)
-                                </Label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  value={nivel.cantidad_ramas}
-                                  onChange={(e) => updateProductoNivel(index, nivelIndex, parseInt(e.target.value) || 0)}
-                                  placeholder="Ramas"
-                                  className="input-touch mt-1"
-                                  inputMode="numeric"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                          <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
-                            <span className="text-sm font-medium">Total de Festones:</span>
-                            <Badge variant="secondary" className="text-lg font-bold">
-                              {producto.produccion_real.toLocaleString()}
-                            </Badge>
-                          </div>
+                      {/* Solo mostrar detalles cuando haya producto seleccionado */}
+                      {!selectedProduct ? (
+                        <div className="p-3 border rounded-lg text-sm text-muted-foreground bg-muted/30">
+                          Selecciona un producto para ingresar cantidades.
                         </div>
+                      ) : selectedProduct.tipo_producto === 'arbol_navideno' && producto.niveles ? (
+                        <>
+                          {/* Niveles árbol */}
+                          <div className="space-y-3">
+                            <Label className="text-sm font-medium text-primary">Niveles de Ramas</Label>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
+                              {producto.niveles.map((nivel, nivelIndex) => (
+                                <div key={nivel.nivel} className="p-3 border rounded-lg bg-muted/30">
+                                  <Label className="text-xs font-medium text-muted-foreground">
+                                    Nivel {nivel.nivel} ({nivel.festones_por_rama} festones/rama)
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={nivel.cantidad_ramas}
+                                    onChange={(e) => updateProductoNivel(index, nivelIndex, parseInt(e.target.value) || 0)}
+                                    placeholder="Ramas"
+                                    className="input-touch mt-1"
+                                    inputMode="numeric"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
+                              <span className="text-sm font-medium">Total de Festones:</span>
+                              <Badge variant="secondary" className="text-lg font-bold">
+                                {producto.produccion_real.toLocaleString()}
+                              </Badge>
+                            </div>
+                          </div>
+                        </>
                       ) : (
-                        <div className="flex-1">
-                          <Label className="text-sm font-medium">Cantidad Producida</Label>
+                        <>
+                          {/* Cantidad regular */}
+                          <div className="flex-1">
+                            <Label className="text-sm font-medium">Cantidad Producida</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={producto.produccion_real}
+                              onChange={(e) => updateProducto(index, 'produccion_real', parseInt(e.target.value) || 0)}
+                              placeholder="Unidades"
+                              className="input-touch"
+                              inputMode="numeric"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Observaciones: solo con producto elegido */}
+                      {selectedProduct && (
+                        <div>
+                          <Label className="text-sm font-medium">Observaciones</Label>
                           <Input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={producto.produccion_real}
-                            onChange={(e) => updateProducto(index, 'produccion_real', parseInt(e.target.value) || 0)}
-                            placeholder="Unidades"
+                            type="text"
+                            value={producto.observaciones || ''}
+                            onChange={(e) => updateProducto(index, 'observaciones', e.target.value)}
+                            placeholder="Anota cualquier observación necesaria..."
                             className="input-touch"
-                            inputMode="numeric"
                           />
                         </div>
                       )}
-
-                      {/* Campo de observaciones */}
-                      <div>
-                        <Label className="text-sm font-medium">Observaciones</Label>
-                        <Input
-                          type="text"
-                          value={producto.observaciones || ''}
-                          onChange={(e) => updateProducto(index, 'observaciones', e.target.value)}
-                          placeholder="Anota cualquier observación necesaria..."
-                          className="input-touch"
-                        />
-                      </div>
                     </div>
                   </Card>
                 );
@@ -946,7 +974,7 @@ export default function RegistroProduccion() {
             </div>
 
             {/* Meta y Cumplimiento */}
-            {formData.productos.length > 0 && formData.turno && (
+            {formData.productos.filter(p => !!p.producto_id).length > 0 && formData.turno && (
               <Card className="bg-muted/50 border-primary/20">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
@@ -955,19 +983,18 @@ export default function RegistroProduccion() {
                       <div>
                         <p className="font-medium text-foreground">Resumen de Producción</p>
                         <div className="space-y-1">
-                          {formData.productos.map((producto) => {
-                            const productoInfo = productos.find(p => p.id === producto.producto_id);
-                            
-                            if (!productoInfo) return null;
-                            
-                            const tope = productoInfo.tope || 0;
-
-                            return (
-                              <div key={producto.producto_id} className="text-sm text-muted-foreground">
-                                <span className="font-medium">{productoInfo.nombre}:</span> {producto.produccion_real} / {tope} unidades
-                              </div>
-                            );
-                          })}
+                          {formData.productos
+                            .filter(p => !!p.producto_id)
+                            .map((producto) => {
+                              const productoInfo = productos.find(p => p.id === producto.producto_id);
+                              if (!productoInfo) return null;
+                              const tope = getTopeForProduct(productoInfo, formData.turno as string);
+                              return (
+                                <div key={producto.producto_id} className="text-sm text-muted-foreground">
+                                  <span className="font-medium">{productoInfo.nombre}:</span> {producto.produccion_real} / {tope} unidades
+                                </div>
+                              );
+                            })}
                         </div>
                       </div>
                     </div>
@@ -1011,7 +1038,7 @@ export default function RegistroProduccion() {
             <Button
               type="submit"
               className="w-full btn-touch text-lg font-semibold"
-              disabled={loading || !formData.turno || !formData.maquina_id || !formData.productos.length}
+              disabled={loading || !formData.turno || !formData.maquina_id || formData.productos.filter(p => !!p.producto_id).length === 0}
             >
               {loading ? (
                 <>
