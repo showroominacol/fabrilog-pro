@@ -31,6 +31,16 @@ import { MachineProductionReport } from '@/components/admin/MachineProductionRep
 type Usuario = Tables<'usuarios'>;
 type Maquina = Tables<'maquinas'>;
 
+type RegistroConDetalle = {
+  fecha: string;
+  es_asistente: boolean;
+  detalle_produccion: Array<{
+    produccion_real: number;
+    productos?: { nombre: string; tope: number | null } | null;
+  }> | null;
+};
+
+
 interface MetricaProduccionDiaria {
   fecha: string;
   porcentaje_avance: number;
@@ -42,6 +52,10 @@ interface MetricaProduccionDiaria {
   }[];
   es_operario: boolean;
 }
+// Resultado mínimo del join de maquinas usado solo para el nombre
+type MaquinaNombreRow = {
+  maquinas?: { nombre?: string | null } | null;
+};
 
 interface ReporteMensual {
   operario: Usuario;
@@ -120,16 +134,17 @@ export default function Metricas() {
     const { data: registros } = await supabase
       .from('registros_produccion')
       .select(`
-        *,
+       id, fecha, operario_id, es_asistente,
         detalle_produccion!fk_detalle_produccion_registro(
-          *,
-          productos!fk_detalle_produccion_producto(
-            nombre, 
-            tope,
-            productos_maquinas!fk_productos_maquinas_producto(maquina_id)
-          )
-        )
-      `)
+       id, produccion_real,
+        productos!fk_detalle_produccion_producto(
+        nombre, 
+         tope,
+         productos_maquinas!fk_productos_maquinas_producto(maquina_id)
+    )
+  )
+`)
+
       .eq('operario_id', operarioId)
       .gte('fecha', fechaInicio)
       .lte('fecha', fechaFin)
@@ -138,42 +153,40 @@ export default function Metricas() {
     if (!registros) return [];
 
     // Agrupar por fecha
-    const registrosPorFecha = registros.reduce((acc, registro) => {
-      const fecha = registro.fecha;
-      if (!acc[fecha]) {
-        acc[fecha] = [];
-      }
-      acc[fecha].push(registro);
-      return acc;
-    }, {} as Record<string, typeof registros>);
+    const registrosArray = (registros ?? []) as RegistroConDetalle[];
+    const registrosPorFecha = registrosArray.reduce<Record<string, RegistroConDetalle[]>>((acc, registro) => {
+    const fecha = registro.fecha;
+     if (!acc[fecha]) acc[fecha] = [];
+     acc[fecha].push(registro);
+    return acc;
+    }, {});
+
 
     const metricas: MetricaProduccionDiaria[] = [];
 
-    for (const [fecha, registrosDia] of Object.entries(registrosPorFecha)) {
+    for (const [fecha, registrosDia] of (Object.entries(registrosPorFecha) as [string, RegistroConDetalle[]][]) ) {
       let porcentajeAvanceTotal = 0;
       const productosDetalles: MetricaProduccionDiaria['productos_detalles'] = [];
-      const esOperario = registrosDia.length > 0; // participó (operario o ayudante)
+      const esOperario = registrosDia.some(r => !r.es_asistente); // hubo rol operario ese día
+
+
 
       for (const registro of registrosDia) {
-        if (registro.detalle_produccion) {
-          for (const detalle of registro.detalle_produccion) {
-            if (detalle.productos) {
-              // Usar el tope del producto como meta
-              const metaProducto = (detalle.productos as any).tope || 0;
-              const porcentajeProducto = metaProducto > 0 ? (detalle.produccion_real / metaProducto) * 100 : 0;
-              
-              porcentajeAvanceTotal += porcentajeProducto;
+       for (const detalle of (registro.detalle_produccion ?? [])) {
+       const prod = detalle.productos;
+       const metaProducto = (prod?.tope ?? 0) || 0;
+       const porcentajeProducto = metaProducto > 0 ? (detalle.produccion_real / metaProducto) * 100 : 0;
 
-              productosDetalles.push({
-                nombre: (detalle.productos as any).nombre,
-                produccion_real: detalle.produccion_real,
-                meta: metaProducto,
-                porcentaje: porcentajeProducto
-              });
-            }
-          }
-        }
-      }
+       porcentajeAvanceTotal += porcentajeProducto;
+       productosDetalles.push({
+        nombre: prod?.nombre ?? 'Producto',
+        produccion_real: detalle.produccion_real,
+        meta: metaProducto,
+       porcentaje: porcentajeProducto
+    });
+  }
+}
+
 
       metricas.push({
         fecha,
@@ -234,9 +247,18 @@ export default function Metricas() {
         .gte('fecha', fechaInicio)
         .lte('fecha', fechaFin);
 
-      const maquinasUnicas = [...new Set(
-        maquinasUsadas?.map(m => m.maquinas?.nombre).filter(Boolean) || []
-      )];
+      const maquinasRows = (maquinasUsadas ?? []) as MaquinaNombreRow[];
+
+      const maquinasUnicas: string[] = Array.from(
+      new Set(
+      maquinasRows
+      .map(r => r.maquinas?.nombre ?? null)
+      .filter((n): n is string => typeof n === 'string' && n.trim().length > 0)
+  )
+);
+
+      const diasOperario = metricasDiarias.filter(d => d.es_operario);
+      const diasAsistente = metricasDiarias.filter(d => !d.es_operario);
 
       const reporteData: ReporteMensual = {
         operario,
@@ -635,7 +657,7 @@ export default function Metricas() {
                 <span>Métricas Diarias</span>
               </CardTitle>
               <CardDescription>
-                Desglose de producción por día (Solo días como operario cuentan para el cumplimiento)
+                Desglose de producción por día (Se incluyen días como operario y como ayudante)
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -663,12 +685,11 @@ export default function Metricas() {
                           </p>
                         </div>
                         
-                        {metrica.es_operario && (
-                          <Badge className={getPerformanceColor(metrica.porcentaje_avance)}>
-                            {getPerformanceIcon(metrica.porcentaje_avance)}
-                            <span className="ml-1">{metrica.porcentaje_avance.toFixed(1)}%</span>
-                          </Badge>
-                        )}
+                        <Badge className={getPerformanceColor(metrica.porcentaje_avance)}>
+                       {getPerformanceIcon(metrica.porcentaje_avance)}
+                        <span className="ml-1">{metrica.porcentaje_avance.toFixed(1)}%</span>
+                       </Badge>
+
                       </div>
 
                       {/* Detalles por producto */}
