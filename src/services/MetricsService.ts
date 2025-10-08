@@ -98,7 +98,7 @@ export class MetricsService {
           productos!fk_detalle_produccion_producto(nombre, categoria)
         )
       `)
-      .eq('operario_id', operarioId)
+      .or(`operario_id.eq.${operarioId},ayudante_id.eq.${operarioId}`)
       .gte('fecha', fechaInicioStr)
       .lte('fecha', fechaFinStr)
       .order('fecha');
@@ -132,34 +132,28 @@ export class MetricsService {
 for (const registro of registrosDia) {
   // Contar producción también cuando es ayudante
   for (const detalle of (registro.detalle_produccion ?? [])) {
+  // Obtener el tope del producto
+  const { data: productoData } = await supabase
+    .from('productos')
+    .select('tope, nombre')
+    .eq('id', detalle.producto_id)
+    .single();
 
-          for (const detalle of registro.detalle_produccion) {
-            // Obtener el tope del producto
-            const { data: productoData } = await supabase
-              .from('productos')
-              .select('tope, nombre')
-              .eq('id', detalle.producto_id)
-              .single();
+  const meta = productoData?.tope || 0;
 
-            // Usar el tope del producto como meta
-            const meta = productoData?.tope || 0;
-            
-            produccionTotalDia += detalle.produccion_real;
-            metaTotalDia += meta;
+  produccionTotalDia += detalle.produccion_real;
+  metaTotalDia += meta;
 
-            // Calcular porcentaje con base en la meta del producto
-            const porcentajeProducto = meta > 0 ? (detalle.produccion_real / meta) * 100 : 0;
+  const porcentajeProducto = meta > 0 ? (detalle.produccion_real / meta) * 100 : 0;
 
-            productosDetalle.push({
-            nombre: productoData?.nombre ?? 'Producto',
-            produccionReal: detalle.produccion_real,
-            meta,
-            porcentaje: porcentajeProducto
-           });
-
-          }
-        }
-      }
+     productosDetalle.push({
+     nombre: productoData?.nombre ?? 'Producto',
+     produccionReal: detalle.produccion_real,
+     meta,
+     porcentaje: porcentajeProducto
+    });
+   }
+ }
 
       // Calcular porcentaje de cumplimiento diario
       const porcentajeCumplimiento = metaTotalDia > 0 ? (produccionTotalDia / metaTotalDia) * 100 : 0;
