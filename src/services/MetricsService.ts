@@ -98,7 +98,7 @@ export class MetricsService {
           productos!fk_detalle_produccion_producto(nombre, categoria)
         )
       `)
-      .or(`operario_id.eq.${operarioId},ayudante_id.eq.${operarioId}`)
+      .eq('operario_id', operarioId)
       .gte('fecha', fechaInicioStr)
       .lte('fecha', fechaFinStr)
       .order('fecha');

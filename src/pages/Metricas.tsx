@@ -145,7 +145,7 @@ export default function Metricas() {
   )
 `)
 
-      .or(`operario_id.eq.${operarioId},ayudante_id.eq.${operarioId}`)
+      .eq('operario_id', operarioId)
       .gte('fecha', fechaInicio)
       .lte('fecha', fechaFin)
       .order('fecha');
