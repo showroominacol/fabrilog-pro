@@ -152,7 +152,7 @@ export default function Metricas() {
     for (const [fecha, registrosDia] of Object.entries(registrosPorFecha)) {
       let porcentajeAvanceTotal = 0;
       const productosDetalles: MetricaProduccionDiaria['productos_detalles'] = [];
-      const esOperario = registrosDia.some(r => !r.es_asistente);
+      const esOperario = registrosDia.length > 0; // participó (operario o ayudante)
 
       for (const registro of registrosDia) {
         if (registro.detalle_produccion) {
@@ -212,13 +212,13 @@ export default function Metricas() {
       // Calcular métricas diarias
       const metricasDiarias = await calcularMetricasDiarias(usuarioSeleccionado, mesSeleccionado);
 
-      // Separar días como operario y asistente
-      const diasOperario = metricasDiarias.filter(m => m.es_operario);
-      const diasAsistente = metricasDiarias.filter(m => !m.es_operario);
+      // Incluir todos los días con participación (operario o ayudante)
+      const diasParticipados = metricasDiarias;
 
       // Calcular cumplimiento mensual (promedio sobre 24 días)
-      const sumaPorcentajes = diasOperario.reduce((sum, dia) => sum + dia.porcentaje_avance, 0);
-      const cumplimientoMensual = sumaPorcentajes / 24; // Siempre dividir entre 24
+      const sumaPorcentajes = diasParticipados.reduce((sum, dia) => sum + dia.porcentaje_avance, 0);
+      const cumplimientoMensual = sumaPorcentajes / 24; // divide en 24 
+
 
       // Obtener máquinas utilizadas
       const [año, mesNum] = mesSeleccionado.split('-');
