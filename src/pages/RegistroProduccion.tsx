@@ -488,6 +488,7 @@ export default function RegistroProduccion() {
       }
 
       if (formData.asistentes.length > 0) {
+        // Crear registros en tabla pivote (para trazabilidad)
         const asistentesPromises = formData.asistentes.map(asistenteId =>
           supabase.from('registro_asistentes').insert({
             registro_id: registro.id,
@@ -499,6 +500,23 @@ export default function RegistroProduccion() {
         const asistentesErrors = asistentesResults.filter(result => (result as any).error);
         if (asistentesErrors.length > 0) {
           throw (asistentesErrors[0] as any).error;
+        }
+
+        // NUEVO: Crear registros individuales de producción para cada ayudante
+        const registrosAsistentesPromises = formData.asistentes.map(asistenteId =>
+          supabase.from('registros_produccion').insert({
+            fecha: fechaAjustada,
+            turno: formData.turno as any,
+            operario_id: asistenteId,
+            maquina_id: formData.maquina_id,
+            es_asistente: true
+          })
+        );
+
+        const registrosAsistentesResults = await Promise.all(registrosAsistentesPromises);
+        const registrosAsistentesErrors = registrosAsistentesResults.filter(result => (result as any).error);
+        if (registrosAsistentesErrors.length > 0) {
+          throw (registrosAsistentesErrors[0] as any).error;
         }
       }
 

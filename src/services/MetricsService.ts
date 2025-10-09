@@ -1,5 +1,15 @@
 import { supabase } from '@/integrations/supabase/client';
 
+
+type RegistroConDetalleSrv = {
+  fecha: string;
+  es_asistente: boolean;
+  detalle_produccion: Array<{
+    produccion_real: number;
+    producto_id?: string;
+  }> | null;
+};
+
 export interface DailyMetrics {
   fecha: string;
   porcentajeCumplimiento: number;
@@ -96,18 +106,18 @@ export class MetricsService {
     if (!registros) return [];
 
     // Agrupar registros por fecha
-    const registrosPorFecha = registros.reduce((acc, registro) => {
-      const fecha = registro.fecha;
-      if (!acc[fecha]) {
-        acc[fecha] = [];
-      }
-      acc[fecha].push(registro);
-      return acc;
-    }, {} as Record<string, typeof registros>);
+    const registrosArray = (registros ?? []) as RegistroConDetalleSrv[];
+    const registrosPorFecha = registrosArray.reduce<Record<string, RegistroConDetalleSrv[]>>((acc, registro) => {
+     const fecha = registro.fecha;
+     if (!acc[fecha]) acc[fecha] = [];
+     acc[fecha].push(registro);
+       return acc;
+    }, {});
+
 
     const metricas: DailyMetrics[] = [];
 
-    for (const [fecha, registrosDia] of Object.entries(registrosPorFecha)) {
+    for (const [fecha, registrosDia] of (Object.entries(registrosPorFecha) as [string, RegistroConDetalleSrv[]][]) ) {
       // Solo procesar si no es domingo
       const fechaObj = new Date(fecha);
       if (this.isDomingo(fechaObj)) continue;
@@ -116,40 +126,34 @@ export class MetricsService {
       let metaTotalDia = 0;
       const productosDetalle: DailyMetrics['productos'] = [];
       
-      // Verificar si actuó como operario principal (no asistente)
+      // Marcamos si participó (operario o ayudante)
       const esOperario = registrosDia.some(r => !r.es_asistente);
 
-      for (const registro of registrosDia) {
-        // Solo contar producción cuando es operario principal para el cálculo de bonos
-        if (!registro.es_asistente && registro.detalle_produccion) {
-          for (const detalle of registro.detalle_produccion) {
-            // Obtener el tope del producto
-            const { data: productoData } = await supabase
-              .from('productos')
-              .select('tope')
-              .eq('id', detalle.producto_id)
-              .single();
+for (const registro of registrosDia) {
+  // Contar producción también cuando es ayudante
+  for (const detalle of (registro.detalle_produccion ?? [])) {
+  // Obtener el tope del producto
+  const { data: productoData } = await supabase
+    .from('productos')
+    .select('tope, nombre')
+    .eq('id', detalle.producto_id)
+    .single();
 
-            // Usar el tope del producto como meta
-            const meta = productoData?.tope || 0;
-            
-            produccionTotalDia += detalle.produccion_real;
-            metaTotalDia += meta;
+  const meta = productoData?.tope || 0;
 
-            if (detalle.productos) {
-              // Usar el porcentaje almacenado en la base de datos
-              const porcentajeProducto = detalle.porcentaje_cumplimiento || 0;
-              
-              productosDetalle.push({
-                nombre: (detalle.productos as any).nombre,
-                produccionReal: detalle.produccion_real,
-                meta: meta,
-                porcentaje: porcentajeProducto
-              });
-            }
-          }
-        }
-      }
+  produccionTotalDia += detalle.produccion_real;
+  metaTotalDia += meta;
+
+  const porcentajeProducto = meta > 0 ? (detalle.produccion_real / meta) * 100 : 0;
+
+     productosDetalle.push({
+     nombre: productoData?.nombre ?? 'Producto',
+     produccionReal: detalle.produccion_real,
+     meta,
+     porcentaje: porcentajeProducto
+    });
+   }
+ }
 
       // Calcular porcentaje de cumplimiento diario
       const porcentajeCumplimiento = metaTotalDia > 0 ? (produccionTotalDia / metaTotalDia) * 100 : 0;
@@ -179,10 +183,9 @@ export class MetricsService {
 
     const todasLasMetricas = await this.calcularMetricasDiarias(operarioId, fechaInicio, fechaFin);
     
-    // Filtrar solo días laborales donde actuó como operario y tomar los últimos 7
-    const metricasOperario = todasLasMetricas
-      .filter(m => m.esOperario)
-      .slice(-7);
+    // Tomar los últimos 7 días laborales con participación (operario o ayudante)
+     const metricasOperario = todasLasMetricas.slice(-7);
+
 
     return metricasOperario;
   }
@@ -207,8 +210,9 @@ export class MetricsService {
     // Calcular métricas diarias
     const metricasDiarias = await this.calcularMetricasDiarias(operarioId, fechaInicio, fechaFin);
     
-    // Filtrar solo días donde actuó como operario principal
-    const metricasOperario = metricasDiarias.filter(m => m.esOperario);
+    // Incluir días donde participó (operario o ayudante)
+    const metricasOperario = metricasDiarias;
+
     
     // Obtener fechas laborales en el período
     const fechasLaborales = this.getFechasLaborales(fechaInicio, fechaFin);
