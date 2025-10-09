@@ -11,7 +11,7 @@ export interface MachineReportData {
   producto: string;
   producido: number;
   porcentajeCumplimiento: number;
-  porcentajeSuma: number;
+  porcentajeSuma: number; // compatibilidad con UI; NO se exporta
 }
 
 export interface MachineReportByCategory {
@@ -20,7 +20,6 @@ export interface MachineReportByCategory {
 }
 
 export class MachineReportService {
-
   /**
    * Obtiene los datos de producción por categoría de máquina
    */
@@ -28,7 +27,7 @@ export class MachineReportService {
     const startDate = fechaInicio.toISOString().split('T')[0];
     const endDate = fechaFin.toISOString().split('T')[0];
 
-    // Obtener todos los operarios que trabajaron en el período
+    // Operarios activos
     const { data: operarios } = await supabase
       .from('usuarios')
       .select('id, nombre')
@@ -36,7 +35,7 @@ export class MachineReportService {
 
     if (!operarios) return [];
 
-    // Obtener todas las máquinas activas
+    // Máquinas activas
     const { data: maquinas } = await supabase
       .from('maquinas')
       .select('id, nombre, categoria')
@@ -44,7 +43,7 @@ export class MachineReportService {
 
     if (!maquinas) return [];
 
-    // Obtener todos los registros de producción en el rango de fechas
+    // Registros de producción en rango (incluye topes por jornada del producto)
     const { data: registros, error } = await supabase
       .from('registros_produccion')
       .select(`
@@ -65,7 +64,10 @@ export class MachineReportService {
           produccion_real,
           porcentaje_cumplimiento,
           productos!fk_detalle_produccion_producto(
-            nombre
+            nombre,
+            tope,
+            tope_jornada_10h,
+            tope_jornada_8h
           )
         )
       `)
@@ -78,60 +80,69 @@ export class MachineReportService {
       throw new Error(`Error fetching production data: ${error.message}`);
     }
 
-    // Calcular porcentajes de suma por operario en el período
+    // Porcentajes "suma" promedio (si tu UI los usa)
     const porcentajesSumaOperarios = await this.calcularPorcentajesSuma(
       registros || [],
       fechaInicio,
       fechaFin
     );
 
-    // Obtener asistentes por registro
-    const asistentesMap = await this.obtenerAsistentes(
-      registros ? registros.map(r => r.id) : []
-    );
+    // Asistentes por registro
+    const asistentesMap = await this.obtenerAsistentes(registros ? registros.map(r => r.id) : []);
 
-    // Generar todos los días del rango
+    // Fechas del rango
     const allDates = this.generateDateRange(fechaInicio, fechaFin);
 
-    // Agrupar datos por categoría de máquina
+    // Agrupación por categoría
     const categorias = new Map<string, MachineReportData[]>();
 
-    // Inicializar categorías
+    // Inicializar categorías existentes
     for (const maquina of maquinas) {
       const categoria = maquina.categoria || 'Sin Categoría';
-      if (!categorias.has(categoria)) {
-        categorias.set(categoria, []);
-      }
+      if (!categorias.has(categoria)) categorias.set(categoria, []);
     }
 
-    // Generar registros completos para cada operario y cada día
+    // Construcción de registros
     for (const operario of operarios) {
       for (const fecha of allDates) {
         const fechaStr = fecha.toISOString().split('T')[0];
-        
-        // Buscar registros del operario en esta fecha
-        const registrosDelDia = registros?.filter(r => 
-          r.operario_id === operario.id && 
-          r.fecha === fechaStr &&
-          !r.es_asistente
-        ) || [];
+
+        const registrosDelDia =
+          registros?.filter(
+            r => r.operario_id === operario.id && r.fecha === fechaStr && !r.es_asistente
+          ) || [];
 
         if (registrosDelDia.length > 0) {
-          // Procesar registros existentes
           for (const registro of registrosDelDia) {
             const categoria = registro.maquinas?.categoria || 'Sin Categoría';
             const maquinaNombre = registro.maquinas?.nombre || 'N/A';
             const asistentes = asistentesMap.get(registro.id) || [];
-            const asistenteNombres = asistentes.length > 0 
-              ? asistentes.join(', ') 
-              : 'Sin asistente';
+            const asistenteNombres = asistentes.length > 0 ? asistentes.join(', ') : 'Sin asistente';
 
             const categoriaDatos = categorias.get(categoria)!;
 
-            // Procesar cada detalle de producción
             if (registro.detalle_produccion && registro.detalle_produccion.length > 0) {
               for (const detalle of registro.detalle_produccion) {
                 const porcentajeSuma = porcentajesSumaOperarios.get(registro.operario_id) || 0;
+
+                const producido = Number(detalle?.produccion_real ?? 0);
+                const topeAjustado = this.getTopeAjustadoPorTurno(
+                  registro.turno,
+                  {
+                    tope: detalle?.productos?.tope,
+                    tope10: detalle?.productos?.tope_jornada_10h,
+                    tope8: detalle?.productos?.tope_jornada_8h,
+                  }
+                );
+
+                const porcentajeCalculado =
+                  topeAjustado > 0 ? (producido / topeAjustado) * 100 : 0;
+
+                // Si quieres usar fallback al valor guardado cuando no hay tope: descomenta
+                // const porcentajeCumplimiento =
+                //   topeAjustado > 0 ? porcentajeCalculado : Number(detalle?.porcentaje_cumplimiento ?? 0);
+
+                const porcentajeCumplimiento = porcentajeCalculado;
 
                 categoriaDatos.push({
                   fecha: this.formatDate(registro.fecha),
@@ -139,17 +150,16 @@ export class MachineReportService {
                   operario: operario.nombre,
                   asistente: asistenteNombres,
                   maquina: maquinaNombre,
-                  producto: detalle.productos?.nombre || 'N/A',
-                  producido: detalle.produccion_real || 0,
-                  porcentajeCumplimiento: detalle.porcentaje_cumplimiento || 0,
+                  producto: detalle?.productos?.nombre || 'N/A',
+                  producido,
+                  porcentajeCumplimiento,
                   porcentajeSuma: porcentajeSuma
                 });
               }
             } else {
-              // Registro sin detalles de producción
+              // Sin detalles
               const porcentajeSuma = porcentajesSumaOperarios.get(registro.operario_id) || 0;
-
-              categoriaDatos.push({
+              categorias.get(categoria)!.push({
                 fecha: this.formatDate(registro.fecha),
                 turno: this.formatTurno(registro.turno),
                 operario: operario.nombre,
@@ -163,14 +173,12 @@ export class MachineReportService {
             }
           }
         } else {
-          // Día sin registros - crear entrada vacía para cada categoría donde el operario ha trabajado
+          // Día sin registros: creamos fila vacía por categorías donde trabajó
           const categoriasOperario = await this.getOperatorCategories(operario.id, fechaInicio, fechaFin);
-          
           for (const categoria of categoriasOperario) {
             const categoriaDatos = categorias.get(categoria);
             if (categoriaDatos) {
               const porcentajeSuma = porcentajesSumaOperarios.get(operario.id) || 0;
-              
               categoriaDatos.push({
                 fecha: this.formatDate(fechaStr),
                 turno: 'Sin turno',
@@ -188,41 +196,57 @@ export class MachineReportService {
       }
     }
 
-    // Convertir Map a array y ordenar
+    // Map → array ordenado
     return Array.from(categorias.entries())
-      .filter(([_, registros]) => registros.length > 0) // Solo categorías con datos
+      .filter(([_, registros]) => registros.length > 0)
       .map(([categoria, registros]) => ({
         categoria,
         registros: registros.sort((a, b) => {
           const dateA = new Date(a.fecha.split('/').reverse().join('-'));
           const dateB = new Date(b.fecha.split('/').reverse().join('-'));
-          if (dateA.getTime() !== dateB.getTime()) {
-            return dateA.getTime() - dateB.getTime();
-          }
+          if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
           return a.operario.localeCompare(b.operario);
         })
       }))
       .sort((a, b) => a.categoria.localeCompare(b.categoria));
   }
 
-  /**
-   * Genera un rango de fechas entre dos fechas
-   */
+  /** Ajusta meta (tope) según el turno */
+  private getTopeAjustadoPorTurno(
+    turno: string,
+    topes: { tope?: number | null; tope10?: number | null; tope8?: number | null }
+  ): number {
+    const t = (turno || '').trim();
+    const tope = Number(topes.tope ?? 0);
+    const tope10 = Number(topes.tope10 ?? 0);
+    const tope8 = Number(topes.tope8 ?? 0);
+
+    // Mismo criterio que tu SQL:
+    // - Turnos de 8h estándar usan p.tope
+    // - "7:00am - 5:00pm" usa p.tope_jornada_10h
+    // - Else usa p.tope_jornada_8h
+    if (t === '6:00am - 2:00pm' || t === '2:00pm - 10:00pm' || t === '10:00pm - 6:00am') {
+      return tope > 0 ? tope : (tope8 > 0 ? tope8 : 0);
+    }
+    if (t === '7:00am - 5:00pm') {
+      return tope10 > 0 ? tope10 : (tope > 0 ? tope : tope8);
+    }
+    // Default: 8h
+    return tope8 > 0 ? tope8 : (tope > 0 ? tope : 0);
+  }
+
+  /** Genera un rango de fechas */
   private generateDateRange(startDate: Date, endDate: Date): Date[] {
     const dates: Date[] = [];
     const currentDate = new Date(startDate);
-    
     while (currentDate <= endDate) {
       dates.push(new Date(currentDate));
       currentDate.setDate(currentDate.getDate() + 1);
     }
-    
     return dates;
   }
 
-  /**
-   * Obtiene las categorías donde ha trabajado un operario en el período
-   */
+  /** Categorías donde trabajó un operario en el período */
   private async getOperatorCategories(operarioId: string, fechaInicio: Date, fechaFin: Date): Promise<string[]> {
     const startDate = fechaInicio.toISOString().split('T')[0];
     const endDate = fechaFin.toISOString().split('T')[0];
@@ -241,22 +265,12 @@ export class MachineReportService {
 
     const categorias = new Set<string>();
     for (const registro of registros) {
-      if (registro.maquinas?.categoria) {
-        categorias.add(registro.maquinas.categoria);
-      }
+      if (registro.maquinas?.categoria) categorias.add(registro.maquinas.categoria);
     }
-
-    // Si no ha trabajado en ninguna categoría, incluir en una categoría por defecto
-    if (categorias.size === 0) {
-      return ['General'];
-    }
-
-    return Array.from(categorias);
+    return categorias.size === 0 ? ['General'] : Array.from(categorias);
   }
 
-  /**
-   * Calcula los porcentajes suma (promedio) por operario en el período
-   */
+  /** Calcula promedios de "porcentaje suma" por operario (si tu UI los usa) */
   private async calcularPorcentajesSuma(
     registros: any[],
     fechaInicio: Date,
@@ -266,22 +280,17 @@ export class MachineReportService {
     const porcentajesSuma = new Map<string, number>();
 
     for (const operarioId of operarioIds) {
-      // Obtener todos los días trabajados del operario en el período
       const diasTrabajados = await this.obtenerDiasTrabajados(operarioId, fechaInicio, fechaFin);
-      
       if (diasTrabajados.length > 0) {
         const sumaTotal = diasTrabajados.reduce((sum, dia) => sum + dia.porcentajeTotal, 0);
         const promedio = sumaTotal / diasTrabajados.length;
         porcentajesSuma.set(operarioId, promedio);
       }
     }
-
     return porcentajesSuma;
   }
 
-  /**
-   * Obtiene los días trabajados de un operario con sus porcentajes totales
-   */
+  /** Días trabajados con suma de porcentajes guardados (referencial) */
   private async obtenerDiasTrabajados(
     operarioId: string,
     fechaInicio: Date,
@@ -299,40 +308,28 @@ export class MachineReportService {
         )
       `)
       .eq('operario_id', operarioId)
-      .eq('es_asistente', false) // Solo como operario principal
+      .eq('es_asistente', false)
       .gte('fecha', startDate)
       .lte('fecha', endDate);
 
     if (!registros) return [];
 
-    // Agrupar por fecha y sumar porcentajes
     const diasMap = new Map<string, number>();
-
     for (const registro of registros) {
       const fecha = registro.fecha;
-      
-      if (!diasMap.has(fecha)) {
-        diasMap.set(fecha, 0);
-      }
-
+      if (!diasMap.has(fecha)) diasMap.set(fecha, 0);
       if (registro.detalle_produccion) {
         const porcentajeTotal = registro.detalle_produccion.reduce(
-          (sum, detalle) => sum + (detalle.porcentaje_cumplimiento || 0),
+          (sum, d) => sum + (d.porcentaje_cumplimiento || 0),
           0
         );
         diasMap.set(fecha, diasMap.get(fecha)! + porcentajeTotal);
       }
     }
-
-    return Array.from(diasMap.entries()).map(([fecha, porcentajeTotal]) => ({
-      fecha,
-      porcentajeTotal
-    }));
+    return Array.from(diasMap.entries()).map(([fecha, porcentajeTotal]) => ({ fecha, porcentajeTotal }));
   }
 
-  /**
-   * Obtiene los asistentes de cada registro
-   */
+  /** Asistentes por registro */
   private async obtenerAsistentes(registroIds: string[]): Promise<Map<string, string[]>> {
     const { data: asistentes } = await supabase
       .from('registro_asistentes')
@@ -343,25 +340,20 @@ export class MachineReportService {
       .in('registro_id', registroIds);
 
     const asistentesMap = new Map<string, string[]>();
-
     if (asistentes) {
       for (const asistente of asistentes) {
         const registroId = asistente.registro_id;
         const nombreAsistente = asistente.usuarios?.nombre || 'N/A';
-
-        if (!asistentesMap.has(registroId)) {
-          asistentesMap.set(registroId, []);
-        }
-
+        if (!asistentesMap.has(registroId)) asistentesMap.set(registroId, []);
         asistentesMap.get(registroId)!.push(nombreAsistente);
-      }
+        }
     }
-
     return asistentesMap;
   }
 
   /**
    * Genera y descarga el archivo Excel con las tablas por categoría
+   * (sin columna "% Suma")
    */
   async exportToExcel(
     fechaInicio: Date,
@@ -370,7 +362,6 @@ export class MachineReportService {
   ): Promise<void> {
     const workbook = XLSX.utils.book_new();
 
-    // Crear una hoja por cada categoría
     for (const categoria of reportData) {
       if (categoria.registros.length === 0) continue;
 
@@ -382,8 +373,7 @@ export class MachineReportService {
         'Máquina',
         'Producto',
         'Producido',
-        '% Cumplimiento',
-        '% Suma'
+        '% Cumplimiento'
       ];
 
       const sheetData = [
@@ -396,44 +386,25 @@ export class MachineReportService {
           registro.maquina,
           registro.producto,
           registro.producido,
-          `${registro.porcentajeCumplimiento.toFixed(1)}%`,
-          `${registro.porcentajeSuma.toFixed(1)}%`
+          `${registro.porcentajeCumplimiento.toFixed(1)}%`
         ])
       ];
 
       const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
-      
-      // Aplicar estilos
       this.applyWorksheetStyles(worksheet);
-      
-      // Usar nombre corto para la hoja (máximo 31 caracteres)
       const sheetName = categoria.categoria.substring(0, 31);
       XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
     }
 
-    // Generar nombre de archivo
     const filename = this.generateFilename(fechaInicio, fechaFin);
-    
-    // Descargar archivo
-    const excelBuffer = XLSX.write(workbook, { 
-      bookType: 'xlsx', 
-      type: 'array' 
-    });
-    
-    const blob = new Blob([excelBuffer], { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
-    });
-    
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     saveAs(blob, filename);
   }
 
-  /**
-   * Aplica estilos a la hoja de cálculo
-   */
+  /** Estilos del Excel (8 columnas) */
   private applyWorksheetStyles(worksheet: XLSX.WorkSheet): void {
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:H1');
-    
-    // Configurar anchos de columna
     worksheet['!cols'] = [
       { width: 12 }, // Fecha
       { width: 15 }, // Turno
@@ -442,61 +413,37 @@ export class MachineReportService {
       { width: 20 }, // Máquina
       { width: 25 }, // Producto
       { width: 12 }, // Producido
-      { width: 15 }, // % Cumplimiento
-      { width: 12 }  // % Suma
+      { width: 15 }  // % Cumplimiento
     ];
-
-    // Aplicar formato a los encabezados
     for (let col = range.s.c; col <= range.e.c; col++) {
       const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
       if (!worksheet[cellAddress]) continue;
-      
-      worksheet[cellAddress].s = {
+      (worksheet as any)[cellAddress].s = {
         font: { bold: true, color: { rgb: 'FFFFFF' } },
         fill: { fgColor: { rgb: '366092' } },
         alignment: { horizontal: 'center', vertical: 'center' },
-        border: {
-          top: { style: 'thin' },
-          bottom: { style: 'thin' },
-          left: { style: 'thin' },
-          right: { style: 'thin' }
-        }
+        border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
       };
     }
   }
 
-  /**
-   * Formatea la fecha para mostrar
-   */
+  /** Formatea fecha DD/MM/YYYY */
   private formatDate(dateString: string): string {
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  /**
-   * Formatea el turno para mostrar
-   */
+  /** Mapea enum de turno a etiqueta legible (opcional) */
   private formatTurno(turno: string): string {
-    // Convertir el turno del enum a formato legible
     switch (turno) {
-      case 'manana':
-        return '2:00 a 10:00';
-      case 'tarde':
-        return '10:00 a 6:00';
-      case 'noche':
-        return '6:00 a 2:00';
-      default:
-        return turno;
+      case 'manana': return '2:00 a 10:00';
+      case 'tarde':  return '10:00 a 6:00';
+      case 'noche':  return '6:00 a 2:00';
+      default:       return turno;
     }
   }
 
-  /**
-   * Genera el nombre del archivo
-   */
+  /** Nombre de archivo */
   private generateFilename(fechaInicio: Date, fechaFin: Date): string {
     const inicio = fechaInicio.toISOString().split('T')[0];
     const fin = fechaFin.toISOString().split('T')[0];
