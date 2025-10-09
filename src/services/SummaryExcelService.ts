@@ -40,7 +40,12 @@ export interface MachineData {
 type DetalleRow = {
   produccion_real: number;
   observaciones?: string | null;
-  productos?: { nombre: string; tope: number | null } | null;
+  productos?: {
+    nombre: string;
+    tope: number | null;
+    tope_jornada_8h?: number | null;
+    tope_jornada_10h?: number | null;
+  } | null;
 };
 
 type RegistroProduccionRow = {
@@ -127,7 +132,7 @@ export class SummaryExcelService {
   }
 
   /**
-   * Calcula los días laborales del período (excluye sábados y domingos)
+   * Calcula los días laborales del período (incluye lunes a sábado, excluye domingo)
    */
   private calculateWorkingDays(fechaInicio: Date, fechaFin: Date): number {
     let count = 0;
@@ -138,134 +143,105 @@ export class SummaryExcelService {
       Date.UTC(fechaFin.getFullYear(), fechaFin.getMonth(), fechaFin.getDate())
     );
 
-   while (current <= end) {
-    const dayOfWeek = current.getUTCDay(); // 0 dom, 6 sáb
-    // Incluir lunes a sábado
-    if (dayOfWeek !== 0) count++;
-    current.setUTCDate(current.getUTCDate() + 1);
-  }
+    while (current <= end) {
+      const dayOfWeek = current.getUTCDay(); // 0 dom, 6 sáb
+      // Incluir lunes a sábado
+      if (dayOfWeek !== 0) count++;
+      current.setUTCDate(current.getUTCDate() + 1);
+    }
     return count;
   }
 
   /**
    * Calcula el bono total del empleado
    */
-  private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): number {
-    if (diasDelRango === 0) return 0;
-    
-    // Sumar todos los porcentajes del operario de todas las categorías/máquinas
-    let sumaPorcentajes = 0;
-    
-    for (const bloque of bloques) {
-      // Solo tomar porcentajes cuando el operario trabajó en esa categoría
-      if (bloque.operario.dias > 0) {
-        sumaPorcentajes += bloque.operario.porcentaje;
-      }
+/**
+ * Calcula el bono total del empleado
+ * Incluye porcentajes trabajados como OPERARIO y como AYUDANTE.
+ * Se sigue dividiendo entre los días del rango (diasDelRango).
+ */
+private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): number {
+  if (diasDelRango === 0) return 0;
+
+  let sumaPorcentajes = 0;
+
+  for (const bloque of bloques) {
+    // Operario
+    if (bloque.operario.dias > 0) {
+      sumaPorcentajes += bloque.operario.porcentaje;
     }
-    
-    // Dividir por el número de días del rango
-    const bonoTotal = sumaPorcentajes / diasDelRango;
-    return Math.round(bonoTotal * 10) / 10; // Redondear a 1 decimal
+    // Ayudante
+    if (bloque.ayudante.dias > 0) {
+      sumaPorcentajes += bloque.ayudante.porcentaje;
+    }
   }
+
+  const bonoTotal = sumaPorcentajes / diasDelRango;
+  return Math.round(bonoTotal * 10) / 10; // 1 decimal
+}
+
 
   /**
    * Días realmente laborados por empleado (cuenta OPERARIO + AYUDANTE)
    */
-private async getRealWorkedDays(
-  empleadoId: string,
-  fechaInicio: Date,
-  fechaFin: Date
-): Promise<number> {
-  const startDate = fechaInicio.toISOString().split('T')[0];
-  const endDate   = fechaFin.toISOString().split('T')[0];
+  private async getRealWorkedDays(
+    empleadoId: string,
+    fechaInicio: Date,
+    fechaFin: Date
+  ): Promise<number> {
+    const startDate = fechaInicio.toISOString().split('T')[0];
+    const endDate   = fechaFin.toISOString().split('T')[0];
 
-  // Como OPERARIO (directo)
-  const { data: regsOp, error: errOp } = await supabase
-    .from('registros_produccion')
-    .select('fecha')
-    .eq('operario_id', empleadoId)
-    .gte('fecha', startDate)
-    .lte('fecha', endDate);
-  if (errOp) throw errOp;
-
-  // Como AYUDANTE (2 pasos: pivote -> ids -> registros_produccion)
-  const { data: ayuLinks, error: errLinks } = await supabase
-    .from('registro_asistentes')
-    .select('registro_id')
-    .eq('asistente_id', empleadoId);
-  if (errLinks) throw errLinks;
-
-  let regsAyu: { fecha: string }[] = [];
-  const ids = (ayuLinks ?? []).map(l => l.registro_id).filter(Boolean);
-  if (ids.length > 0) {
-    const { data, error } = await supabase
+    // Como OPERARIO (directo)
+    const { data: regsOp, error: errOp } = await supabase
       .from('registros_produccion')
       .select('fecha')
-      .in('id', ids)
+      .eq('operario_id', empleadoId)
       .gte('fecha', startDate)
       .lte('fecha', endDate);
-    if (error) throw error;
-    regsAyu = data ?? [];
+    if (errOp) throw errOp;
+
+    // Como AYUDANTE (2 pasos: pivote -> ids -> registros_produccion)
+    const { data: ayuLinks, error: errLinks } = await supabase
+      .from('registro_asistentes')
+      .select('registro_id')
+      .eq('asistente_id', empleadoId);
+    if (errLinks) throw errLinks;
+
+    let regsAyu: { fecha: string }[] = [];
+    const ids = (ayuLinks ?? []).map(l => l.registro_id).filter(Boolean);
+    if (ids.length > 0) {
+      const { data, error } = await supabase
+        .from('registros_produccion')
+        .select('fecha')
+        .in('id', ids)
+        .gte('fecha', startDate)
+        .lte('fecha', endDate);
+      if (error) throw error;
+      regsAyu = data ?? [];
+    }
+
+    const fechas = new Set<string>();
+    (regsOp ?? []).forEach(r => r?.fecha && fechas.add(r.fecha));
+    (regsAyu ?? []).forEach(r => r?.fecha && fechas.add(r.fecha));
+
+    return fechas.size;
   }
-
-  const fechas = new Set<string>();
-  (regsOp ?? []).forEach(r => r?.fecha && fechas.add(r.fecha));
-  (regsAyu ?? []).forEach(r => r?.fecha && fechas.add(r.fecha));
-
-  return fechas.size;
-}
 
   /**
    * Genera el bloque de datos por categoría (separa Operario / Ayudante)
    */
-private async generateCategoryBlock(
-  empleadoId: string,
-  categoria: string,
-  fechaInicio: Date,
-  fechaFin: Date
-): Promise<CategoryBlock | null> {
-  const startDate = fechaInicio.toISOString().split('T')[0];
-  const endDate   = fechaFin.toISOString().split('T')[0];
+  private async generateCategoryBlock(
+    empleadoId: string,
+    categoria: string,
+    fechaInicio: Date,
+    fechaFin: Date
+  ): Promise<CategoryBlock | null> {
+    const startDate = fechaInicio.toISOString().split('T')[0];
+    const endDate   = fechaFin.toISOString().split('T')[0];
 
-  // === Registros donde el empleado fue OPERARIO ===
-  const { data: regsOperarioRaw, error: errOp } = await supabase
-    .from('registros_produccion')
-    .select(`
-      id,
-      fecha,
-      turno,
-      maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
-      detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
-        produccion_real,
-        observaciones,
-        productos:productos!detalle_produccion_producto_id_fkey ( nombre, tope )
-      )
-    `)
-    .eq('operario_id', empleadoId)
-    .gte('fecha', startDate)
-    .lte('fecha', endDate);
-
-  if (errOp) throw errOp;
-
-  const regsOperario = (regsOperarioRaw ?? []).filter(
-    (r: RegistroProduccionRow) => r?.maquinas?.categoria === categoria
-  ) as RegistroProduccionRow[];
-
-  // === Registros donde el empleado fue AYUDANTE (pivote en 2 pasos) ===
-  // Paso 1: obtener enlaces en la pivote
-  const { data: ayuLinks, error: errLinks } = await supabase
-    .from('registro_asistentes')
-    .select('registro_id')
-    .eq('asistente_id', empleadoId);
-
-  if (errLinks) throw errLinks;
-
-  // Paso 2: con esos IDs, traer los registros_produccion completos
-  let regsAyudante: RegistroProduccionRow[] = [];
-  const idsAyu = (ayuLinks ?? []).map(l => l.registro_id).filter(Boolean);
-
-  if (idsAyu.length > 0) {
-    const { data: regsAyuRaw, error: errAyuRegs } = await supabase
+    // === Registros donde el empleado fue OPERARIO ===
+    const { data: regsOperarioRaw, error: errOp } = await supabase
       .from('registros_produccion')
       .select(`
         id,
@@ -275,47 +251,95 @@ private async generateCategoryBlock(
         detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
           produccion_real,
           observaciones,
-          productos:productos!detalle_produccion_producto_id_fkey ( nombre, tope )
+          productos:productos!detalle_produccion_producto_id_fkey ( 
+            nombre, 
+            tope,
+            tope_jornada_8h,
+            tope_jornada_10h
+          )
         )
       `)
-      .in('id', idsAyu)
+      .eq('operario_id', empleadoId)
       .gte('fecha', startDate)
       .lte('fecha', endDate);
 
-    if (errAyuRegs) throw errAyuRegs;
+    if (errOp) throw errOp;
 
-    regsAyudante = (regsAyuRaw ?? []).filter(
+    const regsOperario = (regsOperarioRaw ?? []).filter(
       (r: RegistroProduccionRow) => r?.maquinas?.categoria === categoria
     ) as RegistroProduccionRow[];
+
+    // === Registros donde el empleado fue AYUDANTE (pivote en 2 pasos) ===
+    // Paso 1: obtener enlaces en la pivote
+    const { data: ayuLinks, error: errLinks } = await supabase
+      .from('registro_asistentes')
+      .select('registro_id')
+      .eq('asistente_id', empleadoId);
+
+    if (errLinks) throw errLinks;
+
+    // Paso 2: con esos IDs, traer los registros_produccion completos
+    let regsAyudante: RegistroProduccionRow[] = [];
+    const idsAyu = (ayuLinks ?? []).map(l => l.registro_id).filter(Boolean);
+
+    if (idsAyu.length > 0) {
+      const { data: regsAyuRaw, error: errAyuRegs } = await supabase
+        .from('registros_produccion')
+        .select(`
+          id,
+          fecha,
+          turno,
+          maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
+          detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
+            produccion_real,
+            observaciones,
+            productos:productos!detalle_produccion_producto_id_fkey ( 
+              nombre, 
+              tope,
+              tope_jornada_8h,
+              tope_jornada_10h
+            )
+          )
+        `)
+        .in('id', idsAyu)
+        .gte('fecha', startDate)
+        .lte('fecha', endDate);
+
+      if (errAyuRegs) throw errAyuRegs;
+
+      regsAyudante = (regsAyuRaw ?? []).filter(
+        (r: RegistroProduccionRow) => r?.maquinas?.categoria === categoria
+      ) as RegistroProduccionRow[];
+    }
+
+    // Evitar duplicados por seguridad (mismo registro_id)
+    const uniqById = (arr: RegistroProduccionRow[]) => {
+      const m = new Map<string, RegistroProduccionRow>();
+      for (const r of arr) if (r?.id && !m.has(r.id)) m.set(r.id, r);
+      return Array.from(m.values());
+    };
+
+    const registrosOperario = uniqById(regsOperario);
+    const registrosAyudante = uniqById(regsAyudante);
+
+    if (registrosOperario.length === 0 && registrosAyudante.length === 0) return null;
+
+    const [operarioData, ayudanteData] = await Promise.all([
+      this.generateBlockData(registrosOperario, fechaInicio, fechaFin),
+      this.generateBlockData(registrosAyudante, fechaInicio, fechaFin),
+    ]);
+
+    return {
+      categoria,
+      operario: operarioData,
+      ayudante: ayudanteData,
+    };
   }
-
-  // Evitar duplicados por seguridad (mismo registro_id)
-  const uniqById = (arr: RegistroProduccionRow[]) => {
-    const m = new Map<string, RegistroProduccionRow>();
-    for (const r of arr) if (r?.id && !m.has(r.id)) m.set(r.id, r);
-    return Array.from(m.values());
-  };
-
-  const registrosOperario = uniqById(regsOperario);
-  const registrosAyudante = uniqById(regsAyudante);
-
-  if (registrosOperario.length === 0 && registrosAyudante.length === 0) return null;
-
-  const [operarioData, ayudanteData] = await Promise.all([
-    this.generateBlockData(registrosOperario, fechaInicio, fechaFin),
-    this.generateBlockData(registrosAyudante, fechaInicio, fechaFin),
-  ]);
-
-  return {
-    categoria,
-    operario: operarioData,
-    ayudante: ayudanteData,
-  };
-}
-
 
   /**
    * Genera los datos de un bloque (operario o ayudante)
+   * — Ajustado para usar tope_jornada_10h cuando el turno es "7:00am - 5:00pm",
+   *   y tope_jornada_8h en los demás casos (fallback a tope general).
    */
   private async generateBlockData(
     registros: RegistroProduccionRow[],
@@ -342,7 +366,17 @@ private async generateCategoryBlock(
         let sumaPorcentajeDia = porcentajesPorDia.get(fecha) ?? 0;
 
         for (const detalle of registro.detalle_produccion) {
-          const tope = detalle.productos?.tope ?? 0;
+          // Selección dinámica del tope según jornada
+          let jornadaTope: number | null = null;
+          const turnoTexto = this.formatTurno(registro.turno);
+
+          if (turnoTexto === '7:00am - 5:00pm') {
+            jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
+          } else {
+            jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
+          }
+
+          const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
           const pct = tope > 0 ? (detalle.produccion_real / Number(tope)) * 100 : 0;
           sumaPorcentajeDia += pct;
           
@@ -379,6 +413,8 @@ private async generateCategoryBlock(
 
   /**
    * Genera los datos específicos por máquina
+   * — Ajustado para usar tope_jornada_10h cuando el turno es "7:00am - 5:00pm",
+   *   y tope_jornada_8h en los demás casos (fallback a tope general).
    */
   private async generateMachineData(registros: RegistroProduccionRow[]): Promise<MachineData[]> {
     const maquinasMap = new Map<
@@ -404,7 +440,17 @@ private async generateCategoryBlock(
       let pctRegistro = 0;
       if (registro.detalle_produccion?.length) {
         for (const d of registro.detalle_produccion) {
-          const tope = d.productos?.tope ?? 0;
+          // Selección dinámica del tope según jornada
+          let jornadaTope: number | null = null;
+          const turnoTexto = this.formatTurno(registro.turno);
+
+          if (turnoTexto === '7:00am - 5:00pm') {
+            jornadaTope = d.productos?.tope_jornada_10h ?? null;
+          } else {
+            jornadaTope = d.productos?.tope_jornada_8h ?? null;
+          }
+
+          const tope = jornadaTope ?? d.productos?.tope ?? 0;
           pctRegistro += tope > 0 ? (d.produccion_real / Number(tope)) * 100 : 0;
           
           // Recopilar observaciones
@@ -445,6 +491,7 @@ private async generateCategoryBlock(
       case 'noche':
         return '11:30pm - 7:00am';
       default:
+        // Si viene "7:00am - 5:00pm" u otros ya formateados, los respeta
         return turno;
     }
   }

@@ -196,6 +196,7 @@ export default function RegistroProduccion() {
     }
   };
 
+  //AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
   const getTopeForProduct = (productoInfo: Producto, turno: string): number => {
     if (productoInfo.tipo_producto === 'producido_molino') {
       if (turno === "7:00am - 5:00pm") {
