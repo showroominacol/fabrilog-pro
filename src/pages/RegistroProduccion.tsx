@@ -32,6 +32,12 @@ type Producto = Tables<'productos'>;
 type Usuario = Tables<'usuarios'>;
 type DisenoArbol = Tables<'disenos_arboles'>;
 type NivelRama = Tables<'niveles_ramas'>;
+type RamaAmarradora = {
+  id: string;
+  diseno_id: string;
+  numero_rama: number;
+  tope_rama: number;
+};
 
 interface NivelDetalle {
   nivel: number;
@@ -39,11 +45,18 @@ interface NivelDetalle {
   festones_por_rama: number;
 }
 
+interface RamaAmarradoraDetalle {
+  numero_rama: number;
+  cantidad_producida: number;
+  tope_rama: number;
+}
+
 interface ProductoDetalle {
   producto_id: string;             // quedará vacío hasta que el usuario seleccione
   produccion_real: number;
   observaciones?: string;
   niveles?: NivelDetalle[];
+  ramas_amarradora?: RamaAmarradoraDetalle[];
 }
 
 interface FormData {
@@ -81,6 +94,7 @@ export default function RegistroProduccion() {
   const [searchProductos, setSearchProductos] = useState('');
   const [disenosArboles, setDisenosArboles] = useState<DisenoArbol[]>([]);
   const [nivelesRamas, setNivelesRamas] = useState<NivelRama[]>([]);
+  const [ramasAmarradora, setRamasAmarradora] = useState<RamaAmarradora[]>([]);
   const [porcentajeCumplimiento, setPorcentajeCumplimiento] = useState(0);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
@@ -155,12 +169,13 @@ export default function RegistroProduccion() {
     try {
       setDataLoading(true);
       
-      const [maquinasResult, productosResult, usuariosResult, disenosResult, nivelesResult] = await Promise.all([
+      const [maquinasResult, productosResult, usuariosResult, disenosResult, nivelesResult, ramasResult] = await Promise.all([
         supabase.from('maquinas').select('*').eq('activa', true).order('nombre'),
         supabase.from('productos').select('*').eq('activo', true).order('nombre'),
         supabase.from('usuarios').select('*').eq('activo', true).neq('id', user?.id || '').neq('tipo_usuario', 'admin').order('nombre'),
         supabase.from('disenos_arboles').select('*').eq('activo', true).order('nombre'),
-        supabase.from('niveles_ramas').select('*').eq('activo', true).order('nivel')
+        supabase.from('niveles_ramas').select('*').eq('activo', true).order('nivel'),
+        supabase.from('ramas_amarradora').select('*').eq('activo', true).order('numero_rama')
       ]);
 
       if (maquinasResult.error) throw maquinasResult.error;
@@ -168,12 +183,14 @@ export default function RegistroProduccion() {
       if (usuariosResult.error) throw usuariosResult.error;
       if (disenosResult.error) throw disenosResult.error;
       if (nivelesResult.error) throw nivelesResult.error;
+      if (ramasResult.error) throw ramasResult.error;
 
       setMaquinas(maquinasResult.data || []);
       setProductos(productosResult.data || []);
       setUsuarios(usuariosResult.data || []);
       setDisenosArboles(disenosResult.data || []);
       setNivelesRamas(nivelesResult.data || []);
+      setRamasAmarradora(ramasResult.data as RamaAmarradora[] || []);
       
       // Extraer categorías únicas de máquinas
       const categorias = Array.from(
@@ -220,10 +237,16 @@ export default function RegistroProduccion() {
       if (!producto.producto_id) return; // ignorar líneas sin selección
       const productoInfo = productos.find(p => p.id === producto.producto_id);
       if (productoInfo) {
-        const tope = getTopeForProduct(productoInfo, formData.turno as string);
-        if (tope > 0) {
+        // Para árboles amarradora, produccion_real ya es el porcentaje promedio
+        if (productoInfo.tipo_producto === 'arbol_amarradora') {
           totalProduccionReal += producto.produccion_real;
-          totalMeta += tope;
+          totalMeta += 100;
+        } else {
+          const tope = getTopeForProduct(productoInfo, formData.turno as string);
+          if (tope > 0) {
+            totalProduccionReal += producto.produccion_real;
+            totalMeta += tope;
+          }
         }
       }
     });
@@ -299,6 +322,44 @@ export default function RegistroProduccion() {
     }));
   };
 
+  const initializeRamasAmarradora = (disenoId: string): RamaAmarradoraDetalle[] => {
+    const ramas = ramasAmarradora.filter(r => r.diseno_id === disenoId);
+    return ramas.map(rama => ({
+      numero_rama: rama.numero_rama,
+      cantidad_producida: 0,
+      tope_rama: Number(rama.tope_rama)
+    }));
+  };
+
+  const calculatePromedioRamas = (ramas: RamaAmarradoraDetalle[]): number => {
+    if (ramas.length === 0) return 0;
+    const totalPorcentaje = ramas.reduce((sum, rama) => {
+      const porcentaje = rama.tope_rama > 0 ? (rama.cantidad_producida / rama.tope_rama) * 100 : 0;
+      return sum + porcentaje;
+    }, 0);
+    return totalPorcentaje / ramas.length;
+  };
+
+  const updateProductoRamaAmarradora = (productoIndex: number, ramaIndex: number, cantidadProducida: number) => {
+    setFormData(prev => ({
+      ...prev,
+      productos: prev.productos.map((producto, i) => {
+        if (i === productoIndex && producto.ramas_amarradora) {
+          const updatedRamas = producto.ramas_amarradora.map((rama, j) => 
+            j === ramaIndex ? { ...rama, cantidad_producida: cantidadProducida } : rama
+          );
+          const promedioPorcentaje = calculatePromedioRamas(updatedRamas);
+          return {
+            ...producto,
+            ramas_amarradora: updatedRamas,
+            produccion_real: promedioPorcentaje
+          };
+        }
+        return producto;
+      })
+    }));
+  };
+
   const calculateFestones = (niveles: NivelDetalle[]): number => {
     return niveles.reduce((total, nivel) => total + (nivel.cantidad_ramas * nivel.festones_por_rama), 0);
   };
@@ -342,14 +403,24 @@ export default function RegistroProduccion() {
                 producto_id: value as string,
                 niveles: initializeNiveles(selectedProduct.diseno_id!),
                 produccion_real: 0,
-                observaciones: producto.observaciones || ''
+                observaciones: producto.observaciones || '',
+                ramas_amarradora: undefined
+              };
+            } else if (selectedProduct?.tipo_producto === 'arbol_amarradora') {
+              return { 
+                producto_id: value as string,
+                ramas_amarradora: initializeRamasAmarradora(selectedProduct.diseno_id!),
+                produccion_real: 0,
+                observaciones: producto.observaciones || '',
+                niveles: undefined
               };
             } else {
               return { 
                 producto_id: value as string,
                 produccion_real: producto.produccion_real,
                 observaciones: producto.observaciones || '',
-                niveles: undefined
+                niveles: undefined,
+                ramas_amarradora: undefined
               };
             }
           } else if (field === 'observaciones') {
@@ -427,7 +498,7 @@ export default function RegistroProduccion() {
       return;
     }
 
-    // ——— Validar niveles para árboles
+    // ——— Validar niveles para árboles navideños
     const invalidTreeProducts = formData.productos.filter(producto => {
       if (!producto.producto_id) return false;
       const selectedProduct = filteredProductos.find(p => p.id === producto.producto_id);
@@ -440,11 +511,23 @@ export default function RegistroProduccion() {
     if (invalidTreeProducts.length > 0) {
       toast({
         title: "Niveles Requeridos",
-        description: "Los productos de árbol deben tener al menos un nivel con ramas",
+        description: "Los productos de árbol navideño deben tener al menos un nivel con ramas",
         variant: "destructive",
       });
       return;
     }
+
+    // ——— Validar ramas para árboles amarradora
+    const invalidAmarradoraProducts = formData.productos.filter(producto => {
+      if (!producto.producto_id) return false;
+      const selectedProduct = filteredProductos.find(p => p.id === producto.producto_id);
+      if (selectedProduct?.tipo_producto === 'arbol_amarradora' && producto.ramas_amarradora) {
+        // Al menos una rama debe tener cantidad producida > 0 (opcional, según requisitos)
+        // Por ahora no requerimos mínimo, pero podríamos agregarlo aquí
+        return false;
+      }
+      return false;
+    });
 
     setLoading(true);
 
@@ -467,18 +550,58 @@ export default function RegistroProduccion() {
 
       const detallesPromises = formData.productos
         .filter(p => !!p.producto_id) // seguridad extra
-        .map(producto => {
+        .map(async producto => {
           const productoInfo = productos.find(p => p.id === producto.producto_id)!;
-          const tope = getTopeForProduct(productoInfo, formData.turno as string);
-          const porcentajeProducto = tope > 0 ? (producto.produccion_real / tope) * 100 : 0;
+          
+          // Para árboles amarradora, la produccion_real ya es el porcentaje promedio
+          let porcentajeProducto = 0;
+          let produccionRealValue = producto.produccion_real;
+          
+          if (productoInfo.tipo_producto === 'arbol_amarradora') {
+            // produccion_real ya es el porcentaje promedio calculado
+            porcentajeProducto = producto.produccion_real;
+            // Para la tabla detalle_produccion, guardamos el promedio en produccion_real
+            // pero podemos usar un valor representativo o 0
+            produccionRealValue = 0;
+          } else {
+            const tope = getTopeForProduct(productoInfo, formData.turno as string);
+            porcentajeProducto = tope > 0 ? (producto.produccion_real / tope) * 100 : 0;
+            produccionRealValue = producto.produccion_real;
+          }
 
-          return supabase.from('detalle_produccion').insert({
-            registro_id: registro.id,
-            producto_id: producto.producto_id,
-            produccion_real: producto.produccion_real,
-            porcentaje_cumplimiento: porcentajeProducto,
-            observaciones: producto.observaciones || null
-          });
+          const { data: detalleData, error: detalleError } = await supabase
+            .from('detalle_produccion')
+            .insert({
+              registro_id: registro.id,
+              producto_id: producto.producto_id,
+              produccion_real: produccionRealValue,
+              porcentaje_cumplimiento: porcentajeProducto,
+              observaciones: producto.observaciones || null
+            })
+            .select()
+            .single();
+
+          if (detalleError) throw detalleError;
+
+          // Si es árbol amarradora, guardar detalles de ramas
+          if (productoInfo.tipo_producto === 'arbol_amarradora' && producto.ramas_amarradora) {
+            const ramasPromises = producto.ramas_amarradora.map(rama =>
+              supabase.from('detalle_ramas_amarradora').insert({
+                detalle_produccion_id: detalleData.id,
+                numero_rama: rama.numero_rama,
+                cantidad_producida: rama.cantidad_producida,
+                tope_rama: rama.tope_rama
+              })
+            );
+
+            const ramasResults = await Promise.all(ramasPromises);
+            const ramasErrors = ramasResults.filter(result => (result as any).error);
+            if (ramasErrors.length > 0) {
+              throw (ramasErrors[0] as any).error;
+            }
+          }
+
+          return { data: detalleData, error: null };
         });
 
       const detallesResults = await Promise.all(detallesPromises);
@@ -924,7 +1047,7 @@ export default function RegistroProduccion() {
                         </div>
                       ) : selectedProduct.tipo_producto === 'arbol_navideno' && producto.niveles ? (
                         <>
-                          {/* Niveles árbol */}
+                          {/* Niveles árbol navideño */}
                           <div className="space-y-3">
                             <Label className="text-sm font-medium text-primary">Niveles de Ramas</Label>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
@@ -950,6 +1073,41 @@ export default function RegistroProduccion() {
                               <span className="text-sm font-medium">Total de Festones:</span>
                               <Badge variant="secondary" className="text-lg font-bold">
                                 {producto.produccion_real.toLocaleString()}
+                              </Badge>
+                            </div>
+                          </div>
+                        </>
+                      ) : selectedProduct.tipo_producto === 'arbol_amarradora' && producto.ramas_amarradora ? (
+                        <>
+                          {/* Ramas árbol amarradora */}
+                          <div className="space-y-3">
+                            <Label className="text-sm font-medium text-primary">Ramas del Árbol Amarradora</Label>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
+                              {producto.ramas_amarradora.map((rama, ramaIndex) => (
+                                <div key={rama.numero_rama} className="p-3 border rounded-lg bg-muted/30">
+                                  <Label className="text-xs font-medium text-muted-foreground">
+                                    Rama #{rama.numero_rama} (Tope: {rama.tope_rama})
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={rama.cantidad_producida}
+                                    onChange={(e) => updateProductoRamaAmarradora(index, ramaIndex, parseInt(e.target.value) || 0)}
+                                    placeholder="Cantidad"
+                                    className="input-touch mt-1"
+                                    inputMode="numeric"
+                                  />
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {rama.tope_rama > 0 ? `${((rama.cantidad_producida / rama.tope_rama) * 100).toFixed(1)}%` : '0%'}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
+                              <span className="text-sm font-medium">Promedio de Cumplimiento:</span>
+                              <Badge variant="secondary" className="text-lg font-bold">
+                                {producto.produccion_real.toFixed(1)}%
                               </Badge>
                             </div>
                           </div>

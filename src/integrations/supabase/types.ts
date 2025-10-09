@@ -73,6 +73,41 @@ export type Database = {
           },
         ]
       }
+      detalle_ramas_amarradora: {
+        Row: {
+          cantidad_producida: number
+          detalle_produccion_id: string
+          fecha_creacion: string
+          id: string
+          numero_rama: number
+          tope_rama: number
+        }
+        Insert: {
+          cantidad_producida?: number
+          detalle_produccion_id: string
+          fecha_creacion?: string
+          id?: string
+          numero_rama: number
+          tope_rama?: number
+        }
+        Update: {
+          cantidad_producida?: number
+          detalle_produccion_id?: string
+          fecha_creacion?: string
+          id?: string
+          numero_rama?: number
+          tope_rama?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "detalle_ramas_amarradora_detalle_produccion_id_fkey"
+            columns: ["detalle_produccion_id"]
+            isOneToOne: false
+            referencedRelation: "detalle_produccion"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       disenos_arboles: {
         Row: {
           activo: boolean
@@ -238,6 +273,41 @@ export type Database = {
             columns: ["producto_id"]
             isOneToOne: false
             referencedRelation: "productos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ramas_amarradora: {
+        Row: {
+          activo: boolean
+          diseno_id: string
+          fecha_creacion: string
+          id: string
+          numero_rama: number
+          tope_rama: number
+        }
+        Insert: {
+          activo?: boolean
+          diseno_id: string
+          fecha_creacion?: string
+          id?: string
+          numero_rama: number
+          tope_rama?: number
+        }
+        Update: {
+          activo?: boolean
+          diseno_id?: string
+          fecha_creacion?: string
+          id?: string
+          numero_rama?: number
+          tope_rama?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ramas_amarradora_diseno_id_fkey"
+            columns: ["diseno_id"]
+            isOneToOne: false
+            referencedRelation: "disenos_arboles"
             referencedColumns: ["id"]
           },
         ]

@@ -108,11 +108,12 @@ export default function AdminMaquinasProductos() {
     nombre: string; 
     tope?: number; 
     categoria: string;
-    tipo_producto: 'general' | 'arbol_navideno' | 'producido_molino';
+    tipo_producto: 'general' | 'arbol_navideno' | 'producido_molino' | 'arbol_amarradora';
     diseno_id?: string;
     diseno_nombre?: string;
     diseno_descripcion?: string;
     niveles_ramas?: { nivel: number; festones_por_rama: number }[];
+    ramas_amarradora?: { numero_rama: number; tope_rama: number }[];
     tope_jornada_8h?: number;
     tope_jornada_10h?: number;
   }) => {
@@ -120,6 +121,7 @@ export default function AdminMaquinasProductos() {
       let productoId: string;
       let disenoId = data.diseno_id;
 
+      // Crear diseño para árbol navideño
       if (data.tipo_producto === 'arbol_navideno' && data.diseno_nombre && data.niveles_ramas) {
         const { data: nuevoDiseno, error: disenoError } = await supabase
           .from('disenos_arboles')
@@ -141,6 +143,30 @@ export default function AdminMaquinasProductos() {
           .insert(nivelesRamas);
 
         if (nivelesError) throw nivelesError;
+      }
+
+      // Crear diseño para árbol amarradora
+      if (data.tipo_producto === 'arbol_amarradora' && data.diseno_nombre && data.ramas_amarradora) {
+        const { data: nuevoDiseno, error: disenoError } = await supabase
+          .from('disenos_arboles')
+          .insert([{ nombre: data.diseno_nombre, descripcion: data.diseno_descripcion || null }])
+          .select()
+          .single();
+
+        if (disenoError) throw disenoError;
+        disenoId = nuevoDiseno.id;
+
+        const ramasAmarradora = data.ramas_amarradora.map(rama => ({
+          diseno_id: disenoId!,
+          numero_rama: rama.numero_rama,
+          tope_rama: rama.tope_rama
+        }));
+
+        const { error: ramasError } = await supabase
+          .from('ramas_amarradora')
+          .insert(ramasAmarradora);
+
+        if (ramasError) throw ramasError;
       }
       
       if (editingProducto) {

@@ -31,11 +31,15 @@ type Producto = Tables<'productos'>;
 type Maquina = Tables<'maquinas'>;
 type DisenoArbol = Tables<'disenos_arboles'>;
 type NivelRama = Tables<'niveles_ramas'>;
+type RamaAmarradora = {
+  numero_rama: number;
+  tope_rama: number;
+};
 
 const formSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
   categoria: z.string().min(1, 'Debe seleccionar una categoría'),
-  tipo_producto: z.enum(['general', 'arbol_navideno', 'producido_molino']),
+  tipo_producto: z.enum(['general', 'arbol_navideno', 'producido_molino', 'arbol_amarradora']),
   // Topes por jornada - 8h obligatorio, 10h opcional
   tope_jornada_8h: z.number().min(0, 'El tope debe ser mayor o igual a 0'),
   tope_jornada_10h: z.number().min(0, 'El tope debe ser mayor o igual a 0').optional(),
@@ -61,6 +65,7 @@ interface ProductoFormProps {
 export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: ProductoFormProps) {
   const [disenosArboles, setDisenosArboles] = useState<DisenoArbol[]>([]);
   const [nivelesRamas, setNivelesRamas] = useState<{ nivel: number; festones_por_rama: number }[]>([]);
+  const [ramasAmarradora, setRamasAmarradora] = useState<RamaAmarradora[]>([]);
   const [creandoNuevoDiseno, setCreandoNuevoDiseno] = useState(false);
   
   const form = useForm<FormValues>({
@@ -68,7 +73,7 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
     defaultValues: {
       nombre: producto?.nombre || '',
       categoria: producto?.categoria || '',
-      tipo_producto: (producto?.tipo_producto as 'general' | 'arbol_navideno' | 'producido_molino' | undefined) || 'general',
+      tipo_producto: (producto?.tipo_producto as 'general' | 'arbol_navideno' | 'producido_molino' | 'arbol_amarradora' | undefined) || 'general',
       tope_jornada_8h: producto?.tope_jornada_8h ? Number(producto.tope_jornada_8h) : 0,
       tope_jornada_10h: producto?.tope_jornada_10h ? Number(producto.tope_jornada_10h) : undefined,
       diseno_id: producto?.diseno_id || undefined,
@@ -82,7 +87,7 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
   const disenoId = form.watch('diseno_id');
 
   useEffect(() => {
-    if (tipoProducto === 'arbol_navideno') {
+    if (tipoProducto === 'arbol_navideno' || tipoProducto === 'arbol_amarradora') {
       fetchDisenosArboles();
     }
   }, [tipoProducto]);
@@ -119,7 +124,13 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
   };
 
   const handleSubmit = (data: FormValues) => {
-    onSubmit(data);
+    // Agregar ramas_amarradora si existen
+    const submitData = {
+      ...data,
+      niveles_ramas: tipoProducto === 'arbol_navideno' && creandoNuevoDiseno ? nivelesRamas : undefined,
+      ramas_amarradora: tipoProducto === 'arbol_amarradora' && creandoNuevoDiseno ? ramasAmarradora : undefined
+    };
+    onSubmit(submitData);
   };
 
   const agregarNivel = () => {
@@ -136,6 +147,21 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
     nuevosNiveles[index][field] = value;
     setNivelesRamas(nuevosNiveles);
     form.setValue('niveles_ramas', nuevosNiveles);
+  };
+
+  const agregarRamaAmarradora = () => {
+    const nuevaRama = ramasAmarradora.length + 1;
+    setRamasAmarradora([...ramasAmarradora, { numero_rama: nuevaRama, tope_rama: 0 }]);
+  };
+
+  const eliminarRamaAmarradora = (index: number) => {
+    setRamasAmarradora(ramasAmarradora.filter((_, i) => i !== index));
+  };
+
+  const actualizarRamaAmarradora = (index: number, field: 'numero_rama' | 'tope_rama', value: number) => {
+    const nuevasRamas = [...ramasAmarradora];
+    nuevasRamas[index][field] = value;
+    setRamasAmarradora(nuevasRamas);
   };
 
   // Obtener categorías únicas de máquinas activas
@@ -231,6 +257,7 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
                       <SelectItem value="general">General</SelectItem>
                       <SelectItem value="arbol_navideno">Árbol Navideño</SelectItem>
                       <SelectItem value="producido_molino">Producido Molino</SelectItem>
+                      <SelectItem value="arbol_amarradora">Árbol Amarradora</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -382,6 +409,133 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
               </Card>
             )}
 
+            {tipoProducto === 'arbol_amarradora' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Configuración de Árbol Amarradora</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-4">
+                    <Button
+                      type="button"
+                      variant={creandoNuevoDiseno ? "default" : "outline"}
+                      onClick={() => setCreandoNuevoDiseno(true)}
+                      size="sm"
+                    >
+                      Crear Nuevo Diseño
+                    </Button>
+                    {disenosArboles.length > 0 && (
+                      <Button
+                        type="button"
+                        variant={!creandoNuevoDiseno ? "default" : "outline"}
+                        onClick={() => setCreandoNuevoDiseno(false)}
+                        size="sm"
+                      >
+                        Usar Diseño Existente
+                      </Button>
+                    )}
+                  </div>
+
+                  {creandoNuevoDiseno ? (
+                    <div className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="diseno_nombre"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nombre del Diseño</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Nombre del diseño" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="diseno_descripcion"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Descripción</FormLabel>
+                            <FormControl>
+                              <Textarea placeholder="Descripción del diseño" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <FormLabel>Configuración de Ramas</FormLabel>
+                          <Button type="button" onClick={agregarRamaAmarradora} size="sm">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Agregar Rama
+                          </Button>
+                        </div>
+                        
+                        {ramasAmarradora.map((rama, index) => (
+                          <div key={index} className="flex items-center space-x-2 p-3 border rounded">
+                            <div className="flex-1">
+                              <label className="text-sm font-medium">Número de Rama</label>
+                              <Input
+                                type="number"
+                                value={rama.numero_rama}
+                                onChange={(e) => actualizarRamaAmarradora(index, 'numero_rama', Number(e.target.value))}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <label className="text-sm font-medium">Tope de Rama</label>
+                              <Input
+                                type="number"
+                                value={rama.tope_rama}
+                                onChange={(e) => actualizarRamaAmarradora(index, 'tope_rama', Number(e.target.value))}
+                                className="mt-1"
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => eliminarRamaAmarradora(index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <FormField
+                      control={form.control}
+                      name="diseno_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Diseño Existente</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecciona un diseño" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {disenosArboles.map((diseno) => (
+                                <SelectItem key={diseno.id} value={diseno.id}>
+                                  {diseno.nombre}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             <FormField
               control={form.control}
