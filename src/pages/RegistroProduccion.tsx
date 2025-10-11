@@ -553,16 +553,21 @@ export default function RegistroProduccion() {
         .map(async producto => {
           const productoInfo = productos.find(p => p.id === producto.producto_id)!;
           
-          // Para árboles amarradora, la produccion_real ya es el porcentaje promedio
+          // Para árboles amarradora, calcular la suma total de ramas producidas
           let porcentajeProducto = 0;
           let produccionRealValue = producto.produccion_real;
           
           if (productoInfo.tipo_producto === 'arbol_amarradora') {
-            // produccion_real ya es el porcentaje promedio calculado
+            // Calcular suma total de ramas producidas
+            const totalRamasProducidas = producto.ramas_amarradora?.reduce(
+              (sum, rama) => sum + rama.cantidad_producida, 
+              0
+            ) || 0;
+            
+            // produccion_real = suma total de ramas producidas
+            produccionRealValue = totalRamasProducidas;
+            // porcentaje = promedio de cumplimiento por rama
             porcentajeProducto = producto.produccion_real;
-            // Para la tabla detalle_produccion, guardamos el promedio en produccion_real
-            // pero podemos usar un valor representativo o 0
-            produccionRealValue = 0;
           } else {
             const tope = getTopeForProduct(productoInfo, formData.turno as string);
             porcentajeProducto = tope > 0 ? (producto.produccion_real / tope) * 100 : 0;
