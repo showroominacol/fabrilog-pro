@@ -39,9 +39,11 @@ export interface MachineData {
 // FKs duplicadas obligan a "pistar" relaciones con !<constraint_name>
 type DetalleRow = {
   produccion_real: number;
+  porcentaje_cumplimiento: number;
   observaciones?: string | null;
   productos?: {
     nombre: string;
+    tipo_producto: string;
     tope: number | null;
     tope_jornada_8h?: number | null;
     tope_jornada_10h?: number | null;
@@ -250,9 +252,11 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
         maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
         detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
           produccion_real,
+          porcentaje_cumplimiento,
           observaciones,
           productos:productos!detalle_produccion_producto_id_fkey ( 
-            nombre, 
+            nombre,
+            tipo_producto,
             tope,
             tope_jornada_8h,
             tope_jornada_10h
@@ -292,9 +296,11 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
           maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
           detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
             produccion_real,
+            porcentaje_cumplimiento,
             observaciones,
             productos:productos!detalle_produccion_producto_id_fkey ( 
-              nombre, 
+              nombre,
+              tipo_producto,
               tope,
               tope_jornada_8h,
               tope_jornada_10h
@@ -366,18 +372,26 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
         let sumaPorcentajeDia = porcentajesPorDia.get(fecha) ?? 0;
 
         for (const detalle of registro.detalle_produccion) {
-          // Selección dinámica del tope según jornada
-          let jornadaTope: number | null = null;
-          const turnoTexto = this.formatTurno(registro.turno);
-
-          if (turnoTexto === '7:00am - 5:00pm') {
-            jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
+          let pct = 0;
+          
+          // Para árboles amarradora, usar el porcentaje_cumplimiento directamente
+          if (detalle.productos?.tipo_producto === 'arbol_amarradora') {
+            pct = detalle.porcentaje_cumplimiento;
           } else {
-            jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
-          }
+            // Para otros productos, calcular el porcentaje con el tope apropiado
+            let jornadaTope: number | null = null;
+            const turnoTexto = this.formatTurno(registro.turno);
 
-          const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
-          const pct = tope > 0 ? (detalle.produccion_real / Number(tope)) * 100 : 0;
+            if (turnoTexto === '7:00am - 5:00pm') {
+              jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
+            } else {
+              jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
+            }
+
+            const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
+            pct = tope > 0 ? (detalle.produccion_real / Number(tope)) * 100 : 0;
+          }
+          
           sumaPorcentajeDia += pct;
           
           // Recopilar observaciones
@@ -440,18 +454,23 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
       let pctRegistro = 0;
       if (registro.detalle_produccion?.length) {
         for (const d of registro.detalle_produccion) {
-          // Selección dinámica del tope según jornada
-          let jornadaTope: number | null = null;
-          const turnoTexto = this.formatTurno(registro.turno);
-
-          if (turnoTexto === '7:00am - 5:00pm') {
-            jornadaTope = d.productos?.tope_jornada_10h ?? null;
+          // Para árboles amarradora, usar el porcentaje_cumplimiento directamente
+          if (d.productos?.tipo_producto === 'arbol_amarradora') {
+            pctRegistro += d.porcentaje_cumplimiento;
           } else {
-            jornadaTope = d.productos?.tope_jornada_8h ?? null;
-          }
+            // Para otros productos, calcular el porcentaje con el tope apropiado
+            let jornadaTope: number | null = null;
+            const turnoTexto = this.formatTurno(registro.turno);
 
-          const tope = jornadaTope ?? d.productos?.tope ?? 0;
-          pctRegistro += tope > 0 ? (d.produccion_real / Number(tope)) * 100 : 0;
+            if (turnoTexto === '7:00am - 5:00pm') {
+              jornadaTope = d.productos?.tope_jornada_10h ?? null;
+            } else {
+              jornadaTope = d.productos?.tope_jornada_8h ?? null;
+            }
+
+            const tope = jornadaTope ?? d.productos?.tope ?? 0;
+            pctRegistro += tope > 0 ? (d.produccion_real / Number(tope)) * 100 : 0;
+          }
           
           // Recopilar observaciones
           if (d.observaciones && d.observaciones.trim()) {
