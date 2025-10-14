@@ -215,13 +215,16 @@ export default function RegistroProduccion() {
 
   //AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
   const getTopeForProduct = (productoInfo: Producto, turno: string): number => {
-    if (productoInfo.tipo_producto === 'producido_molino') {
-      if (turno === "7:00am - 5:00pm") {
-        return Number(productoInfo.tope_jornada_10h) || 0;
-      }
-      return Number(productoInfo.tope_jornada_8h) || 0;
+    // Para árboles amarradora, no usar topes por jornada
+    if (productoInfo.tipo_producto === 'arbol_amarradora') {
+      return Number(productoInfo.tope) || 0;
     }
-    return Number(productoInfo.tope) || 0;
+    
+    // Para todos los demás productos, aplicar lógica de topes por jornada
+    if (turno === "7:00am - 5:00pm") {
+      return Number(productoInfo.tope_jornada_10h) || 0;
+    }
+    return Number(productoInfo.tope_jornada_8h) || 0;
   };
 
   const calculatePerformance = () => {

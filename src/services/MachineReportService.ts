@@ -65,6 +65,7 @@ export class MachineReportService {
           porcentaje_cumplimiento,
           productos!fk_detalle_produccion_producto(
             nombre,
+            tipo_producto,
             tope,
             tope_jornada_10h,
             tope_jornada_8h
@@ -132,6 +133,7 @@ export class MachineReportService {
                     tope: detalle?.productos?.tope,
                     tope10: detalle?.productos?.tope_jornada_10h,
                     tope8: detalle?.productos?.tope_jornada_8h,
+                    tipo_producto: detalle?.productos?.tipo_producto,
                   }
                 );
 
@@ -214,25 +216,24 @@ export class MachineReportService {
   /** Ajusta meta (tope) según el turno */
   private getTopeAjustadoPorTurno(
     turno: string,
-    topes: { tope?: number | null; tope10?: number | null; tope8?: number | null }
+    topes: { tope?: number | null; tope10?: number | null; tope8?: number | null; tipo_producto?: string | null }
   ): number {
     const t = (turno || '').trim();
-    const tope = Number(topes.tope ?? 0);
-    const tope10 = Number(topes.tope10 ?? 0);
     const tope8 = Number(topes.tope8 ?? 0);
+    const tope10 = Number(topes.tope10 ?? 0);
 
-    // Mismo criterio que tu SQL:
-    // - Turnos de 8h estándar usan p.tope
-    // - "7:00am - 5:00pm" usa p.tope_jornada_10h
-    // - Else usa p.tope_jornada_8h
-    if (t === '6:00am - 2:00pm' || t === '2:00pm - 10:00pm' || t === '10:00pm - 6:00am') {
-      return tope > 0 ? tope : (tope8 > 0 ? tope8 : 0);
+    // Para árboles amarradora, usar el tope general
+    if (topes.tipo_producto === 'arbol_amarradora') {
+      return Number(topes.tope ?? 0);
     }
+
+    // Para todos los demás productos:
+    // - Turno "7:00am - 5:00pm" usa tope_jornada_10h
+    // - Cualquier otro turno usa tope_jornada_8h
     if (t === '7:00am - 5:00pm') {
-      return tope10 > 0 ? tope10 : (tope > 0 ? tope : tope8);
+      return tope10;
     }
-    // Default: 8h
-    return tope8 > 0 ? tope8 : (tope > 0 ? tope : 0);
+    return tope8;
   }
 
   /** Genera un rango de fechas */

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 type RegistroConDetalleSrv = {
   fecha: string;
+  turno: string;
   es_asistente: boolean;
   detalle_produccion: Array<{
     produccion_real: number;
@@ -135,11 +136,24 @@ for (const registro of registrosDia) {
   // Obtener el tope del producto
   const { data: productoData } = await supabase
     .from('productos')
-    .select('tope, nombre')
+    .select('tope, tope_jornada_8h, tope_jornada_10h, tipo_producto, nombre')
     .eq('id', detalle.producto_id)
     .single();
 
-  const meta = productoData?.tope || 0;
+  // Calcular meta según el turno y tipo de producto
+  let meta = 0;
+  if (productoData) {
+    if (productoData.tipo_producto === 'arbol_amarradora') {
+      meta = Number(productoData.tope) || 0;
+    } else {
+      // Para todos los demás productos, usar topes por jornada
+      if (registro.turno === "7:00am - 5:00pm") {
+        meta = Number(productoData.tope_jornada_10h) || 0;
+      } else {
+        meta = Number(productoData.tope_jornada_8h) || 0;
+      }
+    }
+  }
 
   produccionTotalDia += detalle.produccion_real;
   metaTotalDia += meta;
