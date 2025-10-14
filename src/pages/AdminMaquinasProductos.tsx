@@ -178,8 +178,8 @@ export default function AdminMaquinasProductos() {
             categoria: data.categoria,
             tipo_producto: data.tipo_producto,
             diseno_id: disenoId,
-            tope_jornada_8h: data.tipo_producto === 'producido_molino' ? data.tope_jornada_8h : null,
-            tope_jornada_10h: data.tipo_producto === 'producido_molino' ? data.tope_jornada_10h : null
+            tope_jornada_8h: data.tope_jornada_8h ?? null,
+            tope_jornada_10h: data.tope_jornada_10h ?? null
           })
           .eq('id', editingProducto!.id);
         
@@ -194,8 +194,8 @@ export default function AdminMaquinasProductos() {
             categoria: data.categoria,
             tipo_producto: data.tipo_producto,
             diseno_id: disenoId,
-            tope_jornada_8h: data.tipo_producto === 'producido_molino' ? data.tope_jornada_8h : null,
-            tope_jornada_10h: data.tipo_producto === 'producido_molino' ? data.tope_jornada_10h : null
+            tope_jornada_8h: data.tope_jornada_8h ?? null,
+            tope_jornada_10h: data.tope_jornada_10h ?? null
           }])
           .select()
           .single();
