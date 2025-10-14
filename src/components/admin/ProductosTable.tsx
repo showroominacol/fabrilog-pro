@@ -6,7 +6,6 @@ import { Edit, Trash2, RotateCcw } from 'lucide-react';
 import { Tables } from '@/integrations/supabase/types';
 
 type Producto = Tables<'productos'>;
-type Maquina = Tables<'maquinas'>;
 
 interface ProductosTableProps {
   productos: Producto[];
@@ -17,9 +16,8 @@ interface ProductosTableProps {
 
 export function ProductosTable({ productos, onEdit, onDelete, onReactivate }: ProductosTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5; // 🔹 puedes ajustar este valor
+  const itemsPerPage = 5;
 
-  // calcular índices de productos a mostrar
   const indexOfLast = currentPage * itemsPerPage;
   const indexOfFirst = indexOfLast - itemsPerPage;
   const currentProductos = productos.slice(indexOfFirst, indexOfLast);
@@ -42,7 +40,7 @@ export function ProductosTable({ productos, onEdit, onDelete, onReactivate }: Pr
             <TableHead>Nombre</TableHead>
             <TableHead>Tipo</TableHead>
             <TableHead>Categoría</TableHead>
-            <TableHead>Tope</TableHead>
+            <TableHead>Tope (8h)</TableHead>
             <TableHead>Estado</TableHead>
             <TableHead>Fecha Creación</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
@@ -65,7 +63,9 @@ export function ProductosTable({ productos, onEdit, onDelete, onReactivate }: Pr
                 )}
               </TableCell>
               <TableCell>
-                {producto.tope ? Number(producto.tope).toLocaleString() : '-'}
+                {producto.tope_jornada_8h === null || producto.tope_jornada_8h === undefined
+                  ? '-'
+                  : Number(producto.tope_jornada_8h).toLocaleString('es-CO')}
               </TableCell>
               <TableCell>
                 <Badge variant={producto.activo ? 'default' : 'secondary'}>
@@ -109,7 +109,6 @@ export function ProductosTable({ productos, onEdit, onDelete, onReactivate }: Pr
         </TableBody>
       </Table>
 
-      {/* 🔹 Paginación */}
       <div className="flex items-center justify-between">
         <Button
           variant="outline"
