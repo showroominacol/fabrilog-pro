@@ -275,7 +275,11 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
                     <Button
                       type="button"
                       variant={creandoNuevoDiseno ? "default" : "outline"}
-                      onClick={() => setCreandoNuevoDiseno(true)}
+                      onClick={() => {
+                        setCreandoNuevoDiseno(true);
+                        form.setValue('diseno_id', undefined);
+                        setNivelesRamas([]);
+                      }}
                       size="sm"
                     >
                       Crear Nuevo Diseño
@@ -284,7 +288,12 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
                       <Button
                         type="button"
                         variant={!creandoNuevoDiseno ? "default" : "outline"}
-                        onClick={() => setCreandoNuevoDiseno(false)}
+                        onClick={() => {
+                          setCreandoNuevoDiseno(false);
+                          form.setValue('diseno_nombre', '');
+                          form.setValue('diseno_descripcion', '');
+                          setNivelesRamas([]);
+                        }}
                         size="sm"
                       >
                         Usar Diseño Existente
@@ -419,7 +428,11 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
                     <Button
                       type="button"
                       variant={creandoNuevoDiseno ? "default" : "outline"}
-                      onClick={() => setCreandoNuevoDiseno(true)}
+                      onClick={() => {
+                        setCreandoNuevoDiseno(true);
+                        form.setValue('diseno_id', undefined);
+                        setRamasAmarradora([]);
+                      }}
                       size="sm"
                     >
                       Crear Nuevo Diseño
@@ -428,7 +441,12 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
                       <Button
                         type="button"
                         variant={!creandoNuevoDiseno ? "default" : "outline"}
-                        onClick={() => setCreandoNuevoDiseno(false)}
+                        onClick={() => {
+                          setCreandoNuevoDiseno(false);
+                          form.setValue('diseno_nombre', '');
+                          form.setValue('diseno_descripcion', '');
+                          setRamasAmarradora([]);
+                        }}
                         size="sm"
                       >
                         Usar Diseño Existente
