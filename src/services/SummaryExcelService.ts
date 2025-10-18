@@ -557,52 +557,17 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
   /**
    * Crea las filas de datos del Excel
    */
-  private createDataRows(employeeData: EmployeeData[], categorias: string[]): any[][] {
-    const rows: any[][] = [];
+  private createDataRows(employeeData: EmployeeData[], categorias: string[]): string[][] {
+    const rows: string[][] = [];
 
-    for (let empIdx = 0; empIdx < employeeData.length; empIdx++) {
-      const empleado = employeeData[empIdx];
-      const rowNumber = empIdx + 3; // +2 para headers, +1 para 1-indexed
-      
-      const row: any[] = [
+    for (const empleado of employeeData) {
+      const row: string[] = [
         empleado.nombre,
         String(empleado.diasXLaborar),
         String(empleado.diasRealLaborados),
+        String(empleado.bonoTotal),
       ];
 
-      // Construir fórmula para BONO TOTAL
-      const formulaParts: string[] = [];
-      let colIndex = 4; // Columna E (después de NOMBRE, DIAS X LABORAR, DIAS REAL LABORADOS, BONO TOTAL)
-
-      for (const categoria of categorias) {
-        const bloque = empleado.bloques.find((b) => b.categoria === categoria);
-        
-        // OP
-        if (bloque && bloque.operario.dias > 0) {
-          const colPorcentaje = this.numberToExcelColumn(colIndex + 1); // Columna %
-          const colDias = this.numberToExcelColumn(colIndex + 2); // Columna DÍAS
-          formulaParts.push(`(${colPorcentaje}${rowNumber}*${colDias}${rowNumber})`);
-        }
-        colIndex += 3; // OP tiene 3 columnas (%, DÍAS, OBSERVACIONES)
-
-        // AYU
-        if (bloque && bloque.ayudante.dias > 0) {
-          const colPorcentaje = this.numberToExcelColumn(colIndex + 1);
-          const colDias = this.numberToExcelColumn(colIndex + 2);
-          formulaParts.push(`(${colPorcentaje}${rowNumber}*${colDias}${rowNumber})`);
-        }
-        colIndex += 3; // AYU tiene 3 columnas
-      }
-
-      // Si hay partes de la fórmula, crear la fórmula completa
-      if (formulaParts.length > 0) {
-        const formula = `=(${formulaParts.join('+')})/${this.numberToExcelColumn(2)}${rowNumber}`;
-        row.push({ f: formula });
-      } else {
-        row.push('0');
-      }
-
-      // Ahora agregar los datos de cada categoría
       for (const categoria of categorias) {
         const bloque = empleado.bloques.find((b) => b.categoria === categoria);
 
@@ -610,8 +575,8 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
           // OP
           if (bloque.operario.dias > 0) {
             row.push(
-              bloque.operario.porcentaje, // Sin el símbolo %
-              bloque.operario.dias,
+              `${bloque.operario.porcentaje}%`, 
+              String(bloque.operario.dias), 
               bloque.operario.observaciones || ''
             );
           } else {
@@ -620,8 +585,8 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
           // AYU
           if (bloque.ayudante.dias > 0) {
             row.push(
-              bloque.ayudante.porcentaje, // Sin el símbolo %
-              bloque.ayudante.dias,
+              `${bloque.ayudante.porcentaje}%`, 
+              String(bloque.ayudante.dias), 
               bloque.ayudante.observaciones || ''
             );
           } else {
@@ -637,19 +602,6 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
     }
 
     return rows;
-  }
-
-  /**
-   * Convierte un número de columna (1-indexed) a letra de Excel (A, B, C, ..., Z, AA, AB, ...)
-   */
-  private numberToExcelColumn(num: number): string {
-    let column = '';
-    while (num > 0) {
-      const remainder = (num - 1) % 26;
-      column = String.fromCharCode(65 + remainder) + column;
-      num = Math.floor((num - 1) / 26);
-    }
-    return column;
   }
 
   /**
