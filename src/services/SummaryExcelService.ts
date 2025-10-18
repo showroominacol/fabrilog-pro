@@ -22,7 +22,6 @@ export interface CategoryBlock {
 export interface BlockData {
   porcentaje: number;
   dias: number;
-  horas: string;
   observaciones: string;
   maquinas: MachineData[];
 }
@@ -31,7 +30,6 @@ export interface MachineData {
   nombre: string;
   porcentaje: number;
   dias: number;
-  horas: string;
   observaciones: string;
 }
 
@@ -353,19 +351,17 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
     _fechaFin: Date
   ): Promise<BlockData> {
     if (!registros || registros.length === 0) {
-      return { porcentaje: 0, dias: 0, horas: '', observaciones: '', maquinas: [] };
+      return { porcentaje: 0, dias: 0, observaciones: '', maquinas: [] };
     }
 
-    // % promedio por día, días y horas (turnos únicos)
+    // % promedio por día y observaciones
     const porcentajesPorDia = new Map<string, number>();
-    const turnosPorDia = new Map<string, string>();
     const observacionesSet = new Set<string>();
 
     for (const registro of registros) {
       const fecha = registro.fecha;
       if (!porcentajesPorDia.has(fecha)) {
         porcentajesPorDia.set(fecha, 0);
-        turnosPorDia.set(fecha, this.formatTurno(registro.turno));
       }
 
       if (registro.detalle_produccion?.length) {
@@ -410,7 +406,6 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
         : 0;
 
     const dias = porcentajesPorDia.size;
-    const horas = [...new Set(Array.from(turnosPorDia.values()))].join(', ');
     const observaciones = Array.from(observacionesSet).join(' | ');
 
     // Por máquina
@@ -419,7 +414,6 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
     return {
       porcentaje: Math.round(porcentajePromedio * 10) / 10,
       dias,
-      horas,
       observaciones,
       maquinas: maquinasData,
     };
@@ -433,7 +427,7 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
   private async generateMachineData(registros: RegistroProduccionRow[]): Promise<MachineData[]> {
     const maquinasMap = new Map<
       string,
-      { porcentajes: number[]; dias: Set<string>; turnos: Set<string>; observaciones: Set<string> }
+      { porcentajes: number[]; dias: Set<string>; observaciones: Set<string> }
     >();
 
     for (const registro of registros) {
@@ -442,14 +436,12 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
         maquinasMap.set(maquinaNombre, {
           porcentajes: [],
           dias: new Set<string>(),
-          turnos: new Set<string>(),
           observaciones: new Set<string>(),
         });
       }
 
       const agg = maquinasMap.get(maquinaNombre)!;
       agg.dias.add(registro.fecha);
-      agg.turnos.add(this.formatTurno(registro.turno));
 
       let pctRegistro = 0;
       if (registro.detalle_produccion?.length) {
@@ -491,7 +483,6 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
           nombre,
           porcentaje: Math.round(promedio * 10) / 10,
           dias: data.dias.size,
-          horas: Array.from(data.turnos).join(', '),
           observaciones: Array.from(data.observaciones).join(' | '),
         };
       })
@@ -553,11 +544,11 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
 
     for (const categoria of categorias) {
       // OP
-      header1.push(`OP. ${categoria.toUpperCase()}`, '', '', '');
-      header2.push('%', 'DÍAS', 'HORAS', 'OBSERVACIONES');
+      header1.push(`OP. ${categoria.toUpperCase()}`, '', '');
+      header2.push('%', 'DÍAS', 'OBSERVACIONES');
       // AYU
-      header1.push(`AYU. ${categoria.toUpperCase()}`, '', '', '');
-      header2.push('%', 'DÍAS', 'HORAS', 'OBSERVACIONES');
+      header1.push(`AYU. ${categoria.toUpperCase()}`, '', '');
+      header2.push('%', 'DÍAS', 'OBSERVACIONES');
     }
 
     return [header1, header2];
@@ -586,26 +577,24 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
             row.push(
               `${bloque.operario.porcentaje}%`, 
               String(bloque.operario.dias), 
-              bloque.operario.horas,
               bloque.operario.observaciones || ''
             );
           } else {
-            row.push('', '', '', '');
+            row.push('', '', '');
           }
           // AYU
           if (bloque.ayudante.dias > 0) {
             row.push(
               `${bloque.ayudante.porcentaje}%`, 
               String(bloque.ayudante.dias), 
-              bloque.ayudante.horas,
               bloque.ayudante.observaciones || ''
             );
           } else {
-            row.push('', '', '', '');
+            row.push('', '', '');
           }
         } else {
           // Sin datos en la categoría
-          row.push('', '', '', '', '', '', '', '');
+          row.push('', '', '', '', '', '');
         }
       }
 
@@ -630,16 +619,14 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
       { width: 12 }, // BONO TOTAL
     ];
 
-    // Por cada categoría: OP(4) + AYU(4)
+    // Por cada categoría: OP(3) + AYU(3)
     for (let i = 0; i < categorias.length; i++) {
       colWidths.push(
         { width: 8 },  // OP %
         { width: 8 },  // OP DÍAS
-        { width: 15 }, // OP HORAS
         { width: 30 }, // OP OBSERVACIONES
         { width: 8 },  // AYU %
         { width: 8 },  // AYU DÍAS
-        { width: 15 }, // AYU HORAS
         { width: 30 }  // AYU OBSERVACIONES
       );
     }
