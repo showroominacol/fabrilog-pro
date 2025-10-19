@@ -1,7 +1,6 @@
-import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
-import { supabase } from '@/integrations/supabase/client';
-
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import { supabase } from "@/integrations/supabase/client";
 // ================== Tipos del reporte ==================
 export interface EmployeeData {
   id: string;
@@ -50,7 +49,7 @@ type DetalleRow = {
 
 type RegistroProduccionRow = {
   id: string;
-  fecha: string;               // date (YYYY-MM-DD)
+  fecha: string; // date (YYYY-MM-DD)
   turno: string;
   maquinas?: { nombre: string; categoria: string | null } | null;
   detalle_produccion?: DetalleRow[] | null;
@@ -79,10 +78,10 @@ export class SummaryExcelService {
   private async getEmployeeData(fechaInicio: Date, fechaFin: Date): Promise<EmployeeData[]> {
     // Empleados activos
     const { data: empleados, error: errUsers } = await supabase
-      .from('usuarios')
-      .select('id, nombre')
-      .eq('activo', true)
-      .order('nombre', { ascending: true });
+      .from("usuarios")
+      .select("id, nombre")
+      .eq("activo", true)
+      .order("nombre", { ascending: true });
 
     if (errUsers) throw errUsers;
     if (!empleados) return [];
@@ -92,9 +91,9 @@ export class SummaryExcelService {
 
     // Categorías (únicas) de máquinas activas
     const { data: categoriasRows, error: errCats } = await supabase
-      .from('maquinas')
-      .select('categoria')
-      .eq('activa', true);
+      .from("maquinas")
+      .select("categoria")
+      .eq("activa", true);
 
     if (errCats) throw errCats;
 
@@ -107,13 +106,11 @@ export class SummaryExcelService {
       const diasRealLaborados = await this.getRealWorkedDays(empleado.id, fechaInicio, fechaFin);
 
       const bloques = await Promise.all(
-        categoriasUnicas.map((categoria) =>
-          this.generateCategoryBlock(empleado.id, categoria, fechaInicio, fechaFin)
-        )
+        categoriasUnicas.map((categoria) => this.generateCategoryBlock(empleado.id, categoria, fechaInicio, fechaFin)),
       );
 
       const bloquesFiltered = (bloques.filter(Boolean) as CategoryBlock[]) ?? [];
-      
+
       // Calcular bono total: suma de porcentajes operario de todas las máquinas / días del rango
       const bonoTotal = this.calculateBonoTotal(bloquesFiltered, diasXLaborar);
 
@@ -122,7 +119,7 @@ export class SummaryExcelService {
         nombre: empleado.nombre,
         diasXLaborar,
         diasRealLaborados,
-        observacion: '',
+        observacion: "",
         bonoTotal,
         bloques: bloquesFiltered,
       };
@@ -136,12 +133,8 @@ export class SummaryExcelService {
    */
   private calculateWorkingDays(fechaInicio: Date, fechaFin: Date): number {
     let count = 0;
-    const current = new Date(
-      Date.UTC(fechaInicio.getFullYear(), fechaInicio.getMonth(), fechaInicio.getDate())
-    );
-    const end = new Date(
-      Date.UTC(fechaFin.getFullYear(), fechaFin.getMonth(), fechaFin.getDate())
-    );
+    const current = new Date(Date.UTC(fechaInicio.getFullYear(), fechaInicio.getMonth(), fechaInicio.getDate()));
+    const end = new Date(Date.UTC(fechaFin.getFullYear(), fechaFin.getMonth(), fechaFin.getDate()));
 
     while (current <= end) {
       const dayOfWeek = current.getUTCDay(); // 0 dom, 6 sáb
@@ -155,75 +148,91 @@ export class SummaryExcelService {
   /**
    * Calcula el bono total del empleado
    */
-/**
- * Calcula el bono total del empleado
- * Incluye porcentajes trabajados como OPERARIO y como AYUDANTE.
- * Se sigue dividiendo entre los días del rango (diasDelRango).
- */
-private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): number {
-  if (diasDelRango === 0) return 0;
+  /**
+   * Calcula el bono total del empleado
+   * Incluye porcentajes trabajados como OPERARIO y como AYUDANTE.
+   * Se sigue dividiendo entre los días del rango (diasDelRango).
+   */
+  /**
+   * BONO_TOTAL = ( Σ_máquinas[(%op * días_op) + (%ayu * días_ayu)] ) / (días x laborar)
+   * con fallback a nivel de rol si no hay máquinas.
+   */
+  private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): number {
+    if (diasDelRango <= 0 || !bloques?.length) return 0;
 
-  let sumaPorcentajes = 0;
+    let sumaPonderada = 0;
 
-  for (const bloque of bloques) {
-    // Operario
-    if (bloque.operario.dias > 0) {
-      sumaPorcentajes += bloque.operario.porcentaje;
+    for (const bloque of bloques) {
+      // ----- Operario -----
+      const mOp = bloque.operario?.maquinas ?? [];
+      if (mOp.length > 0) {
+        for (const m of mOp) {
+          const pct = Number(m.porcentaje) || 0;
+          const d = Number(m.dias) || 0;
+          sumaPonderada += pct * d;
+        }
+      } else if ((bloque.operario?.dias ?? 0) > 0) {
+        // Fallback por rol
+        sumaPonderada += (Number(bloque.operario.porcentaje) || 0) * (Number(bloque.operario.dias) || 0);
+      }
+
+      // ----- Ayudante -----
+      const mAy = bloque.ayudante?.maquinas ?? [];
+      if (mAy.length > 0) {
+        for (const m of mAy) {
+          const pct = Number(m.porcentaje) || 0;
+          const d = Number(m.dias) || 0;
+          sumaPonderada += pct * d;
+        }
+      } else if ((bloque.ayudante?.dias ?? 0) > 0) {
+        // Fallback por rol
+        sumaPonderada += (Number(bloque.ayudante.porcentaje) || 0) * (Number(bloque.ayudante.dias) || 0);
+      }
     }
-    // Ayudante
-    if (bloque.ayudante.dias > 0) {
-      sumaPorcentajes += bloque.ayudante.porcentaje;
-    }
+
+    const bono = sumaPonderada / diasDelRango;
+    return Math.round(bono * 10) / 10; // 1 decimal
   }
-
-  const bonoTotal = sumaPorcentajes / diasDelRango;
-  return Math.round(bonoTotal * 10) / 10; // 1 decimal
-}
-
 
   /**
    * Días realmente laborados por empleado (cuenta OPERARIO + AYUDANTE)
    */
-  private async getRealWorkedDays(
-    empleadoId: string,
-    fechaInicio: Date,
-    fechaFin: Date
-  ): Promise<number> {
-    const startDate = fechaInicio.toISOString().split('T')[0];
-    const endDate   = fechaFin.toISOString().split('T')[0];
+  private async getRealWorkedDays(empleadoId: string, fechaInicio: Date, fechaFin: Date): Promise<number> {
+    const startDate = fechaInicio.toISOString().split("T")[0];
+    const endDate = fechaFin.toISOString().split("T")[0];
 
     // Como OPERARIO (directo)
     const { data: regsOp, error: errOp } = await supabase
-      .from('registros_produccion')
-      .select('fecha')
-      .eq('operario_id', empleadoId)
-      .gte('fecha', startDate)
-      .lte('fecha', endDate);
+      .from("registros_produccion")
+      .select("fecha")
+      .eq("operario_id", empleadoId)
+      .gte("fecha", startDate)
+      .lte("fecha", endDate);
     if (errOp) throw errOp;
 
     // Como AYUDANTE (2 pasos: pivote -> ids -> registros_produccion)
     const { data: ayuLinks, error: errLinks } = await supabase
-      .from('registro_asistentes')
-      .select('registro_id')
-      .eq('asistente_id', empleadoId);
+      .from("registro_asistentes")
+      .select("registro_id")
+      .eq("asistente_id", empleadoId);
     if (errLinks) throw errLinks;
 
     let regsAyu: { fecha: string }[] = [];
-    const ids = (ayuLinks ?? []).map(l => l.registro_id).filter(Boolean);
+    const ids = (ayuLinks ?? []).map((l) => l.registro_id).filter(Boolean);
     if (ids.length > 0) {
       const { data, error } = await supabase
-        .from('registros_produccion')
-        .select('fecha')
-        .in('id', ids)
-        .gte('fecha', startDate)
-        .lte('fecha', endDate);
+        .from("registros_produccion")
+        .select("fecha")
+        .in("id", ids)
+        .gte("fecha", startDate)
+        .lte("fecha", endDate);
       if (error) throw error;
       regsAyu = data ?? [];
     }
 
     const fechas = new Set<string>();
-    (regsOp ?? []).forEach(r => r?.fecha && fechas.add(r.fecha));
-    (regsAyu ?? []).forEach(r => r?.fecha && fechas.add(r.fecha));
+    (regsOp ?? []).forEach((r) => r?.fecha && fechas.add(r.fecha));
+    (regsAyu ?? []).forEach((r) => r?.fecha && fechas.add(r.fecha));
 
     return fechas.size;
   }
@@ -235,15 +244,16 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
     empleadoId: string,
     categoria: string,
     fechaInicio: Date,
-    fechaFin: Date
+    fechaFin: Date,
   ): Promise<CategoryBlock | null> {
-    const startDate = fechaInicio.toISOString().split('T')[0];
-    const endDate   = fechaFin.toISOString().split('T')[0];
+    const startDate = fechaInicio.toISOString().split("T")[0];
+    const endDate = fechaFin.toISOString().split("T")[0];
 
     // === Registros donde el empleado fue OPERARIO ===
     const { data: regsOperarioRaw, error: errOp } = await supabase
-      .from('registros_produccion')
-      .select(`
+      .from("registros_produccion")
+      .select(
+        `
         id,
         fecha,
         turno,
@@ -260,34 +270,36 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
             tope_jornada_10h
           )
         )
-      `)
-      .eq('operario_id', empleadoId)
-      .gte('fecha', startDate)
-      .lte('fecha', endDate);
+      `,
+      )
+      .eq("operario_id", empleadoId)
+      .gte("fecha", startDate)
+      .lte("fecha", endDate);
 
     if (errOp) throw errOp;
 
     const regsOperario = (regsOperarioRaw ?? []).filter(
-      (r: RegistroProduccionRow) => r?.maquinas?.categoria === categoria
+      (r: RegistroProduccionRow) => r?.maquinas?.categoria === categoria,
     ) as RegistroProduccionRow[];
 
     // === Registros donde el empleado fue AYUDANTE (pivote en 2 pasos) ===
     // Paso 1: obtener enlaces en la pivote
     const { data: ayuLinks, error: errLinks } = await supabase
-      .from('registro_asistentes')
-      .select('registro_id')
-      .eq('asistente_id', empleadoId);
+      .from("registro_asistentes")
+      .select("registro_id")
+      .eq("asistente_id", empleadoId);
 
     if (errLinks) throw errLinks;
 
     // Paso 2: con esos IDs, traer los registros_produccion completos
     let regsAyudante: RegistroProduccionRow[] = [];
-    const idsAyu = (ayuLinks ?? []).map(l => l.registro_id).filter(Boolean);
+    const idsAyu = (ayuLinks ?? []).map((l) => l.registro_id).filter(Boolean);
 
     if (idsAyu.length > 0) {
       const { data: regsAyuRaw, error: errAyuRegs } = await supabase
-        .from('registros_produccion')
-        .select(`
+        .from("registros_produccion")
+        .select(
+          `
           id,
           fecha,
           turno,
@@ -304,15 +316,16 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
               tope_jornada_10h
             )
           )
-        `)
-        .in('id', idsAyu)
-        .gte('fecha', startDate)
-        .lte('fecha', endDate);
+        `,
+        )
+        .in("id", idsAyu)
+        .gte("fecha", startDate)
+        .lte("fecha", endDate);
 
       if (errAyuRegs) throw errAyuRegs;
 
       regsAyudante = (regsAyuRaw ?? []).filter(
-        (r: RegistroProduccionRow) => r?.maquinas?.categoria === categoria
+        (r: RegistroProduccionRow) => r?.maquinas?.categoria === categoria,
       ) as RegistroProduccionRow[];
     }
 
@@ -348,10 +361,10 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
   private async generateBlockData(
     registros: RegistroProduccionRow[],
     _fechaInicio: Date,
-    _fechaFin: Date
+    _fechaFin: Date,
   ): Promise<BlockData> {
     if (!registros || registros.length === 0) {
-      return { porcentaje: 0, dias: 0, observaciones: '', maquinas: [] };
+      return { porcentaje: 0, dias: 0, observaciones: "", maquinas: [] };
     }
 
     // % promedio por día y observaciones
@@ -369,16 +382,16 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
 
         for (const detalle of registro.detalle_produccion) {
           let pct = 0;
-          
+
           // Para árboles amarradora, usar el porcentaje_cumplimiento directamente
-          if (detalle.productos?.tipo_producto === 'arbol_amarradora') {
+          if (detalle.productos?.tipo_producto === "arbol_amarradora") {
             pct = detalle.porcentaje_cumplimiento;
           } else {
             // Para otros productos, calcular el porcentaje con el tope apropiado
             let jornadaTope: number | null = null;
             const turnoTexto = this.formatTurno(registro.turno);
 
-            if (turnoTexto === '7:00am - 5:00pm') {
+            if (turnoTexto === "7:00am - 5:00pm") {
               jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
             } else {
               jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
@@ -387,9 +400,9 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
             const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
             pct = tope > 0 ? (detalle.produccion_real / Number(tope)) * 100 : 0;
           }
-          
+
           sumaPorcentajeDia += pct;
-          
+
           // Recopilar observaciones
           if (detalle.observaciones && detalle.observaciones.trim()) {
             observacionesSet.add(detalle.observaciones.trim());
@@ -401,12 +414,10 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
 
     const porcentajes = Array.from(porcentajesPorDia.values());
     const porcentajePromedio =
-      porcentajes.length > 0
-        ? porcentajes.reduce((sum, p) => sum + p, 0) / porcentajes.length
-        : 0;
+      porcentajes.length > 0 ? porcentajes.reduce((sum, p) => sum + p, 0) / porcentajes.length : 0;
 
     const dias = porcentajesPorDia.size;
-    const observaciones = Array.from(observacionesSet).join(' | ');
+    const observaciones = Array.from(observacionesSet).join(" | ");
 
     // Por máquina
     const maquinasData = await this.generateMachineData(registros);
@@ -425,13 +436,10 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
    *   y tope_jornada_8h en los demás casos (fallback a tope general).
    */
   private async generateMachineData(registros: RegistroProduccionRow[]): Promise<MachineData[]> {
-    const maquinasMap = new Map<
-      string,
-      { porcentajes: number[]; dias: Set<string>; observaciones: Set<string> }
-    >();
+    const maquinasMap = new Map<string, { porcentajes: number[]; dias: Set<string>; observaciones: Set<string> }>();
 
     for (const registro of registros) {
-      const maquinaNombre = registro.maquinas?.nombre || 'Sin máquina';
+      const maquinaNombre = registro.maquinas?.nombre || "Sin máquina";
       if (!maquinasMap.has(maquinaNombre)) {
         maquinasMap.set(maquinaNombre, {
           porcentajes: [],
@@ -447,14 +455,14 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
       if (registro.detalle_produccion?.length) {
         for (const d of registro.detalle_produccion) {
           // Para árboles amarradora, usar el porcentaje_cumplimiento directamente
-          if (d.productos?.tipo_producto === 'arbol_amarradora') {
+          if (d.productos?.tipo_producto === "arbol_amarradora") {
             pctRegistro += d.porcentaje_cumplimiento;
           } else {
             // Para otros productos, calcular el porcentaje con el tope apropiado
             let jornadaTope: number | null = null;
             const turnoTexto = this.formatTurno(registro.turno);
 
-            if (turnoTexto === '7:00am - 5:00pm') {
+            if (turnoTexto === "7:00am - 5:00pm") {
               jornadaTope = d.productos?.tope_jornada_10h ?? null;
             } else {
               jornadaTope = d.productos?.tope_jornada_8h ?? null;
@@ -463,7 +471,7 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
             const tope = jornadaTope ?? d.productos?.tope ?? 0;
             pctRegistro += tope > 0 ? (d.produccion_real / Number(tope)) * 100 : 0;
           }
-          
+
           // Recopilar observaciones
           if (d.observaciones && d.observaciones.trim()) {
             agg.observaciones.add(d.observaciones.trim());
@@ -476,14 +484,12 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
     return Array.from(maquinasMap.entries())
       .map(([nombre, data]) => {
         const promedio =
-          data.porcentajes.length > 0
-            ? data.porcentajes.reduce((s, v) => s + v, 0) / data.porcentajes.length
-            : 0;
+          data.porcentajes.length > 0 ? data.porcentajes.reduce((s, v) => s + v, 0) / data.porcentajes.length : 0;
         return {
           nombre,
           porcentaje: Math.round(promedio * 10) / 10,
           dias: data.dias.size,
-          observaciones: Array.from(data.observaciones).join(' | '),
+          observaciones: Array.from(data.observaciones).join(" | "),
         };
       })
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -494,12 +500,12 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
    */
   private formatTurno(turno: string): string {
     switch (turno) {
-      case 'manana':
-        return '7:00am - 3:30pm';
-      case 'tarde':
-        return '3:30pm - 11:30pm';
-      case 'noche':
-        return '11:30pm - 7:00am';
+      case "manana":
+        return "7:00am - 3:30pm";
+      case "tarde":
+        return "3:30pm - 11:30pm";
+      case "noche":
+        return "11:30pm - 7:00am";
       default:
         // Si viene "7:00am - 5:00pm" u otros ya formateados, los respeta
         return turno;
@@ -525,12 +531,12 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
     // Estilos/bordes (nota: estilos requieren SheetJS Pro; si no, se ignoran)
     this.applyWorksheetStyles(worksheet, todasCategorias, employeeData.length);
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Resumen Producción');
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Resumen Producción");
 
     const filename = this.generateFilename(fechaInicio, fechaFin);
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const blob = new Blob([excelBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     saveAs(blob, filename);
   }
@@ -539,16 +545,16 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
    * Crea los encabezados del Excel (dos filas)
    */
   private createHeaders(categorias: string[]): string[][] {
-    const header1 = ['NOMBRE', 'DIAS X LABORAR', 'DIAS REAL LABORADOS', 'BONO TOTAL'];
-    const header2 = ['', '', '', ''];
+    const header1 = ["NOMBRE", "DIAS X LABORAR", "DIAS REAL LABORADOS", "BONO TOTAL"];
+    const header2 = ["", "", "", ""];
 
     for (const categoria of categorias) {
       // OP
-      header1.push(`OP. ${categoria.toUpperCase()}`, '', '');
-      header2.push('%', 'DÍAS', 'OBSERVACIONES');
+      header1.push(`OP. ${categoria.toUpperCase()}`, "", "");
+      header2.push("%", "DÍAS", "OBSERVACIONES");
       // AYU
-      header1.push(`AYU. ${categoria.toUpperCase()}`, '', '');
-      header2.push('%', 'DÍAS', 'OBSERVACIONES');
+      header1.push(`AYU. ${categoria.toUpperCase()}`, "", "");
+      header2.push("%", "DÍAS", "OBSERVACIONES");
     }
 
     return [header1, header2];
@@ -575,26 +581,26 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
           // OP
           if (bloque.operario.dias > 0) {
             row.push(
-              `${bloque.operario.porcentaje}%`, 
-              String(bloque.operario.dias), 
-              bloque.operario.observaciones || ''
+              `${bloque.operario.porcentaje}%`,
+              String(bloque.operario.dias),
+              bloque.operario.observaciones || "",
             );
           } else {
-            row.push('', '', '');
+            row.push("", "", "");
           }
           // AYU
           if (bloque.ayudante.dias > 0) {
             row.push(
-              `${bloque.ayudante.porcentaje}%`, 
-              String(bloque.ayudante.dias), 
-              bloque.ayudante.observaciones || ''
+              `${bloque.ayudante.porcentaje}%`,
+              String(bloque.ayudante.dias),
+              bloque.ayudante.observaciones || "",
             );
           } else {
-            row.push('', '', '');
+            row.push("", "", "");
           }
         } else {
           // Sin datos en la categoría
-          row.push('', '', '', '', '', '');
+          row.push("", "", "", "", "", "");
         }
       }
 
@@ -608,7 +614,7 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
    * Aplica estilos a la hoja
    */
   private applyWorksheetStyles(worksheet: XLSX.WorkSheet, categorias: string[], numEmployees: number): void {
-    const rangeRef = worksheet['!ref'] || 'A1:A1';
+    const rangeRef = worksheet["!ref"] || "A1:A1";
     const range = XLSX.utils.decode_range(rangeRef);
 
     // Anchos de columnas base
@@ -622,29 +628,29 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
     // Por cada categoría: OP(3) + AYU(3)
     for (let i = 0; i < categorias.length; i++) {
       colWidths.push(
-        { width: 8 },  // OP %
-        { width: 8 },  // OP DÍAS
+        { width: 8 }, // OP %
+        { width: 8 }, // OP DÍAS
         { width: 30 }, // OP OBSERVACIONES
-        { width: 8 },  // AYU %
-        { width: 8 },  // AYU DÍAS
-        { width: 30 }  // AYU OBSERVACIONES
+        { width: 8 }, // AYU %
+        { width: 8 }, // AYU DÍAS
+        { width: 30 }, // AYU OBSERVACIONES
       );
     }
-    (worksheet as any)['!cols'] = colWidths;
+    (worksheet as any)["!cols"] = colWidths;
 
     // Bordes y alineación básica para todas las celdas existentes
     const totalRows = numEmployees + 2; // 2 filas de encabezado
     for (let r = 0; r < totalRows; r++) {
       for (let c = range.s.c; c <= range.e.c; c++) {
         const addr = XLSX.utils.encode_cell({ r, c });
-        if (!worksheet[addr]) worksheet[addr] = { v: '', t: 's' } as any;
+        if (!worksheet[addr]) worksheet[addr] = { v: "", t: "s" } as any;
         (worksheet[addr] as any).s = {
-          alignment: { horizontal: 'center', vertical: 'center' },
+          alignment: { horizontal: "center", vertical: "center" },
           border: {
-            top: { style: 'thin' },
-            bottom: { style: 'thin' },
-            left: { style: 'thin' },
-            right: { style: 'thin' },
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" },
           },
         };
       }
@@ -655,8 +661,8 @@ private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): numb
    * Genera el nombre del archivo
    */
   private generateFilename(fechaInicio: Date, fechaFin: Date): string {
-    const inicio = fechaInicio.toISOString().split('T')[0].replace(/-/g, '');
-    const fin = fechaFin.toISOString().split('T')[0].replace(/-/g, '');
+    const inicio = fechaInicio.toISOString().split("T")[0].replace(/-/g, "");
+    const fin = fechaFin.toISOString().split("T")[0].replace(/-/g, "");
     return `RESUMEN_${inicio}_${fin}.xlsx`;
   }
 }
