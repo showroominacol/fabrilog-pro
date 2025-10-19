@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/components/auth/AuthProvider';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  FileText, 
-  Calculator, 
-  CheckCircle, 
-  AlertTriangle, 
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import {
+  FileText,
+  Calculator,
+  CheckCircle,
+  AlertTriangle,
   Loader2,
   Target,
   TrendingUp,
@@ -23,15 +23,15 @@ import {
   Users,
   User,
   Plus,
-  X
-} from 'lucide-react';
-import { Tables, Enums } from '@/integrations/supabase/types';
+  X,
+} from "lucide-react";
+import { Tables, Enums } from "@/integrations/supabase/types";
 
-type Maquina = Tables<'maquinas'>;
-type Producto = Tables<'productos'>;
-type Usuario = Tables<'usuarios'>;
-type DisenoArbol = Tables<'disenos_arboles'>;
-type NivelRama = Tables<'niveles_ramas'>;
+type Maquina = Tables<"maquinas">;
+type Producto = Tables<"productos">;
+type Usuario = Tables<"usuarios">;
+type DisenoArbol = Tables<"disenos_arboles">;
+type NivelRama = Tables<"niveles_ramas">;
 type RamaAmarradora = {
   id: string;
   diseno_id: string;
@@ -52,7 +52,7 @@ interface RamaAmarradoraDetalle {
 }
 
 interface ProductoDetalle {
-  producto_id: string;             // quedará vacío hasta que el usuario seleccione
+  producto_id: string; // quedará vacío hasta que el usuario seleccione
   produccion_real: number;
   observaciones?: string;
   niveles?: NivelDetalle[];
@@ -61,7 +61,7 @@ interface ProductoDetalle {
 
 interface FormData {
   fecha: string;
-  turno: Enums<'turno_produccion'> | '';
+  turno: Enums<"turno_produccion"> | "";
   categoria_maquina: string;
   maquina_id: string;
   operario_principal_id: string;
@@ -69,20 +69,24 @@ interface FormData {
   asistentes: string[];
 }
 
+// ===== Helpers de jornada (clave para amarradora) =====
+const isTenHourShift = (turno: string) => (turno || "").replace(/\s+/g, "").toLowerCase() === "7:00am-5:00pm";
+const jornadaFactor = (turno: string) => (isTenHourShift(turno) ? 1.25 : 1); // 10h/8h
+
 export default function RegistroProduccion() {
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const [formData, setFormData] = useState<FormData>({
-    fecha: new Date().toISOString().split('T')[0],
-    turno: '',
-    categoria_maquina: '',
-    maquina_id: '',
-    operario_principal_id: '',
+    fecha: new Date().toISOString().split("T")[0],
+    turno: "",
+    categoria_maquina: "",
+    maquina_id: "",
+    operario_principal_id: "",
     productos: [],
     asistentes: [],
   });
-  
+
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
   const [filteredMaquinas, setFilteredMaquinas] = useState<Maquina[]>([]);
   const [categoriasMaquinas, setCategoriasMaquinas] = useState<string[]>([]);
@@ -90,8 +94,8 @@ export default function RegistroProduccion() {
   const [filteredProductos, setFilteredProductos] = useState<Producto[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [filteredUsuarios, setFilteredUsuarios] = useState<Usuario[]>([]);
-  const [searchUsuarios, setSearchUsuarios] = useState(''); // buscador operario principal
-  const [searchProductos, setSearchProductos] = useState('');
+  const [searchUsuarios, setSearchUsuarios] = useState(""); // buscador operario principal
+  const [searchProductos, setSearchProductos] = useState("");
   const [disenosArboles, setDisenosArboles] = useState<DisenoArbol[]>([]);
   const [nivelesRamas, setNivelesRamas] = useState<NivelRama[]>([]);
   const [ramasAmarradora, setRamasAmarradora] = useState<RamaAmarradora[]>([]);
@@ -101,15 +105,15 @@ export default function RegistroProduccion() {
 
   // NUEVO: estado para UI de asistentes (sin listar por defecto)
   const [asistentesOpen, setAsistentesOpen] = useState(false);
-  const [searchAsistente, setSearchAsistente] = useState('');
+  const [searchAsistente, setSearchAsistente] = useState("");
 
-  const turnos: Enums<'turno_produccion'>[] = [
-    "6:00am - 2:00pm", 
-    "2:00pm - 10:00pm", 
+  const turnos: Enums<"turno_produccion">[] = [
+    "6:00am - 2:00pm",
+    "2:00pm - 10:00pm",
     "10:00pm - 6:00am",
     "7:00am - 5:00pm",
     "7:00am - 3:00pm",
-    "7:00am - 3:30pm"
+    "7:00am - 3:30pm",
   ];
 
   useEffect(() => {
@@ -119,7 +123,7 @@ export default function RegistroProduccion() {
   // Filtrar máquinas por categoría
   useEffect(() => {
     if (formData.categoria_maquina) {
-      const filtered = maquinas.filter(m => m.categoria === formData.categoria_maquina);
+      const filtered = maquinas.filter((m) => m.categoria === formData.categoria_maquina);
       setFilteredMaquinas(filtered);
     } else {
       setFilteredMaquinas([]);
@@ -129,28 +133,28 @@ export default function RegistroProduccion() {
   // Filtrar productos por máquina seleccionada + buscador
   useEffect(() => {
     if (formData.maquina_id) {
-      const maquinaSeleccionada = maquinas.find(m => m.id === formData.maquina_id);
+      const maquinaSeleccionada = maquinas.find((m) => m.id === formData.maquina_id);
       if (maquinaSeleccionada?.categoria) {
-        const filteredByCategory = productos.filter(p => p.categoria === maquinaSeleccionada.categoria);
-        const filteredWithSearch = filteredByCategory.filter(p =>
-          p.nombre.toLowerCase().includes(searchProductos.toLowerCase())
+        const filteredByCategory = productos.filter((p) => p.categoria === maquinaSeleccionada.categoria);
+        const filteredWithSearch = filteredByCategory.filter((p) =>
+          p.nombre.toLowerCase().includes(searchProductos.toLowerCase()),
         );
         setFilteredProductos(filteredWithSearch);
-        
+
         // limpiar productos no válidos según la nueva máquina
-        const validProductos = formData.productos.filter(p => 
-          filteredByCategory.find(fp => fp.id === p.producto_id)
+        const validProductos = formData.productos.filter((p) =>
+          filteredByCategory.find((fp) => fp.id === p.producto_id),
         );
         if (validProductos.length !== formData.productos.length) {
-          setFormData(prev => ({ ...prev, productos: validProductos }));
+          setFormData((prev) => ({ ...prev, productos: validProductos }));
         }
       } else {
         setFilteredProductos([]);
-        setFormData(prev => ({ ...prev, productos: [] }));
+        setFormData((prev) => ({ ...prev, productos: [] }));
       }
     } else {
       setFilteredProductos([]);
-      setFormData(prev => ({ ...prev, productos: [] }));
+      setFormData((prev) => ({ ...prev, productos: [] }));
     }
   }, [formData.maquina_id, productos, maquinas, searchProductos]);
 
@@ -159,24 +163,29 @@ export default function RegistroProduccion() {
   }, [formData.productos, formData.turno, productos]);
 
   useEffect(() => {
-    const filtered = usuarios.filter(usuario =>
-      usuario.nombre.toLowerCase().includes(searchUsuarios.toLowerCase())
-    );
+    const filtered = usuarios.filter((usuario) => usuario.nombre.toLowerCase().includes(searchUsuarios.toLowerCase()));
     setFilteredUsuarios(filtered);
   }, [usuarios, searchUsuarios]);
 
   const loadInitialData = async () => {
     try {
       setDataLoading(true);
-      
-      const [maquinasResult, productosResult, usuariosResult, disenosResult, nivelesResult, ramasResult] = await Promise.all([
-        supabase.from('maquinas').select('*').eq('activa', true).order('nombre'),
-        supabase.from('productos').select('*').eq('activo', true).order('nombre'),
-        supabase.from('usuarios').select('*').eq('activo', true).neq('id', user?.id || '').neq('tipo_usuario', 'admin').order('nombre'),
-        supabase.from('disenos_arboles').select('*').eq('activo', true).order('nombre'),
-        supabase.from('niveles_ramas').select('*').eq('activo', true).order('nivel'),
-        supabase.from('ramas_amarradora').select('*').eq('activo', true).order('numero_rama')
-      ]);
+
+      const [maquinasResult, productosResult, usuariosResult, disenosResult, nivelesResult, ramasResult] =
+        await Promise.all([
+          supabase.from("maquinas").select("*").eq("activa", true).order("nombre"),
+          supabase.from("productos").select("*").eq("activo", true).order("nombre"),
+          supabase
+            .from("usuarios")
+            .select("*")
+            .eq("activo", true)
+            .neq("id", user?.id || "")
+            .neq("tipo_usuario", "admin")
+            .order("nombre"),
+          supabase.from("disenos_arboles").select("*").eq("activo", true).order("nombre"),
+          supabase.from("niveles_ramas").select("*").eq("activo", true).order("nivel"),
+          supabase.from("ramas_amarradora").select("*").eq("activo", true).order("numero_rama"),
+        ]);
 
       if (maquinasResult.error) throw maquinasResult.error;
       if (productosResult.error) throw productosResult.error;
@@ -190,19 +199,19 @@ export default function RegistroProduccion() {
       setUsuarios(usuariosResult.data || []);
       setDisenosArboles(disenosResult.data || []);
       setNivelesRamas(nivelesResult.data || []);
-      setRamasAmarradora(ramasResult.data as RamaAmarradora[] || []);
-      
+      setRamasAmarradora((ramasResult.data as RamaAmarradora[]) || []);
+
       // Extraer categorías únicas de máquinas
       const categorias = Array.from(
         new Set(
           (maquinasResult.data || [])
-            .map(m => m.categoria)
-            .filter((c): c is string => c !== null && c !== undefined && c !== '')
-        )
+            .map((m) => m.categoria)
+            .filter((c): c is string => c !== null && c !== undefined && c !== ""),
+        ),
       ).sort();
       setCategoriasMaquinas(categorias);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error("Error loading data:", error);
       toast({
         title: "Error",
         description: "No se pudieron cargar los datos iniciales",
@@ -213,15 +222,15 @@ export default function RegistroProduccion() {
     }
   };
 
-  //AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+  // ====== TOPE por producto (incluye amarradora con variación por jornada) ======
   const getTopeForProduct = (productoInfo: Producto, turno: string): number => {
-    // Para árboles amarradora, no usar topes por jornada
-    if (productoInfo.tipo_producto === 'arbol_amarradora') {
-      return Number(productoInfo.tope) || 0;
+    if (productoInfo.tipo_producto === "arbol_amarradora") {
+      // Si deseas mostrar un "tope" en el resumen, escálalo por jornada (10h en 7–5)
+      const base = Number(productoInfo.tope) || 0; // base ~ 8h
+      return base > 0 ? base * jornadaFactor(turno) : 0;
     }
-    
-    // Para todos los demás productos, aplicar lógica de topes por jornada
-    if (turno === "7:00am - 5:00pm") {
+    // Resto de productos: 10h para 7–5, 8h para los demás
+    if (isTenHourShift(turno)) {
       return Number(productoInfo.tope_jornada_10h) || 0;
     }
     return Number(productoInfo.tope_jornada_8h) || 0;
@@ -236,20 +245,22 @@ export default function RegistroProduccion() {
     let totalProduccionReal = 0;
     let totalMeta = 0;
 
-    formData.productos.forEach(producto => {
-      if (!producto.producto_id) return; // ignorar líneas sin selección
-      const productoInfo = productos.find(p => p.id === producto.producto_id);
-      if (productoInfo) {
-        // Para árboles amarradora, produccion_real ya es el porcentaje promedio
-        if (productoInfo.tipo_producto === 'arbol_amarradora') {
+    formData.productos.forEach((producto) => {
+      if (!producto.producto_id) return;
+
+      const productoInfo = productos.find((p) => p.id === producto.producto_id);
+      if (!productoInfo) return;
+
+      if (productoInfo.tipo_producto === "arbol_amarradora") {
+        // ⚠️ calcular en tiempo real con el turno actual
+        const avg = calculatePromedioRamas(producto.ramas_amarradora || [], formData.turno as string);
+        totalProduccionReal += avg; // 0–100
+        totalMeta += 100;
+      } else {
+        const tope = getTopeForProduct(productoInfo, formData.turno as string);
+        if (tope > 0) {
           totalProduccionReal += producto.produccion_real;
-          totalMeta += 100;
-        } else {
-          const tope = getTopeForProduct(productoInfo, formData.turno as string);
-          if (tope > 0) {
-            totalProduccionReal += producto.produccion_real;
-            totalMeta += tope;
-          }
+          totalMeta += tope;
         }
       }
     });
@@ -266,174 +277,184 @@ export default function RegistroProduccion() {
     if (turno === "10:00pm - 6:00am") {
       const date = new Date(fecha);
       date.setDate(date.getDate() + 1);
-      return date.toISOString().split('T')[0];
+      return date.toISOString().split("T")[0];
     }
     return fecha;
   };
 
-  const handleInputChange = (field: 'fecha' | 'turno' | 'categoria_maquina' | 'maquina_id' | 'operario_principal_id', value: string) => {
-    if (field === 'categoria_maquina') {
+  const handleInputChange = (
+    field: "fecha" | "turno" | "categoria_maquina" | "maquina_id" | "operario_principal_id",
+    value: string,
+  ) => {
+    if (field === "categoria_maquina") {
       // Al cambiar categoría, resetear máquina y productos
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         categoria_maquina: value,
-        maquina_id: '',
-        productos: []
+        maquina_id: "",
+        productos: [],
       }));
-    } else if (field === 'maquina_id') {
+    } else if (field === "maquina_id") {
       // Al cambiar máquina, resetear productos
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         maquina_id: value,
-        productos: []
+        productos: [],
       }));
-    } else if (field === 'operario_principal_id') {
+    } else if (field === "operario_principal_id") {
       // Si cambia el operario principal, removerlo de asistentes si está
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         operario_principal_id: value,
-        asistentes: prev.asistentes.filter(id => id !== value)
+        asistentes: prev.asistentes.filter((id) => id !== value),
       }));
     } else {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        [field]: value
+        [field]: value,
       }));
     }
   };
 
-  // ——— CAMBIO CLAVE: no se preselecciona ningún producto
+  // ——— no se preselecciona ningún producto
   const addProducto = () => {
     const newProducto: ProductoDetalle = {
-      producto_id: '',           // vacío hasta que el usuario elija
+      producto_id: "",
       produccion_real: 0,
-      observaciones: '',
-      niveles: undefined
+      observaciones: "",
+      niveles: undefined,
     };
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      productos: [...prev.productos, newProducto]
+      productos: [...prev.productos, newProducto],
     }));
   };
 
   const initializeNiveles = (disenoId: string): NivelDetalle[] => {
-    const niveles = nivelesRamas.filter(n => n.diseno_id === disenoId);
-    return niveles.map(nivel => ({
+    const niveles = nivelesRamas.filter((n) => n.diseno_id === disenoId);
+    return niveles.map((nivel) => ({
       nivel: nivel.nivel,
       cantidad_ramas: 0,
-      festones_por_rama: nivel.festones_por_rama
+      festones_por_rama: nivel.festones_por_rama,
     }));
   };
 
   const initializeRamasAmarradora = (disenoId: string): RamaAmarradoraDetalle[] => {
-    const ramas = ramasAmarradora.filter(r => r.diseno_id === disenoId);
-    return ramas.map(rama => ({
+    const ramas = ramasAmarradora.filter((r) => r.diseno_id === disenoId);
+    return ramas.map((rama) => ({
       numero_rama: rama.numero_rama,
       cantidad_producida: 0,
-      tope_rama: Number(rama.tope_rama)
+      tope_rama: Number(rama.tope_rama),
     }));
   };
 
-  const calculatePromedioRamas = (ramas: RamaAmarradoraDetalle[]): number => {
-    if (ramas.length === 0) return 0;
+  // ===== Ajuste de % por rama con factor de jornada =====
+  const calculatePromedioRamas = (ramas: RamaAmarradoraDetalle[] | undefined, turno: string): number => {
+    if (!ramas || ramas.length === 0) return 0;
+    const factor = jornadaFactor(turno); // 1.25 si 7–5
     const totalPorcentaje = ramas.reduce((sum, rama) => {
-      const porcentaje = rama.tope_rama > 0 ? (rama.cantidad_producida / rama.tope_rama) * 100 : 0;
-      return sum + porcentaje;
+      const topeEfectivo = Number(rama.tope_rama) * factor;
+      const pct = topeEfectivo > 0 ? (Number(rama.cantidad_producida) / topeEfectivo) * 100 : 0;
+      return sum + pct;
     }, 0);
     return totalPorcentaje / ramas.length;
   };
 
   const updateProductoRamaAmarradora = (productoIndex: number, ramaIndex: number, cantidadProducida: number) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       productos: prev.productos.map((producto, i) => {
         if (i === productoIndex && producto.ramas_amarradora) {
-          const updatedRamas = producto.ramas_amarradora.map((rama, j) => 
-            j === ramaIndex ? { ...rama, cantidad_producida: cantidadProducida } : rama
+          const updatedRamas = producto.ramas_amarradora.map((rama, j) =>
+            j === ramaIndex ? { ...rama, cantidad_producida: cantidadProducida } : rama,
           );
-          const promedioPorcentaje = calculatePromedioRamas(updatedRamas);
+          const promedioPorcentaje = calculatePromedioRamas(updatedRamas, formData.turno as string);
           return {
             ...producto,
             ramas_amarradora: updatedRamas,
-            produccion_real: promedioPorcentaje
+            produccion_real: promedioPorcentaje, // aquí guardamos el % promedio (0–100)
           };
         }
         return producto;
-      })
+      }),
     }));
   };
 
   const calculateFestones = (niveles: NivelDetalle[]): number => {
-    return niveles.reduce((total, nivel) => total + (nivel.cantidad_ramas * nivel.festones_por_rama), 0);
+    return niveles.reduce((total, nivel) => total + nivel.cantidad_ramas * nivel.festones_por_rama, 0);
   };
 
   const updateProductoNivel = (productoIndex: number, nivelIndex: number, cantidadRamas: number) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       productos: prev.productos.map((producto, i) => {
         if (i === productoIndex && producto.niveles) {
-          const updatedNiveles = producto.niveles.map((nivel, j) => 
-            j === nivelIndex ? { ...nivel, cantidad_ramas: cantidadRamas } : nivel
+          const updatedNiveles = producto.niveles.map((nivel, j) =>
+            j === nivelIndex ? { ...nivel, cantidad_ramas: cantidadRamas } : nivel,
           );
           const totalFestones = calculateFestones(updatedNiveles);
           return {
             ...producto,
             niveles: updatedNiveles,
-            produccion_real: totalFestones
+            produccion_real: totalFestones,
           };
         }
         return producto;
-      })
+      }),
     }));
   };
 
   const removeProducto = (index: number) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      productos: prev.productos.filter((_, i) => i !== index)
+      productos: prev.productos.filter((_, i) => i !== index),
     }));
   };
 
-  const updateProducto = (index: number, field: 'producto_id' | 'produccion_real' | 'observaciones', value: string | number) => {
-    setFormData(prev => ({
+  const updateProducto = (
+    index: number,
+    field: "producto_id" | "produccion_real" | "observaciones",
+    value: string | number,
+  ) => {
+    setFormData((prev) => ({
       ...prev,
       productos: prev.productos.map((producto, i) => {
         if (i === index) {
-          if (field === 'producto_id') {
-            const selectedProduct = filteredProductos.find(p => p.id === value as string);
-            if (selectedProduct?.tipo_producto === 'arbol_navideno') {
-              return { 
+          if (field === "producto_id") {
+            const selectedProduct = filteredProductos.find((p) => p.id === (value as string));
+            if (selectedProduct?.tipo_producto === "arbol_navideno") {
+              return {
                 producto_id: value as string,
                 niveles: initializeNiveles(selectedProduct.diseno_id!),
                 produccion_real: 0,
-                observaciones: producto.observaciones || '',
-                ramas_amarradora: undefined
+                observaciones: producto.observaciones || "",
+                ramas_amarradora: undefined,
               };
-            } else if (selectedProduct?.tipo_producto === 'arbol_amarradora') {
-              return { 
+            } else if (selectedProduct?.tipo_producto === "arbol_amarradora") {
+              return {
                 producto_id: value as string,
                 ramas_amarradora: initializeRamasAmarradora(selectedProduct.diseno_id!),
                 produccion_real: 0,
-                observaciones: producto.observaciones || '',
-                niveles: undefined
+                observaciones: producto.observaciones || "",
+                niveles: undefined,
               };
             } else {
-              return { 
+              return {
                 producto_id: value as string,
                 produccion_real: producto.produccion_real,
-                observaciones: producto.observaciones || '',
+                observaciones: producto.observaciones || "",
                 niveles: undefined,
-                ramas_amarradora: undefined
+                ramas_amarradora: undefined,
               };
             }
-          } else if (field === 'observaciones') {
+          } else if (field === "observaciones") {
             return { ...producto, observaciones: value as string };
           } else {
             return { ...producto, [field]: value as number };
           }
         }
         return producto;
-      })
+      }),
     }));
   };
 
@@ -448,17 +469,17 @@ export default function RegistroProduccion() {
       return;
     }
 
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       asistentes: prev.asistentes.includes(asistenteId)
-        ? prev.asistentes.filter(id => id !== asistenteId)
-        : [...prev.asistentes, asistenteId]
+        ? prev.asistentes.filter((id) => id !== asistenteId)
+        : [...prev.asistentes, asistenteId],
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
       toast({
         title: "Error",
@@ -471,14 +492,15 @@ export default function RegistroProduccion() {
     if (!formData.turno || !formData.maquina_id || !formData.operario_principal_id || !formData.productos.length) {
       toast({
         title: "Campos Requeridos",
-        description: "Por favor completa todos los campos del formulario, selecciona el operario principal y agrega al menos un producto",
+        description:
+          "Por favor completa todos los campos del formulario, selecciona el operario principal y agrega al menos un producto",
         variant: "destructive",
       });
       return;
     }
 
     // ——— Validar que todas las líneas tengan producto seleccionado
-    const productosSinSeleccion = formData.productos.filter(p => !p.producto_id);
+    const productosSinSeleccion = formData.productos.filter((p) => !p.producto_id);
     if (productosSinSeleccion.length > 0) {
       toast({
         title: "Productos incompletos",
@@ -489,9 +511,7 @@ export default function RegistroProduccion() {
     }
 
     // ——— Validar cantidades (> 0) solo para seleccionados
-    const invalidProducts = formData.productos
-      .filter(p => !!p.producto_id)
-      .filter(p => p.produccion_real <= 0);
+    const invalidProducts = formData.productos.filter((p) => !!p.producto_id).filter((p) => p.produccion_real <= 0);
     if (invalidProducts.length > 0) {
       toast({
         title: "Cantidades Inválidas",
@@ -502,10 +522,10 @@ export default function RegistroProduccion() {
     }
 
     // ——— Validar niveles para árboles navideños
-    const invalidTreeProducts = formData.productos.filter(producto => {
+    const invalidTreeProducts = formData.productos.filter((producto) => {
       if (!producto.producto_id) return false;
-      const selectedProduct = filteredProductos.find(p => p.id === producto.producto_id);
-      if (selectedProduct?.tipo_producto === 'arbol_navideno' && producto.niveles) {
+      const selectedProduct = filteredProductos.find((p) => p.id === producto.producto_id);
+      if (selectedProduct?.tipo_producto === "arbol_navideno" && producto.niveles) {
         const totalRamas = producto.niveles.reduce((sum, nivel) => sum + nivel.cantidad_ramas, 0);
         return totalRamas === 0;
       }
@@ -520,13 +540,11 @@ export default function RegistroProduccion() {
       return;
     }
 
-    // ——— Validar ramas para árboles amarradora
-    const invalidAmarradoraProducts = formData.productos.filter(producto => {
+    // ——— Validar ramas para árboles amarradora (opcional)
+    const invalidAmarradoraProducts = formData.productos.filter((producto) => {
       if (!producto.producto_id) return false;
-      const selectedProduct = filteredProductos.find(p => p.id === producto.producto_id);
-      if (selectedProduct?.tipo_producto === 'arbol_amarradora' && producto.ramas_amarradora) {
-        // Al menos una rama debe tener cantidad producida > 0 (opcional, según requisitos)
-        // Por ahora no requerimos mínimo, pero podríamos agregarlo aquí
+      const selectedProduct = filteredProductos.find((p) => p.id === producto.producto_id);
+      if (selectedProduct?.tipo_producto === "arbol_amarradora" && producto.ramas_amarradora) {
         return false;
       }
       return false;
@@ -536,15 +554,15 @@ export default function RegistroProduccion() {
 
     try {
       const fechaAjustada = adjustDateForNightShift(formData.fecha, formData.turno as string);
-      
+
       const { data: registro, error: registroError } = await supabase
-        .from('registros_produccion')
+        .from("registros_produccion")
         .insert({
           fecha: fechaAjustada,
           turno: formData.turno,
           operario_id: formData.operario_principal_id,
           maquina_id: formData.maquina_id,
-          es_asistente: false
+          es_asistente: false,
         })
         .select()
         .single();
@@ -552,24 +570,22 @@ export default function RegistroProduccion() {
       if (registroError) throw registroError;
 
       const detallesPromises = formData.productos
-        .filter(p => !!p.producto_id) // seguridad extra
-        .map(async producto => {
-          const productoInfo = productos.find(p => p.id === producto.producto_id)!;
-          
+        .filter((p) => !!p.producto_id) // seguridad extra
+        .map(async (producto) => {
+          const productoInfo = productos.find((p) => p.id === producto.producto_id)!;
+
           // Para árboles amarradora, calcular la suma total de ramas producidas
           let porcentajeProducto = 0;
           let produccionRealValue = producto.produccion_real;
-          
-          if (productoInfo.tipo_producto === 'arbol_amarradora') {
-            // Calcular suma total de ramas producidas
-            const totalRamasProducidas = producto.ramas_amarradora?.reduce(
-              (sum, rama) => sum + rama.cantidad_producida, 
-              0
-            ) || 0;
-            
+
+          if (productoInfo.tipo_producto === "arbol_amarradora") {
+            // Calcular suma total de ramas producidas (dato crudo)
+            const totalRamasProducidas =
+              producto.ramas_amarradora?.reduce((sum, rama) => sum + rama.cantidad_producida, 0) || 0;
+
             // produccion_real = suma total de ramas producidas
             produccionRealValue = totalRamasProducidas;
-            // porcentaje = promedio de cumplimiento por rama
+            // porcentaje = promedio de cumplimiento por rama (YA AJUSTADO por jornada)
             porcentajeProducto = producto.produccion_real;
           } else {
             const tope = getTopeForProduct(productoInfo, formData.turno as string);
@@ -578,13 +594,13 @@ export default function RegistroProduccion() {
           }
 
           const { data: detalleData, error: detalleError } = await supabase
-            .from('detalle_produccion')
+            .from("detalle_produccion")
             .insert({
               registro_id: registro.id,
               producto_id: producto.producto_id,
               produccion_real: produccionRealValue,
               porcentaje_cumplimiento: porcentajeProducto,
-              observaciones: producto.observaciones || null
+              observaciones: producto.observaciones || null,
             })
             .select()
             .single();
@@ -592,18 +608,18 @@ export default function RegistroProduccion() {
           if (detalleError) throw detalleError;
 
           // Si es árbol amarradora, guardar detalles de ramas
-          if (productoInfo.tipo_producto === 'arbol_amarradora' && producto.ramas_amarradora) {
-            const ramasPromises = producto.ramas_amarradora.map(rama =>
-              supabase.from('detalle_ramas_amarradora').insert({
+          if (productoInfo.tipo_producto === "arbol_amarradora" && producto.ramas_amarradora) {
+            const ramasPromises = producto.ramas_amarradora.map((rama) =>
+              supabase.from("detalle_ramas_amarradora").insert({
                 detalle_produccion_id: detalleData.id,
                 numero_rama: rama.numero_rama,
                 cantidad_producida: rama.cantidad_producida,
-                tope_rama: rama.tope_rama
-              })
+                tope_rama: rama.tope_rama,
+              }),
             );
 
             const ramasResults = await Promise.all(ramasPromises);
-            const ramasErrors = ramasResults.filter(result => (result as any).error);
+            const ramasErrors = ramasResults.filter((result) => (result as any).error);
             if (ramasErrors.length > 0) {
               throw (ramasErrors[0] as any).error;
             }
@@ -613,39 +629,39 @@ export default function RegistroProduccion() {
         });
 
       const detallesResults = await Promise.all(detallesPromises);
-      const detallesErrors = detallesResults.filter(result => (result as any).error);
+      const detallesErrors = detallesResults.filter((result) => (result as any).error);
       if (detallesErrors.length > 0) {
         throw (detallesErrors[0] as any).error;
       }
 
       if (formData.asistentes.length > 0) {
         // Crear registros en tabla pivote (para trazabilidad)
-        const asistentesPromises = formData.asistentes.map(asistenteId =>
-          supabase.from('registro_asistentes').insert({
+        const asistentesPromises = formData.asistentes.map((asistenteId) =>
+          supabase.from("registro_asistentes").insert({
             registro_id: registro.id,
-            asistente_id: asistenteId
-          })
+            asistente_id: asistenteId,
+          }),
         );
 
         const asistentesResults = await Promise.all(asistentesPromises);
-        const asistentesErrors = asistentesResults.filter(result => (result as any).error);
+        const asistentesErrors = asistentesResults.filter((result) => (result as any).error);
         if (asistentesErrors.length > 0) {
           throw (asistentesErrors[0] as any).error;
         }
 
-        // NUEVO: Crear registros individuales de producción para cada ayudante
-        const registrosAsistentesPromises = formData.asistentes.map(asistenteId =>
-          supabase.from('registros_produccion').insert({
+        // Crear registros individuales de producción para cada ayudante
+        const registrosAsistentesPromises = formData.asistentes.map((asistenteId) =>
+          supabase.from("registros_produccion").insert({
             fecha: fechaAjustada,
             turno: formData.turno as any,
             operario_id: asistenteId,
             maquina_id: formData.maquina_id,
-            es_asistente: true
-          })
+            es_asistente: true,
+          }),
         );
 
         const registrosAsistentesResults = await Promise.all(registrosAsistentesPromises);
-        const registrosAsistentesErrors = registrosAsistentesResults.filter(result => (result as any).error);
+        const registrosAsistentesErrors = registrosAsistentesResults.filter((result) => (result as any).error);
         if (registrosAsistentesErrors.length > 0) {
           throw (registrosAsistentesErrors[0] as any).error;
         }
@@ -657,20 +673,19 @@ export default function RegistroProduccion() {
       });
 
       setFormData({
-        fecha: new Date().toISOString().split('T')[0],
-        turno: '',
-        categoria_maquina: '',
-        maquina_id: '',
-        operario_principal_id: '',
+        fecha: new Date().toISOString().split("T")[0],
+        turno: "",
+        categoria_maquina: "",
+        maquina_id: "",
+        operario_principal_id: "",
         productos: [],
         asistentes: [],
       });
       setPorcentajeCumplimiento(0);
       setAsistentesOpen(false);
-      setSearchAsistente('');
-
+      setSearchAsistente("");
     } catch (error: any) {
-      console.error('Error saving record:', error);
+      console.error("Error saving record:", error);
       toast({
         title: "Error al Guardar",
         description: error.message || "No se pudo guardar el registro",
@@ -682,10 +697,10 @@ export default function RegistroProduccion() {
   };
 
   const getPerformanceColor = (percentage: number) => {
-    if (percentage >= 100) return 'text-success';
-    if (percentage >= 80) return 'text-primary';
-    if (percentage >= 60) return 'text-warning';
-    return 'text-destructive';
+    if (percentage >= 100) return "text-success";
+    if (percentage >= 80) return "text-primary";
+    if (percentage >= 60) return "text-warning";
+    return "text-destructive";
   };
 
   const getPerformanceIcon = (percentage: number) => {
@@ -720,12 +735,14 @@ export default function RegistroProduccion() {
 
   // Candidatos a asistentes (no listado por defecto; se filtra sólo cuando hay búsqueda)
   const candidatosAsistentes = usuarios
-    .filter(u => u.tipo_usuario === 'operario' && u.activo)
-    .filter(u => u.id !== formData.operario_principal_id) // evitar duplicar operario principal
-    .filter(u => !formData.asistentes.includes(u.id))     // evitar repetidos
-    .filter(u => searchAsistente.length >= 2
-      ? (u.nombre.toLowerCase().includes(searchAsistente.toLowerCase()) || (u.cedula || '').toLowerCase().includes(searchAsistente.toLowerCase()))
-      : false
+    .filter((u) => u.tipo_usuario === "operario" && u.activo)
+    .filter((u) => u.id !== formData.operario_principal_id) // evitar duplicar operario principal
+    .filter((u) => !formData.asistentes.includes(u.id)) // evitar repetidos
+    .filter((u) =>
+      searchAsistente.length >= 2
+        ? u.nombre.toLowerCase().includes(searchAsistente.toLowerCase()) ||
+          (u.cedula || "").toLowerCase().includes(searchAsistente.toLowerCase())
+        : false,
     );
 
   return (
@@ -745,9 +762,7 @@ export default function RegistroProduccion() {
             <Calculator className="h-5 w-5 text-accent" />
             <span>Formulario de Registro</span>
           </CardTitle>
-          <CardDescription>
-            Completa todos los campos para registrar la producción
-          </CardDescription>
+          <CardDescription>Completa todos los campos para registrar la producción</CardDescription>
         </CardHeader>
 
         <CardContent>
@@ -767,16 +782,16 @@ export default function RegistroProduccion() {
                   onChange={(e) => setSearchUsuarios(e.target.value)}
                   className="input-touch"
                 />
-                <Select 
-                  value={formData.operario_principal_id} 
-                  onValueChange={(value) => handleInputChange('operario_principal_id', value)}
+                <Select
+                  value={formData.operario_principal_id}
+                  onValueChange={(value) => handleInputChange("operario_principal_id", value)}
                 >
                   <SelectTrigger className="input-touch">
                     <SelectValue placeholder="Selecciona el operario principal" />
                   </SelectTrigger>
                   <SelectContent className="bg-background z-50 max-h-48 overflow-y-auto">
                     {filteredUsuarios
-                      .filter(u => u.tipo_usuario === 'operario' && u.activo)
+                      .filter((u) => u.tipo_usuario === "operario" && u.activo)
                       .map((usuario) => (
                         <SelectItem key={usuario.id} value={usuario.id}>
                           {usuario.nombre} - {usuario.cedula}
@@ -795,13 +810,8 @@ export default function RegistroProduccion() {
                   <span>Operarios Asistentes</span>
                 </Label>
                 <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAsistentesOpen((v) => !v)}
-                  >
-                    {asistentesOpen ? 'Cerrar' : 'Agregar asistente'}
+                  <Button type="button" variant="outline" size="sm" onClick={() => setAsistentesOpen((v) => !v)}>
+                    {asistentesOpen ? "Cerrar" : "Agregar asistente"}
                   </Button>
                 </div>
               </div>
@@ -810,7 +820,7 @@ export default function RegistroProduccion() {
               {formData.asistentes.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {formData.asistentes.map((asistenteId) => {
-                    const asistente = usuarios.find(u => u.id === asistenteId);
+                    const asistente = usuarios.find((u) => u.id === asistenteId);
                     return asistente ? (
                       <Badge key={asistenteId} variant="secondary" className="flex items-center space-x-1">
                         <span>{asistente.nombre}</span>
@@ -830,7 +840,7 @@ export default function RegistroProduccion() {
                 <p className="text-sm text-muted-foreground">Sin asistentes seleccionados.</p>
               )}
 
-              {/* Picker colapsable: no lista por defecto, sólo al escribir >= 2 chars */}
+              {/* Picker colapsable */}
               {asistentesOpen && (
                 <div className="space-y-2 border rounded-lg p-3">
                   <div className="relative">
@@ -851,20 +861,21 @@ export default function RegistroProduccion() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-44 overflow-y-auto">
                       {candidatosAsistentes.map((usuario) => (
-                        <div key={usuario.id} className="flex items-center space-x-3 p-2 rounded-lg border hover:bg-muted/50">
+                        <div
+                          key={usuario.id}
+                          className="flex items-center space-x-3 p-2 rounded-lg border hover:bg-muted/50"
+                        >
                           <Checkbox
                             id={`asistente-${usuario.id}`}
                             checked={formData.asistentes.includes(usuario.id)}
                             onCheckedChange={() => toggleAsistente(usuario.id)}
                           />
-                          <Label 
+                          <Label
                             htmlFor={`asistente-${usuario.id}`}
                             className="text-sm font-medium cursor-pointer flex-1"
                           >
                             {usuario.nombre}
-                            <span className="text-xs text-muted-foreground block">
-                              {usuario.cedula}
-                            </span>
+                            <span className="text-xs text-muted-foreground block">{usuario.cedula}</span>
                           </Label>
                         </div>
                       ))}
@@ -882,7 +893,7 @@ export default function RegistroProduccion() {
                   id="fecha"
                   type="date"
                   value={formData.fecha}
-                  onChange={(e) => handleInputChange('fecha', e.target.value)}
+                  onChange={(e) => handleInputChange("fecha", e.target.value)}
                   className="input-touch"
                   required
                 />
@@ -890,10 +901,7 @@ export default function RegistroProduccion() {
 
               <div className="space-y-2">
                 <Label htmlFor="turno">Turno</Label>
-                <Select 
-                  value={formData.turno} 
-                  onValueChange={(value) => handleInputChange('turno', value)}
-                >
+                <Select value={formData.turno} onValueChange={(value) => handleInputChange("turno", value)}>
                   <SelectTrigger className="input-touch">
                     <SelectValue placeholder="Selecciona el turno" />
                   </SelectTrigger>
@@ -914,9 +922,9 @@ export default function RegistroProduccion() {
                 <Factory className="h-4 w-4" />
                 <span>Categoría de Máquina *</span>
               </Label>
-              <Select 
-                value={formData.categoria_maquina} 
-                onValueChange={(value) => handleInputChange('categoria_maquina', value)}
+              <Select
+                value={formData.categoria_maquina}
+                onValueChange={(value) => handleInputChange("categoria_maquina", value)}
               >
                 <SelectTrigger className="input-touch">
                   <SelectValue placeholder="Selecciona la categoría" />
@@ -938,18 +946,13 @@ export default function RegistroProduccion() {
                   <Factory className="h-4 w-4" />
                   <span>Máquina *</span>
                 </Label>
-                <Select 
-                  value={formData.maquina_id} 
-                  onValueChange={(value) => handleInputChange('maquina_id', value)}
-                >
+                <Select value={formData.maquina_id} onValueChange={(value) => handleInputChange("maquina_id", value)}>
                   <SelectTrigger className="input-touch">
                     <SelectValue placeholder="Selecciona la máquina" />
                   </SelectTrigger>
                   <SelectContent className="bg-background z-50">
                     {filteredMaquinas.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground">
-                        No hay máquinas en esta categoría
-                      </div>
+                      <div className="p-2 text-sm text-muted-foreground">No hay máquinas en esta categoría</div>
                     ) : (
                       filteredMaquinas.map((maquina) => (
                         <SelectItem key={maquina.id} value={maquina.id}>
@@ -1000,17 +1003,17 @@ export default function RegistroProduccion() {
                 <div className="text-center py-8 border-2 border-dashed border-muted rounded-lg">
                   <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">
-                    {formData.maquina_id 
+                    {formData.maquina_id
                       ? "Agrega los productos fabricados en este turno"
-                      : "Primero selecciona una máquina"
-                    }
+                      : "Primero selecciona una máquina"}
                   </p>
                 </div>
               )}
 
               {formData.productos.map((producto, index) => {
                 const selectedProduct = producto.producto_id
-                  ? filteredProductos.find(p => p.id === producto.producto_id) || productos.find(p => p.id === producto.producto_id)
+                  ? filteredProductos.find((p) => p.id === producto.producto_id) ||
+                    productos.find((p) => p.id === producto.producto_id)
                   : undefined;
 
                 return (
@@ -1022,7 +1025,7 @@ export default function RegistroProduccion() {
                           <Label className="text-sm font-medium">Producto</Label>
                           <Select
                             value={producto.producto_id}
-                            onValueChange={(value) => updateProducto(index, 'producto_id', value)}
+                            onValueChange={(value) => updateProducto(index, "producto_id", value)}
                           >
                             <SelectTrigger className="input-touch">
                               <SelectValue placeholder="Selecciona el producto" />
@@ -1036,7 +1039,7 @@ export default function RegistroProduccion() {
                             </SelectContent>
                           </Select>
                         </div>
-                        
+
                         <Button
                           type="button"
                           variant="outline"
@@ -1053,7 +1056,7 @@ export default function RegistroProduccion() {
                         <div className="p-3 border rounded-lg text-sm text-muted-foreground bg-muted/30">
                           Selecciona un producto para ingresar cantidades.
                         </div>
-                      ) : selectedProduct.tipo_producto === 'arbol_navideno' && producto.niveles ? (
+                      ) : selectedProduct.tipo_producto === "arbol_navideno" && producto.niveles ? (
                         <>
                           {/* Niveles árbol navideño */}
                           <div className="space-y-3">
@@ -1069,7 +1072,9 @@ export default function RegistroProduccion() {
                                     min="0"
                                     step="1"
                                     value={nivel.cantidad_ramas}
-                                    onChange={(e) => updateProductoNivel(index, nivelIndex, parseInt(e.target.value) || 0)}
+                                    onChange={(e) =>
+                                      updateProductoNivel(index, nivelIndex, parseInt(e.target.value) || 0)
+                                    }
                                     placeholder="Ramas"
                                     className="input-touch mt-1"
                                     inputMode="numeric"
@@ -1077,15 +1082,31 @@ export default function RegistroProduccion() {
                                 </div>
                               ))}
                             </div>
-                            <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
-                              <span className="text-sm font-medium">Total de Festones:</span>
-                              <Badge variant="secondary" className="text-lg font-bold">
-                                {producto.produccion_real.toLocaleString()}
-                              </Badge>
-                            </div>
+
+                            {/* Totales y % */}
+                            {(() => {
+                              const topeNav = getTopeForProduct(selectedProduct, formData.turno as string);
+                              const pct = topeNav > 0 ? (producto.produccion_real / topeNav) * 100 : 0;
+                              return (
+                                <>
+                                  <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
+                                    <span className="text-sm font-medium">Total de Festones:</span>
+                                    <Badge variant="secondary" className="text-lg font-bold">
+                                      {producto.produccion_real.toLocaleString()}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
+                                    <span className="text-sm font-medium">Cumplimiento:</span>
+                                    <Badge variant="secondary" className="text-lg font-bold">
+                                      {pct.toFixed(1)}%
+                                    </Badge>
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
                         </>
-                      ) : selectedProduct.tipo_producto === 'arbol_amarradora' && producto.ramas_amarradora ? (
+                      ) : selectedProduct.tipo_producto === "arbol_amarradora" && producto.ramas_amarradora ? (
                         <>
                           {/* Ramas árbol amarradora */}
                           <div className="space-y-3">
@@ -1101,21 +1122,32 @@ export default function RegistroProduccion() {
                                     min="0"
                                     step="1"
                                     value={rama.cantidad_producida}
-                                    onChange={(e) => updateProductoRamaAmarradora(index, ramaIndex, parseInt(e.target.value) || 0)}
+                                    onChange={(e) =>
+                                      updateProductoRamaAmarradora(index, ramaIndex, parseInt(e.target.value) || 0)
+                                    }
                                     placeholder="Cantidad"
                                     className="input-touch mt-1"
                                     inputMode="numeric"
                                   />
                                   <div className="text-xs text-muted-foreground mt-1">
-                                    {rama.tope_rama > 0 ? `${((rama.cantidad_producida / rama.tope_rama) * 100).toFixed(1)}%` : '0%'}
+                                    {(() => {
+                                      const factor = jornadaFactor(formData.turno as string);
+                                      const topeEfectivo = rama.tope_rama * factor;
+                                      const pct = topeEfectivo > 0 ? (rama.cantidad_producida / topeEfectivo) * 100 : 0;
+                                      return `${pct.toFixed(1)}%`;
+                                    })()}
                                   </div>
                                 </div>
                               ))}
                             </div>
                             <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
                               <span className="text-sm font-medium">Promedio de Cumplimiento:</span>
-                              <Badge variant="secondary" className="text-lg font-bold">
+                              {/* <Badge variant="secondary" className="text-lg font-bold">
                                 {producto.produccion_real.toFixed(1)}%
+                              </Badge> */}
+                              <Badge variant="secondary" className="text-lg font-bold">
+                                {calculatePromedioRamas(producto.ramas_amarradora, formData.turno as string).toFixed(1)}
+                                %
                               </Badge>
                             </div>
                           </div>
@@ -1130,7 +1162,7 @@ export default function RegistroProduccion() {
                               min="0"
                               step="1"
                               value={producto.produccion_real}
-                              onChange={(e) => updateProducto(index, 'produccion_real', parseInt(e.target.value) || 0)}
+                              onChange={(e) => updateProducto(index, "produccion_real", parseInt(e.target.value) || 0)}
                               placeholder="Unidades"
                               className="input-touch"
                               inputMode="numeric"
@@ -1145,8 +1177,8 @@ export default function RegistroProduccion() {
                           <Label className="text-sm font-medium">Observaciones</Label>
                           <Input
                             type="text"
-                            value={producto.observaciones || ''}
-                            onChange={(e) => updateProducto(index, 'observaciones', e.target.value)}
+                            value={producto.observaciones || ""}
+                            onChange={(e) => updateProducto(index, "observaciones", e.target.value)}
                             placeholder="Anota cualquier observación necesaria..."
                             className="input-touch"
                           />
@@ -1159,7 +1191,7 @@ export default function RegistroProduccion() {
             </div>
 
             {/* Meta y Cumplimiento */}
-            {formData.productos.filter(p => !!p.producto_id).length > 0 && formData.turno && (
+            {formData.productos.filter((p) => !!p.producto_id).length > 0 && formData.turno && (
               <Card className="bg-muted/50 border-primary/20">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
@@ -1169,38 +1201,46 @@ export default function RegistroProduccion() {
                         <p className="font-medium text-foreground">Resumen de Producción</p>
                         <div className="space-y-1">
                           {formData.productos
-                            .filter(p => !!p.producto_id)
+                            .filter((p) => !!p.producto_id)
                             .map((producto) => {
-                              const productoInfo = productos.find(p => p.id === producto.producto_id);
+                              const productoInfo = productos.find((p) => p.id === producto.producto_id);
                               if (!productoInfo) return null;
                               const tope = getTopeForProduct(productoInfo, formData.turno as string);
                               return (
                                 <div key={producto.producto_id} className="text-sm text-muted-foreground">
-                                  <span className="font-medium">{productoInfo.nombre}:</span> {producto.produccion_real} / {tope} unidades
+                                  <span className="font-medium">{productoInfo.nombre}:</span> {producto.produccion_real}{" "}
+                                  / {tope} unidades
                                 </div>
                               );
                             })}
                         </div>
                       </div>
                     </div>
-                    
+
                     {porcentajeCumplimiento > 0 && (
                       <div className="text-right">
                         <div className={`flex items-center space-x-2 ${getPerformanceColor(porcentajeCumplimiento)}`}>
                           {getPerformanceIcon(porcentajeCumplimiento)}
-                          <span className="text-2xl font-bold">
-                            {porcentajeCumplimiento.toFixed(1)}%
-                          </span>
+                          <span className="text-2xl font-bold">{porcentajeCumplimiento.toFixed(1)}%</span>
                         </div>
-                        <Badge className={
-                          porcentajeCumplimiento >= 100 ? 'bg-success text-success-foreground' :
-                          porcentajeCumplimiento >= 80 ? 'bg-primary text-primary-foreground' :
-                          porcentajeCumplimiento >= 60 ? 'bg-warning text-warning-foreground' :
-                          'bg-destructive text-destructive-foreground'
-                        }>
-                          {porcentajeCumplimiento >= 100 ? 'Excelente' :
-                           porcentajeCumplimiento >= 80 ? 'Bueno' :
-                           porcentajeCumplimiento >= 60 ? 'Regular' : 'Por Mejorar'}
+                        <Badge
+                          className={
+                            porcentajeCumplimiento >= 100
+                              ? "bg-success text-success-foreground"
+                              : porcentajeCumplimiento >= 80
+                                ? "bg-primary text-primary-foreground"
+                                : porcentajeCumplimiento >= 60
+                                  ? "bg-warning text-warning-foreground"
+                                  : "bg-destructive text-destructive-foreground"
+                          }
+                        >
+                          {porcentajeCumplimiento >= 100
+                            ? "Excelente"
+                            : porcentajeCumplimiento >= 80
+                              ? "Bueno"
+                              : porcentajeCumplimiento >= 60
+                                ? "Regular"
+                                : "Por Mejorar"}
                         </Badge>
                       </div>
                     )}
@@ -1223,7 +1263,12 @@ export default function RegistroProduccion() {
             <Button
               type="submit"
               className="w-full btn-touch text-lg font-semibold"
-              disabled={loading || !formData.turno || !formData.maquina_id || formData.productos.filter(p => !!p.producto_id).length === 0}
+              disabled={
+                loading ||
+                !formData.turno ||
+                !formData.maquina_id ||
+                formData.productos.filter((p) => !!p.producto_id).length === 0
+              }
             >
               {loading ? (
                 <>
