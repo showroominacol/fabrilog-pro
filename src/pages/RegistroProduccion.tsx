@@ -326,7 +326,7 @@ export default function RegistroProduccion() {
     };
     setFormData((prev) => ({
       ...prev,
-      productos: [...prev.productos, newProducto],
+      productos: [newProducto, ...prev.productos],
     }));
   };
 
