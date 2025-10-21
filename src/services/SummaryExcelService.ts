@@ -111,7 +111,8 @@ export class SummaryExcelService {
 
       const bloquesFiltered = (bloques.filter(Boolean) as CategoryBlock[]) ?? [];
 
-      // Calcular bono total: suma de porcentajes operario de todas las máquinas / días del rango
+      // Calcular bono total (se mantiene tu lógica original en JS;
+      // además lo reescribiremos con fórmula en Excel)
       const bonoTotal = this.calculateBonoTotal(bloquesFiltered, diasXLaborar);
 
       return {
@@ -146,14 +147,9 @@ export class SummaryExcelService {
   }
 
   /**
-   * Calcula el bono total del empleado
-   */
-  /**
-   * Calcula el bono total del empleado
+   * Calcula el bono total del empleado (se deja igual a tu versión original)
    * Incluye porcentajes trabajados como OPERARIO y como AYUDANTE.
    * Se sigue dividiendo entre los días del rango (diasDelRango).
-   */
-  /**
    * BONO_TOTAL = ( Σ_máquinas[(%op * días_op) + (%ayu * días_ayu)] ) / (días x laborar)
    * con fallback a nivel de rol si no hay máquinas.
    */
@@ -239,6 +235,7 @@ export class SummaryExcelService {
 
   /**
    * Genera el bloque de datos por categoría (separa Operario / Ayudante)
+   * (incluye mejoras: acumulación diaria robusta y no contar días sin detalle)
    */
   private async generateCategoryBlock(
     empleadoId: string,
@@ -283,7 +280,6 @@ export class SummaryExcelService {
     ) as RegistroProduccionRow[];
 
     // === Registros donde el empleado fue AYUDANTE (pivote en 2 pasos) ===
-    // Paso 1: obtener enlaces en la pivote
     const { data: ayuLinks, error: errLinks } = await supabase
       .from("registro_asistentes")
       .select("registro_id")
@@ -291,7 +287,6 @@ export class SummaryExcelService {
 
     if (errLinks) throw errLinks;
 
-    // Paso 2: con esos IDs, traer los registros_produccion completos
     let regsAyudante: RegistroProduccionRow[] = [];
     const idsAyu = (ayuLinks ?? []).map((l) => l.registro_id).filter(Boolean);
 
@@ -342,8 +337,8 @@ export class SummaryExcelService {
     if (registrosOperario.length === 0 && registrosAyudante.length === 0) return null;
 
     const [operarioData, ayudanteData] = await Promise.all([
-      this.generateBlockData(registrosOperario, fechaInicio, fechaFin),
-      this.generateBlockData(registrosAyudante, fechaInicio, fechaFin),
+      this.generateBlockData(registrosOperario),
+      this.generateBlockData(registrosAyudante),
     ]);
 
     return {
@@ -355,61 +350,59 @@ export class SummaryExcelService {
 
   /**
    * Genera los datos de un bloque (operario o ayudante)
-   * — Ajustado para usar tope_jornada_10h cuando el turno es "7:00am - 5:00pm",
+   * — Mejora 1: NO cuenta días sin detalle.
+   * — Mejora 2: ACUMULA porcentajes si hay varios registros el mismo día.
+   * — Mantiene uso de tope_jornada_10h cuando turno === "7:00am - 5:00pm",
    *   y tope_jornada_8h en los demás casos (fallback a tope general).
+   * — Devuelve porcentajes NUMÉRICOS (no "85%").
    */
-  private async generateBlockData(
-    registros: RegistroProduccionRow[],
-    _fechaInicio: Date,
-    _fechaFin: Date,
-  ): Promise<BlockData> {
+  private async generateBlockData(registros: RegistroProduccionRow[]): Promise<BlockData> {
     if (!registros || registros.length === 0) {
       return { porcentaje: 0, dias: 0, observaciones: "", maquinas: [] };
     }
 
-    // % promedio por día y observaciones
     const porcentajesPorDia = new Map<string, number>();
     const observacionesSet = new Set<string>();
 
     for (const registro of registros) {
+      // NO contar días sin detalle
+      if (!registro.detalle_produccion?.length) continue;
+
       const fecha = registro.fecha;
-      if (!porcentajesPorDia.has(fecha)) {
-        porcentajesPorDia.set(fecha, 0);
-      }
+      let sumaPorcentajeDia = 0;
 
-      if (registro.detalle_produccion?.length) {
-        let sumaPorcentajeDia = porcentajesPorDia.get(fecha) ?? 0;
+      for (const detalle of registro.detalle_produccion) {
+        let pct = 0;
 
-        for (const detalle of registro.detalle_produccion) {
-          let pct = 0;
+        // Para árboles amarradora, usar el porcentaje_cumplimiento directamente
+        if (detalle.productos?.tipo_producto === "arbol_amarradora") {
+          pct = Number(detalle.porcentaje_cumplimiento) || 0;
+        } else {
+          // Para otros productos, calcular el porcentaje con el tope apropiado
+          let jornadaTope: number | null = null;
+          const turnoTexto = this.formatTurno(registro.turno);
 
-          // Para árboles amarradora, usar el porcentaje_cumplimiento directamente
-          if (detalle.productos?.tipo_producto === "arbol_amarradora") {
-            pct = detalle.porcentaje_cumplimiento;
+          if (turnoTexto === "7:00am - 5:00pm") {
+            jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
           } else {
-            // Para otros productos, calcular el porcentaje con el tope apropiado
-            let jornadaTope: number | null = null;
-            const turnoTexto = this.formatTurno(registro.turno);
-
-            if (turnoTexto === "7:00am - 5:00pm") {
-              jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
-            } else {
-              jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
-            }
-
-            const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
-            pct = tope > 0 ? (detalle.produccion_real / Number(tope)) * 100 : 0;
+            jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
           }
 
-          sumaPorcentajeDia += pct;
-
-          // Recopilar observaciones
-          if (detalle.observaciones && detalle.observaciones.trim()) {
-            observacionesSet.add(detalle.observaciones.trim());
-          }
+          const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
+          pct = tope > 0 ? (Number(detalle.produccion_real) / Number(tope)) * 100 : 0;
         }
-        porcentajesPorDia.set(fecha, sumaPorcentajeDia);
+
+        sumaPorcentajeDia += pct;
+
+        // Recopilar observaciones
+        if (detalle.observaciones && detalle.observaciones.trim()) {
+          observacionesSet.add(detalle.observaciones.trim());
+        }
       }
+
+      // ACUMULACIÓN diaria robusta
+      const anterior = porcentajesPorDia.get(fecha) ?? 0;
+      porcentajesPorDia.set(fecha, anterior + sumaPorcentajeDia);
     }
 
     const porcentajes = Array.from(porcentajesPorDia.values());
@@ -419,7 +412,7 @@ export class SummaryExcelService {
     const dias = porcentajesPorDia.size;
     const observaciones = Array.from(observacionesSet).join(" | ");
 
-    // Por máquina
+    // Por máquina (sin cambios de lógica)
     const maquinasData = await this.generateMachineData(registros);
 
     return {
@@ -432,13 +425,15 @@ export class SummaryExcelService {
 
   /**
    * Genera los datos específicos por máquina
-   * — Ajustado para usar tope_jornada_10h cuando el turno es "7:00am - 5:00pm",
-   *   y tope_jornada_8h en los demás casos (fallback a tope general).
+   * — Mantiene tu lógica, solo numérica
    */
   private async generateMachineData(registros: RegistroProduccionRow[]): Promise<MachineData[]> {
     const maquinasMap = new Map<string, { porcentajes: number[]; dias: Set<string>; observaciones: Set<string> }>();
 
     for (const registro of registros) {
+      // NO contar días sin detalle
+      if (!registro.detalle_produccion?.length) continue;
+
       const maquinaNombre = registro.maquinas?.nombre || "Sin máquina";
       if (!maquinasMap.has(maquinaNombre)) {
         maquinasMap.set(maquinaNombre, {
@@ -452,30 +447,28 @@ export class SummaryExcelService {
       agg.dias.add(registro.fecha);
 
       let pctRegistro = 0;
-      if (registro.detalle_produccion?.length) {
-        for (const d of registro.detalle_produccion) {
-          // Para árboles amarradora, usar el porcentaje_cumplimiento directamente
-          if (d.productos?.tipo_producto === "arbol_amarradora") {
-            pctRegistro += d.porcentaje_cumplimiento;
+      for (const d of registro.detalle_produccion) {
+        // Para árboles amarradora, usar el porcentaje_cumplimiento directamente
+        if (d.productos?.tipo_producto === "arbol_amarradora") {
+          pctRegistro += Number(d.porcentaje_cumplimiento) || 0;
+        } else {
+          // Para otros productos, calcular el porcentaje con el tope apropiado
+          let jornadaTope: number | null = null;
+          const turnoTexto = this.formatTurno(registro.turno);
+
+          if (turnoTexto === "7:00am - 5:00pm") {
+            jornadaTope = d.productos?.tope_jornada_10h ?? null;
           } else {
-            // Para otros productos, calcular el porcentaje con el tope apropiado
-            let jornadaTope: number | null = null;
-            const turnoTexto = this.formatTurno(registro.turno);
-
-            if (turnoTexto === "7:00am - 5:00pm") {
-              jornadaTope = d.productos?.tope_jornada_10h ?? null;
-            } else {
-              jornadaTope = d.productos?.tope_jornada_8h ?? null;
-            }
-
-            const tope = jornadaTope ?? d.productos?.tope ?? 0;
-            pctRegistro += tope > 0 ? (d.produccion_real / Number(tope)) * 100 : 0;
+            jornadaTope = d.productos?.tope_jornada_8h ?? null;
           }
 
-          // Recopilar observaciones
-          if (d.observaciones && d.observaciones.trim()) {
-            agg.observaciones.add(d.observaciones.trim());
-          }
+          const tope = jornadaTope ?? d.productos?.tope ?? 0;
+          pctRegistro += tope > 0 ? (Number(d.produccion_real) / Number(tope)) * 100 : 0;
+        }
+
+        // Recopilar observaciones
+        if (d.observaciones && d.observaciones.trim()) {
+          agg.observaciones.add(d.observaciones.trim());
         }
       }
       agg.porcentajes.push(pctRegistro);
@@ -513,7 +506,9 @@ export class SummaryExcelService {
   }
 
   /**
-   * Exporta a Excel con encabezados combinados y bloques por categoría
+   * Exporta a Excel con:
+   *  - porcentajes como NÚMEROS
+   *  - fórmula dinámica en BONO TOTAL (col D)
    */
   private async exportToExcel(employeeData: EmployeeData[], fechaInicio: Date, fechaFin: Date): Promise<void> {
     const workbook = XLSX.utils.book_new();
@@ -521,12 +516,37 @@ export class SummaryExcelService {
     // Categorías presentes
     const todasCategorias = [...new Set(employeeData.flatMap((e) => e.bloques.map((b) => b.categoria)))].sort();
 
-    // Encabezados (2 filas) + datos
+    // Encabezados (2 filas) + datos (con % numéricos)
     const headers = this.createHeaders(todasCategorias);
     const rows = this.createDataRows(employeeData, todasCategorias);
     const sheetData = [...headers, ...rows];
 
     const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // === Fórmula dinámica en D (bono total = SUMA de todos los % de OP y AYU / DIAS X LABORAR) ===
+    const startRow = 3; // tras 2 filas de encabezado
+    for (let i = 0; i < employeeData.length; i++) {
+      const rowIndex = startRow + i;
+
+      // Columna 2 (B) tiene DIAS X LABORAR
+      const diasCell = `B${rowIndex}`;
+
+      // Construcción de celdas de porcentaje (OP% y AYU%) por categoría:
+      // E es col 5. Por cada categoría hay 6 columnas:
+      // [OP% (5+6k), OP DÍAS, OP OBS, AYU% (8+6k), AYU DÍAS, AYU OBS]
+      const percentCells: string[] = [];
+      for (let k = 0; k < todasCategorias.length; k++) {
+        const opPctCol = 5 + 6 * k;
+        const ayuPctCol = 8 + 6 * k;
+        percentCells.push(`${this.columnLetter(opPctCol)}${rowIndex}`);
+        percentCells.push(`${this.columnLetter(ayuPctCol)}${rowIndex}`);
+      }
+
+      const formula =
+        percentCells.length > 0 ? `IF(${diasCell}>0,SUM(${percentCells.join(",")})/${diasCell},0)` : `0`;
+
+      worksheet[`D${rowIndex}`] = { f: formula };
+    }
 
     // Estilos/bordes (nota: estilos requieren SheetJS Pro; si no, se ignoran)
     this.applyWorksheetStyles(worksheet, todasCategorias, employeeData.length);
@@ -542,11 +562,25 @@ export class SummaryExcelService {
   }
 
   /**
-   * Crea los encabezados del Excel (dos filas)
+   * Convierte índice (1=A) a letra Excel
    */
-  private createHeaders(categorias: string[]): string[][] {
-    const header1 = ["NOMBRE", "DIAS X LABORAR", "DIAS REAL LABORADOS", "BONO TOTAL"];
-    const header2 = ["", "", "", ""];
+  private columnLetter(colIndex: number): string {
+    let letter = "";
+    while (colIndex > 0) {
+      const mod = (colIndex - 1) % 26;
+      letter = String.fromCharCode(65 + mod) + letter;
+      colIndex = Math.floor((colIndex - mod) / 26);
+    }
+    return letter;
+  }
+
+  /**
+   * Crea los encabezados del Excel (dos filas)
+   * (tipado numérico para permitir números en datos)
+   */
+  private createHeaders(categorias: string[]): (string | number)[][] {
+    const header1: (string | number)[] = ["NOMBRE", "DIAS X LABORAR", "DIAS REAL LABORADOS", "BONO TOTAL"];
+    const header2: (string | number)[] = ["", "", "", ""];
 
     for (const categoria of categorias) {
       // OP
@@ -562,16 +596,17 @@ export class SummaryExcelService {
 
   /**
    * Crea las filas de datos del Excel
+   * — Porcentajes como NÚMEROS (no "85%")
    */
-  private createDataRows(employeeData: EmployeeData[], categorias: string[]): string[][] {
-    const rows: string[][] = [];
+  private createDataRows(employeeData: EmployeeData[], categorias: string[]): (string | number)[][] {
+    const rows: (string | number)[][] = [];
 
     for (const empleado of employeeData) {
-      const row: string[] = [
+      const row: (string | number)[] = [
         empleado.nombre,
-        String(empleado.diasXLaborar),
-        String(empleado.diasRealLaborados),
-        String(empleado.bonoTotal),
+        empleado.diasXLaborar,
+        empleado.diasRealLaborados,
+        empleado.bonoTotal, // será reemplazado por fórmula al exportar
       ];
 
       for (const categoria of categorias) {
@@ -581,8 +616,8 @@ export class SummaryExcelService {
           // OP
           if (bloque.operario.dias > 0) {
             row.push(
-              `${bloque.operario.porcentaje}%`,
-              String(bloque.operario.dias),
+              Number(bloque.operario.porcentaje), // % numérico
+              Number(bloque.operario.dias),
               bloque.operario.observaciones || "",
             );
           } else {
@@ -591,8 +626,8 @@ export class SummaryExcelService {
           // AYU
           if (bloque.ayudante.dias > 0) {
             row.push(
-              `${bloque.ayudante.porcentaje}%`,
-              String(bloque.ayudante.dias),
+              Number(bloque.ayudante.porcentaje), // % numérico
+              Number(bloque.ayudante.dias),
               bloque.ayudante.observaciones || "",
             );
           } else {
