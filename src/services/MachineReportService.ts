@@ -67,103 +67,81 @@ export class MachineReportService {
 
     if (error) throw new Error(`Error fetching production data: ${error.message}`);
 
+    // Promedios por operario basados SOLO en días trabajados reales
     const porcentajesSumaOperarios = await this.calcularPorcentajesSuma(registros || [], fechaInicio, fechaFin);
 
+    // Asistentes por registro
     const asistentesMap = await this.obtenerAsistentes(registros ? registros.map((r) => r.id) : []);
-    const allDates = this.generateDateRange(fechaInicio, fechaFin);
 
+    // Prepara contenedor por categoría existente
     const categorias = new Map<string, MachineReportData[]>();
     for (const maquina of maquinas) {
       const categoria = maquina.categoria || "Sin Categoría";
       if (!categorias.has(categoria)) categorias.set(categoria, []);
     }
 
+    // —— CAMBIO CLAVE: solo iteramos por REGISTROS reales de cada operario (no por días vacíos)
     for (const operario of operarios) {
-      for (const fecha of allDates) {
-        const fechaStr = fecha.toISOString().split("T")[0];
+      const registrosOperario =
+        registros?.filter((r) => r.operario_id === operario.id && !r.es_asistente) || [];
 
-        const registrosDelDia =
-          registros?.filter((r) => r.operario_id === operario.id && r.fecha === fechaStr && !r.es_asistente) || [];
+      if (registrosOperario.length === 0) continue;
 
-        if (registrosDelDia.length > 0) {
-          for (const registro of registrosDelDia) {
-            const categoria = registro.maquinas?.categoria || "Sin Categoría";
-            const maquinaNombre = registro.maquinas?.nombre || "N/A";
-            const asistentes = asistentesMap.get(registro.id) || [];
-            const asistenteNombres = asistentes.length > 0 ? asistentes.join(", ") : "Sin asistente";
+      for (const registro of registrosOperario) {
+        const categoria = registro.maquinas?.categoria || "Sin Categoría";
+        const maquinaNombre = registro.maquinas?.nombre || "N/A";
+        const asistentes = asistentesMap.get(registro.id) || [];
+        const asistenteNombres = asistentes.length > 0 ? asistentes.join(", ") : "Sin asistente";
+        const porcentajeSuma = porcentajesSumaOperarios.get(registro.operario_id) || 0;
 
-            const categoriaDatos = categorias.get(categoria)!;
+        const categoriaDatos = categorias.get(categoria)!;
 
-            if (registro.detalle_produccion && registro.detalle_produccion.length > 0) {
-              for (const detalle of registro.detalle_produccion) {
-                const porcentajeSuma = porcentajesSumaOperarios.get(registro.operario_id) || 0;
+        if (registro.detalle_produccion && registro.detalle_produccion.length > 0) {
+          for (const detalle of registro.detalle_produccion) {
+            const producido = Number(detalle?.produccion_real ?? 0);
+            const tipo = detalle?.productos?.tipo_producto || null;
 
-                const producido = Number(detalle?.produccion_real ?? 0);
-                const tipo = detalle?.productos?.tipo_producto || null;
-
-                // --- FIX: amarradora usa el % guardado (ya ajustado por 7–5 y por rama)
-                let porcentajeCumplimiento: number;
-                if (tipo === "arbol_amarradora") {
-                  porcentajeCumplimiento = Number(detalle?.porcentaje_cumplimiento ?? 0);
-                } else {
-                  const topeAjustado = this.getTopeAjustadoPorTurno(registro.turno, {
-                    tope: detalle?.productos?.tope,
-                    tope10: detalle?.productos?.tope_jornada_10h,
-                    tope8: detalle?.productos?.tope_jornada_8h,
-                    tipo_producto: tipo,
-                  });
-                  const recalculado = topeAjustado > 0 ? (producido / topeAjustado) * 100 : 0;
-                  // fallback al guardado si no hay tope
-                  porcentajeCumplimiento =
-                    topeAjustado > 0 ? recalculado : Number(detalle?.porcentaje_cumplimiento ?? 0);
-                }
-
-                categoriaDatos.push({
-                  fecha: this.formatDate(registro.fecha),
-                  turno: this.formatTurno(registro.turno),
-                  operario: operario.nombre,
-                  asistente: asistenteNombres,
-                  maquina: maquinaNombre,
-                  producto: detalle?.productos?.nombre || "N/A",
-                  producido,
-                  porcentajeCumplimiento,
-                  porcentajeSuma: porcentajeSuma,
-                });
-              }
+            // Amarradora: usa % guardado (ya viene ajustado)
+            let porcentajeCumplimiento: number;
+            if (tipo === "arbol_amarradora") {
+              porcentajeCumplimiento = Number(detalle?.porcentaje_cumplimiento ?? 0);
             } else {
-              const porcentajeSuma = porcentajesSumaOperarios.get(registro.operario_id) || 0;
-              categorias.get(categoria)!.push({
-                fecha: this.formatDate(registro.fecha),
-                turno: this.formatTurno(registro.turno),
-                operario: operario.nombre,
-                asistente: asistenteNombres,
-                maquina: maquinaNombre,
-                producto: "Sin producto",
-                producido: 0,
-                porcentajeCumplimiento: 0,
-                porcentajeSuma: porcentajeSuma,
+              const topeAjustado = this.getTopeAjustadoPorTurno(registro.turno, {
+                tope: detalle?.productos?.tope,
+                tope10: detalle?.productos?.tope_jornada_10h,
+                tope8: detalle?.productos?.tope_jornada_8h,
+                tipo_producto: tipo,
               });
+              const recalculado = topeAjustado > 0 ? (producido / topeAjustado) * 100 : 0;
+              porcentajeCumplimiento =
+                topeAjustado > 0 ? recalculado : Number(detalle?.porcentaje_cumplimiento ?? 0);
             }
+
+            categoriaDatos.push({
+              fecha: this.formatDate(registro.fecha),
+              turno: this.formatTurno(registro.turno),
+              operario: operario.nombre,
+              asistente: asistenteNombres,
+              maquina: maquinaNombre,
+              producto: detalle?.productos?.nombre || "N/A",
+              producido,
+              porcentajeCumplimiento,
+              porcentajeSuma: porcentajeSuma,
+            });
           }
         } else {
-          const categoriasOperario = await this.getOperatorCategories(operario.id, fechaInicio, fechaFin);
-          for (const categoria of categoriasOperario) {
-            const categoriaDatos = categorias.get(categoria);
-            if (categoriaDatos) {
-              const porcentajeSuma = porcentajesSumaOperarios.get(operario.id) || 0;
-              categoriaDatos.push({
-                fecha: this.formatDate(fechaStr),
-                turno: "Sin turno",
-                operario: operario.nombre,
-                asistente: "Sin asistente",
-                maquina: "Sin máquina",
-                producto: "Sin producto",
-                producido: 0,
-                porcentajeCumplimiento: 0,
-                porcentajeSuma: porcentajeSuma,
-              });
-            }
-          }
+          // Si existe un registro real pero SIN detalle, aún lo contamos como trabajado (sin producto)
+          categorias.get(categoria)!.push({
+            fecha: this.formatDate(registro.fecha),
+            turno: this.formatTurno(registro.turno),
+            operario: operario.nombre,
+            asistente: asistenteNombres,
+            maquina: maquinaNombre,
+            producto: "Sin producto",
+            producido: 0,
+            porcentajeCumplimiento: 0,
+            porcentajeSuma: porcentajeSuma,
+          });
         }
       }
     }
@@ -191,16 +169,14 @@ export class MachineReportService {
     const tope8 = Number(topes.tope8 ?? 0);
     const tope10 = Number(topes.tope10 ?? 0);
 
-    // Para árboles amarradora calculamos % con el valor guardado, no con tope
     if (topes.tipo_producto === "arbol_amarradora") {
       return 0;
     }
-
-    // Resto: 7–5 usa 10h; otros 8h
-    if (t === "7:00am - 5:00pm") return tope10;
-    return tope8;
+    if (t === "7:00am - 5:00pm") return tope10; // jornada 10h
+    return tope8; // por defecto 8h
   }
 
+  // (Aún disponible si lo necesitas en otros lugares)
   private generateDateRange(startDate: Date, endDate: Date): Date[] {
     const dates: Date[] = [];
     const currentDate = new Date(startDate);
@@ -211,6 +187,7 @@ export class MachineReportService {
     return dates;
   }
 
+  // (Ya no se usa para crear filas en días sin registros, lo dejo por si lo ocupas en otro lado)
   private async getOperatorCategories(operarioId: string, fechaInicio: Date, fechaFin: Date): Promise<string[]> {
     const startDate = fechaInicio.toISOString().split("T")[0];
     const endDate = fechaFin.toISOString().split("T")[0];
