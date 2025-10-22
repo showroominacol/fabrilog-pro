@@ -237,41 +237,71 @@ export default function RegistroProduccion() {
   };
 
   const calculatePerformance = () => {
-    if (!formData.productos.length || !formData.turno) {
-      setPorcentajeCumplimiento(0);
-      return;
-    }
+  if (!formData.productos.length || !formData.turno) {
+    setPorcentajeCumplimiento(0);
+    return;
+  }
 
-    let totalProduccionReal = 0;
-    let totalMeta = 0;
+  let sumaPorcentajes = 0;
 
-    formData.productos.forEach((producto) => {
-      if (!producto.producto_id) return;
+  formData.productos.forEach((producto) => {
+    if (!producto.producto_id) return;
 
-      const productoInfo = productos.find((p) => p.id === producto.producto_id);
-      if (!productoInfo) return;
+    const productoInfo = productos.find((p) => p.id === producto.producto_id);
+    if (!productoInfo) return;
 
-      if (productoInfo.tipo_producto === "arbol_amarradora") {
-        // ⚠️ calcular en tiempo real con el turno actual
-        const avg = calculatePromedioRamas(producto.ramas_amarradora || [], formData.turno as string);
-        totalProduccionReal += avg; // 0–100
-        totalMeta += 100;
-      } else {
-        const tope = getTopeForProduct(productoInfo, formData.turno as string);
-        if (tope > 0) {
-          totalProduccionReal += producto.produccion_real;
-          totalMeta += tope;
-        }
-      }
-    });
-
-    if (totalMeta > 0) {
-      const porcentaje = (totalProduccionReal / totalMeta) * 100;
-      setPorcentajeCumplimiento(porcentaje);
+    if (productoInfo.tipo_producto === "arbol_amarradora") {
+      // producto.produccion_real ya guarda el % promedio 0–100 (via calculatePromedioRamas)
+      const porcentajeProducto = calculatePromedioRamas(producto.ramas_amarradora || [], formData.turno as string);
+      sumaPorcentajes += isFinite(porcentajeProducto) ? porcentajeProducto : 0;
     } else {
-      setPorcentajeCumplimiento(0);
+      const tope = getTopeForProduct(productoInfo, formData.turno as string);
+      const porcentajeProducto = tope > 0 ? (Number(producto.produccion_real) / Number(tope)) * 100 : 0;
+      sumaPorcentajes += isFinite(porcentajeProducto) ? porcentajeProducto : 0;
     }
-  };
+  });
+
+  // Ahora el “porcentajeCumplimiento” que se muestra en el Card es la SUMA de %.
+  setPorcentajeCumplimiento(sumaPorcentajes);
+};
+
+
+  // const calculatePerformance = () => {
+  //   if (!formData.productos.length || !formData.turno) {
+  //     setPorcentajeCumplimiento(0);
+  //     return;
+  //   }
+
+  //   let totalProduccionReal = 0;
+  //   let totalMeta = 0;
+
+  //   formData.productos.forEach((producto) => {
+  //     if (!producto.producto_id) return;
+
+  //     const productoInfo = productos.find((p) => p.id === producto.producto_id);
+  //     if (!productoInfo) return;
+
+  //     if (productoInfo.tipo_producto === "arbol_amarradora") {
+  //       // ⚠️ calcular en tiempo real con el turno actual
+  //       const avg = calculatePromedioRamas(producto.ramas_amarradora || [], formData.turno as string);
+  //       totalProduccionReal += avg; // 0–100
+  //       totalMeta += 100;
+  //     } else {
+  //       const tope = getTopeForProduct(productoInfo, formData.turno as string);
+  //       if (tope > 0) {
+  //         totalProduccionReal += producto.produccion_real;
+  //         totalMeta += tope;
+  //       }
+  //     }
+  //   });
+
+  //   if (totalMeta > 0) {
+  //     const porcentaje = (totalProduccionReal / totalMeta) * 100;
+  //     setPorcentajeCumplimiento(porcentaje);
+  //   } else {
+  //     setPorcentajeCumplimiento(0);
+  //   }
+  // };
 
   const adjustDateForNightShift = (fecha: string, turno: string): string => {
     if (turno === "10:00pm - 6:00am") {
