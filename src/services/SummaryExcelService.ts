@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { supabase } from "@/integrations/supabase/client";
+
 // ================== Tipos del reporte ==================
 export interface EmployeeData {
   id: string;
@@ -33,7 +34,6 @@ export interface MachineData {
 }
 
 // ================== Tipos para consultas Supabase ==================
-// FKs duplicadas obligan a "pistar" relaciones con !<constraint_name>
 type DetalleRow = {
   produccion_real: number;
   porcentaje_cumplimiento: number;
@@ -47,34 +47,96 @@ type DetalleRow = {
   } | null;
 };
 
-type RegistroProduccionRow = {
+// ==== Prefetch: traemos TODO el rango y unimos asistentes por lotes ====
+type PrefetchedRegistro = {
   id: string;
-  fecha: string; // date (YYYY-MM-DD)
+  fecha: string; // YYYY-MM-DD
   turno: string;
-  maquinas?: { nombre: string; categoria: string | null } | null;
-  detalle_produccion?: DetalleRow[] | null;
+  operario_id: string;
+  maquinas: { nombre: string; categoria: string | null } | null;
+  registro_asistentes: { asistente_id: string }[] | null;
+  detalle_produccion: DetalleRow[] | null;
 };
 
-type PartAyudanteRow = {
-  registros_produccion: RegistroProduccionRow | null;
-};
+// ===== util batching para .in() grandes =====
+const IN_CHUNK_SIZE = 1000;
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
 
 // ================== Servicio ==================
 export class SummaryExcelService {
-  /**
-   * Genera el reporte resumen según el formato especificado
-   */
   async generateSummaryReport(fechaInicio: Date, fechaFin: Date): Promise<void> {
-    // 1) Obtener datos por empleado
     const employeeData = await this.getEmployeeData(fechaInicio, fechaFin);
-
-    // 2) Exportar a Excel
     await this.exportToExcel(employeeData, fechaInicio, fechaFin);
   }
 
-  /**
-   * Obtiene y procesa los datos de todos los empleados para el período
-   */
+  // =============== Prefetch con batching de asistentes (SIN embed) ===============
+  private async fetchRegistrosRange(fechaInicio: Date, fechaFin: Date): Promise<PrefetchedRegistro[]> {
+    const startDate = fechaInicio.toISOString().split("T")[0];
+    const endDate = fechaFin.toISOString().split("T")[0];
+
+    // 1) Registros con máquina y detalle (sin registro_asistentes)
+    const { data: regs, error: regsErr } = await supabase
+      .from("registros_produccion")
+      .select(`
+        id,
+        fecha,
+        turno,
+        operario_id,
+        maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
+        detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
+          produccion_real,
+          porcentaje_cumplimiento,
+          observaciones,
+          productos:productos!detalle_produccion_producto_id_fkey (
+            nombre,
+            tipo_producto,
+            tope,
+            tope_jornada_8h,
+            tope_jornada_10h
+          )
+        )
+      `)
+      .gte("fecha", startDate)
+      .lte("fecha", endDate)
+      .order("fecha", { ascending: true })
+      .limit(50000);
+
+    if (regsErr) throw regsErr;
+
+    const registros = (regs as unknown as PrefetchedRegistro[]) ?? [];
+    if (registros.length === 0) return [];
+
+    // 2) Asistentes por lotes para evitar URLs gigantes en .in()
+    const ids = registros.map((r) => r.id);
+    const chunks = chunkArray(ids, IN_CHUNK_SIZE);
+
+    const asistentesAcumulados: { registro_id: string; asistente_id: string }[] = [];
+    for (const idsChunk of chunks) {
+      const { data: asistentes, error: asisErr } = await supabase
+        .from("registro_asistentes")
+        .select("registro_id, asistente_id")
+        .in("registro_id", idsChunk);
+      if (asisErr) throw asisErr;
+      if (asistentes?.length) asistentesAcumulados.push(...asistentes);
+    }
+
+    // 3) Indexar y adjuntar
+    const asistByReg = new Map<string, { asistente_id: string }[]>();
+    for (const a of asistentesAcumulados) {
+      if (!asistByReg.has(a.registro_id)) asistByReg.set(a.registro_id, []);
+      asistByReg.get(a.registro_id)!.push({ asistente_id: a.asistente_id });
+    }
+    for (const r of registros) {
+      r.registro_asistentes = asistByReg.get(r.id) ?? [];
+    }
+
+    return registros;
+  }
+
   private async getEmployeeData(fechaInicio: Date, fechaFin: Date): Promise<EmployeeData[]> {
     // Empleados activos
     const { data: empleados, error: errUsers } = await supabase
@@ -86,34 +148,37 @@ export class SummaryExcelService {
     if (errUsers) throw errUsers;
     if (!empleados) return [];
 
-    // Días laborables del rango
+    // Prefetch único
+    const registros = await this.fetchRegistrosRange(fechaInicio, fechaFin);
+
+    // Días a laborar
     const diasXLaborar = this.calculateWorkingDays(fechaInicio, fechaFin);
 
-    // Categorías (únicas) de máquinas activas
-    const { data: categoriasRows, error: errCats } = await supabase
-      .from("maquinas")
-      .select("categoria")
-      .eq("activa", true);
+    // Categorías únicas desde los registros
+    const categoriasUnicas = Array.from(
+      new Set(registros.map((r) => r.maquinas?.categoria).filter((c): c is string => !!c))
+    ).sort();
 
-    if (errCats) throw errCats;
+    // Armar data sin más fetch
+    return empleados.map((empleado) => {
+      const regsOp = registros.filter((r) => r.operario_id === empleado.id);
+      const regsAyu = registros.filter((r) => (r.registro_asistentes ?? []).some((a) => a.asistente_id === empleado.id));
 
-    const categoriasUnicas = [
-      ...new Set((categoriasRows ?? []).map((c: any) => c.categoria).filter(Boolean)),
-    ] as string[];
+      const diasRealLaborados = this.getRealWorkedDaysFromPrefetched(regsOp, regsAyu);
 
-    // Armar data por empleado
-    const employeeDataPromises = empleados.map(async (empleado) => {
-      const diasRealLaborados = await this.getRealWorkedDays(empleado.id, fechaInicio, fechaFin);
+      const bloques: CategoryBlock[] = categoriasUnicas
+        .map((categoria) => {
+          const regsOpCat = regsOp.filter((r) => r.maquinas?.categoria === categoria);
+          const regsAyuCat = regsAyu.filter((r) => r.maquinas?.categoria === categoria);
+          return {
+            categoria,
+            operario: this.generateBlockDataSync(regsOpCat),
+            ayudante: this.generateBlockDataSync(regsAyuCat),
+          };
+        })
+        .filter((b) => b.operario.dias > 0 || b.ayudante.dias > 0);
 
-      const bloques = await Promise.all(
-        categoriasUnicas.map((categoria) => this.generateCategoryBlock(empleado.id, categoria, fechaInicio, fechaFin)),
-      );
-
-      const bloquesFiltered = (bloques.filter(Boolean) as CategoryBlock[]) ?? [];
-
-      // Calcular bono total (se mantiene tu lógica original en JS;
-      // además lo reescribiremos con fórmula en Excel)
-      const bonoTotal = this.calculateBonoTotal(bloquesFiltered, diasXLaborar);
+      const bonoTotal = this.calculateBonoTotal(bloques, diasXLaborar);
 
       return {
         id: empleado.id,
@@ -122,354 +187,126 @@ export class SummaryExcelService {
         diasRealLaborados,
         observacion: "",
         bonoTotal,
-        bloques: bloquesFiltered,
+        bloques,
       };
     });
-
-    return await Promise.all(employeeDataPromises);
   }
 
-  /**
-   * Calcula los días laborales del período (incluye lunes a sábado, excluye domingo)
-   */
+  // ======= utilidades de cálculo (sin fetch) =======
   private calculateWorkingDays(fechaInicio: Date, fechaFin: Date): number {
     let count = 0;
     const current = new Date(Date.UTC(fechaInicio.getFullYear(), fechaInicio.getMonth(), fechaInicio.getDate()));
     const end = new Date(Date.UTC(fechaFin.getFullYear(), fechaFin.getMonth(), fechaFin.getDate()));
-
     while (current <= end) {
-      const dayOfWeek = current.getUTCDay(); // 0 dom, 6 sáb
-      // Incluir lunes a sábado
-      if (dayOfWeek !== 0) count++;
+      const dayOfWeek = current.getUTCDay(); // 0=dom
+      if (dayOfWeek !== 0) count++; // lun-sáb
       current.setUTCDate(current.getUTCDate() + 1);
     }
     return count;
   }
 
-  /**
-   * Calcula el bono total del empleado (se deja igual a tu versión original)
-   * Incluye porcentajes trabajados como OPERARIO y como AYUDANTE.
-   * Se sigue dividiendo entre los días del rango (diasDelRango).
-   * BONO_TOTAL = ( Σ_máquinas[(%op * días_op) + (%ayu * días_ayu)] ) / (días x laborar)
-   * con fallback a nivel de rol si no hay máquinas.
-   */
+  private getRealWorkedDaysFromPrefetched(regsOp: PrefetchedRegistro[], regsAyu: PrefetchedRegistro[]): number {
+    const fechas = new Set<string>();
+    for (const r of regsOp) if (r.detalle_produccion?.length) fechas.add(r.fecha);
+    for (const r of regsAyu) if (r.detalle_produccion?.length) fechas.add(r.fecha);
+    return fechas.size;
+  }
+
   private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): number {
     if (diasDelRango <= 0 || !bloques?.length) return 0;
-
     let sumaPonderada = 0;
 
     for (const bloque of bloques) {
-      // ----- Operario -----
       const mOp = bloque.operario?.maquinas ?? [];
-      if (mOp.length > 0) {
-        for (const m of mOp) {
-          const pct = Number(m.porcentaje) || 0;
-          const d = Number(m.dias) || 0;
-          sumaPonderada += pct * d;
-        }
+      if (mOp.length) {
+        for (const m of mOp) sumaPonderada += (Number(m.porcentaje) || 0) * (Number(m.dias) || 0);
       } else if ((bloque.operario?.dias ?? 0) > 0) {
-        // Fallback por rol
         sumaPonderada += (Number(bloque.operario.porcentaje) || 0) * (Number(bloque.operario.dias) || 0);
       }
 
-      // ----- Ayudante -----
       const mAy = bloque.ayudante?.maquinas ?? [];
-      if (mAy.length > 0) {
-        for (const m of mAy) {
-          const pct = Number(m.porcentaje) || 0;
-          const d = Number(m.dias) || 0;
-          sumaPonderada += pct * d;
-        }
+      if (mAy.length) {
+        for (const m of mAy) sumaPonderada += (Number(m.porcentaje) || 0) * (Number(m.dias) || 0);
       } else if ((bloque.ayudante?.dias ?? 0) > 0) {
-        // Fallback por rol
         sumaPonderada += (Number(bloque.ayudante.porcentaje) || 0) * (Number(bloque.ayudante.dias) || 0);
       }
     }
 
     const bono = sumaPonderada / diasDelRango;
-    return Math.round(bono * 10) / 10; // 1 decimal
+    return Math.round(bono * 10) / 10;
   }
 
-  /**
-   * Días realmente laborados por empleado (cuenta OPERARIO + AYUDANTE)
-   */
-  private async getRealWorkedDays(empleadoId: string, fechaInicio: Date, fechaFin: Date): Promise<number> {
-    const startDate = fechaInicio.toISOString().split("T")[0];
-    const endDate = fechaFin.toISOString().split("T")[0];
-
-    // Como OPERARIO (directo)
-    const { data: regsOp, error: errOp } = await supabase
-      .from("registros_produccion")
-      .select("fecha")
-      .eq("operario_id", empleadoId)
-      .gte("fecha", startDate)
-      .lte("fecha", endDate);
-    if (errOp) throw errOp;
-
-    // Como AYUDANTE (2 pasos: pivote -> ids -> registros_produccion)
-    const { data: ayuLinks, error: errLinks } = await supabase
-      .from("registro_asistentes")
-      .select("registro_id")
-      .eq("asistente_id", empleadoId);
-    if (errLinks) throw errLinks;
-
-    let regsAyu: { fecha: string }[] = [];
-    const ids = (ayuLinks ?? []).map((l) => l.registro_id).filter(Boolean);
-    if (ids.length > 0) {
-      const { data, error } = await supabase
-        .from("registros_produccion")
-        .select("fecha")
-        .in("id", ids)
-        .gte("fecha", startDate)
-        .lte("fecha", endDate);
-      if (error) throw error;
-      regsAyu = data ?? [];
-    }
-
-    const fechas = new Set<string>();
-    (regsOp ?? []).forEach((r) => r?.fecha && fechas.add(r.fecha));
-    (regsAyu ?? []).forEach((r) => r?.fecha && fechas.add(r.fecha));
-
-    return fechas.size;
-  }
-
-  /**
-   * Genera el bloque de datos por categoría (separa Operario / Ayudante)
-   * (incluye mejoras: acumulación diaria robusta y no contar días sin detalle)
-   */
-  private async generateCategoryBlock(
-    empleadoId: string,
-    categoria: string,
-    fechaInicio: Date,
-    fechaFin: Date,
-  ): Promise<CategoryBlock | null> {
-    const startDate = fechaInicio.toISOString().split("T")[0];
-    const endDate = fechaFin.toISOString().split("T")[0];
-
-    // === Registros donde el empleado fue OPERARIO ===
-    const { data: regsOperarioRaw, error: errOp } = await supabase
-      .from("registros_produccion")
-      .select(
-        `
-        id,
-        fecha,
-        turno,
-        maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
-        detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
-          produccion_real,
-          porcentaje_cumplimiento,
-          observaciones,
-          productos:productos!detalle_produccion_producto_id_fkey ( 
-            nombre,
-            tipo_producto,
-            tope,
-            tope_jornada_8h,
-            tope_jornada_10h
-          )
-        )
-      `,
-      )
-      .eq("operario_id", empleadoId)
-      .gte("fecha", startDate)
-      .lte("fecha", endDate);
-
-    if (errOp) throw errOp;
-
-    const regsOperario = (regsOperarioRaw ?? []).filter(
-      (r: RegistroProduccionRow) => r?.maquinas?.categoria === categoria,
-    ) as RegistroProduccionRow[];
-
-    // === Registros donde el empleado fue AYUDANTE (pivote en 2 pasos) ===
-    const { data: ayuLinks, error: errLinks } = await supabase
-      .from("registro_asistentes")
-      .select("registro_id")
-      .eq("asistente_id", empleadoId);
-
-    if (errLinks) throw errLinks;
-
-    let regsAyudante: RegistroProduccionRow[] = [];
-    const idsAyu = (ayuLinks ?? []).map((l) => l.registro_id).filter(Boolean);
-
-    if (idsAyu.length > 0) {
-      const { data: regsAyuRaw, error: errAyuRegs } = await supabase
-        .from("registros_produccion")
-        .select(
-          `
-          id,
-          fecha,
-          turno,
-          maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
-          detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
-            produccion_real,
-            porcentaje_cumplimiento,
-            observaciones,
-            productos:productos!detalle_produccion_producto_id_fkey ( 
-              nombre,
-              tipo_producto,
-              tope,
-              tope_jornada_8h,
-              tope_jornada_10h
-            )
-          )
-        `,
-        )
-        .in("id", idsAyu)
-        .gte("fecha", startDate)
-        .lte("fecha", endDate);
-
-      if (errAyuRegs) throw errAyuRegs;
-
-      regsAyudante = (regsAyuRaw ?? []).filter(
-        (r: RegistroProduccionRow) => r?.maquinas?.categoria === categoria,
-      ) as RegistroProduccionRow[];
-    }
-
-    // Evitar duplicados por seguridad (mismo registro_id)
-    const uniqById = (arr: RegistroProduccionRow[]) => {
-      const m = new Map<string, RegistroProduccionRow>();
-      for (const r of arr) if (r?.id && !m.has(r.id)) m.set(r.id, r);
-      return Array.from(m.values());
-    };
-
-    const registrosOperario = uniqById(regsOperario);
-    const registrosAyudante = uniqById(regsAyudante);
-
-    if (registrosOperario.length === 0 && registrosAyudante.length === 0) return null;
-
-    const [operarioData, ayudanteData] = await Promise.all([
-      this.generateBlockData(registrosOperario),
-      this.generateBlockData(registrosAyudante),
-    ]);
-
-    return {
-      categoria,
-      operario: operarioData,
-      ayudante: ayudanteData,
-    };
-  }
-
-  /**
-   * Genera los datos de un bloque (operario o ayudante)
-   * — Mejora 1: NO cuenta días sin detalle.
-   * — Mejora 2: ACUMULA porcentajes si hay varios registros el mismo día.
-   * — Mantiene uso de tope_jornada_10h cuando turno === "7:00am - 5:00pm",
-   *   y tope_jornada_8h en los demás casos (fallback a tope general).
-   * — Devuelve porcentajes NUMÉRICOS (no "85%").
-   */
-  private async generateBlockData(registros: RegistroProduccionRow[]): Promise<BlockData> {
-    if (!registros || registros.length === 0) {
-      return { porcentaje: 0, dias: 0, observaciones: "", maquinas: [] };
-    }
+  private generateBlockDataSync(registros: PrefetchedRegistro[]): BlockData {
+    if (!registros?.length) return { porcentaje: 0, dias: 0, observaciones: "", maquinas: [] };
 
     const porcentajesPorDia = new Map<string, number>();
     const observacionesSet = new Set<string>();
 
     for (const registro of registros) {
-      // NO contar días sin detalle
       if (!registro.detalle_produccion?.length) continue;
 
-      const fecha = registro.fecha;
       let sumaPorcentajeDia = 0;
-
       for (const detalle of registro.detalle_produccion) {
         let pct = 0;
-
-        // Para árboles amarradora, usar el porcentaje_cumplimiento directamente
         if (detalle.productos?.tipo_producto === "arbol_amarradora") {
           pct = Number(detalle.porcentaje_cumplimiento) || 0;
         } else {
-          // Para otros productos, calcular el porcentaje con el tope apropiado
           let jornadaTope: number | null = null;
           const turnoTexto = this.formatTurno(registro.turno);
-
-          if (turnoTexto === "7:00am - 5:00pm") {
-            jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
-          } else {
-            jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
-          }
-
+          if (turnoTexto === "7:00am - 5:00pm") jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
+          else jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
           const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
           pct = tope > 0 ? (Number(detalle.produccion_real) / Number(tope)) * 100 : 0;
         }
-
         sumaPorcentajeDia += pct;
 
-        // Recopilar observaciones
-        if (detalle.observaciones && detalle.observaciones.trim()) {
-          observacionesSet.add(detalle.observaciones.trim());
-        }
+        if (detalle.observaciones?.trim()) observacionesSet.add(detalle.observaciones.trim());
       }
 
-      // ACUMULACIÓN diaria robusta
-      const anterior = porcentajesPorDia.get(fecha) ?? 0;
-      porcentajesPorDia.set(fecha, anterior + sumaPorcentajeDia);
+      const anterior = porcentajesPorDia.get(registro.fecha) ?? 0;
+      porcentajesPorDia.set(registro.fecha, anterior + sumaPorcentajeDia);
     }
 
     const porcentajes = Array.from(porcentajesPorDia.values());
     const porcentajePromedio =
-      porcentajes.length > 0 ? porcentajes.reduce((sum, p) => sum + p, 0) / porcentajes.length : 0;
+      porcentajes.length > 0 ? porcentajes.reduce((s, v) => s + v, 0) / porcentajes.length : 0;
 
-    const dias = porcentajesPorDia.size;
-    const observaciones = Array.from(observacionesSet).join(" | ");
-
-    // Por máquina (sin cambios de lógica)
-    const maquinasData = await this.generateMachineData(registros);
+    const maquinasData = this.generateMachineDataSync(registros);
 
     return {
       porcentaje: Math.round(porcentajePromedio * 10) / 10,
-      dias,
-      observaciones,
+      dias: porcentajesPorDia.size,
+      observaciones: Array.from(observacionesSet).join(" | "),
       maquinas: maquinasData,
     };
   }
 
-  /**
-   * Genera los datos específicos por máquina
-   * — Mantiene tu lógica, solo numérica
-   */
-  private async generateMachineData(registros: RegistroProduccionRow[]): Promise<MachineData[]> {
+  private generateMachineDataSync(registros: PrefetchedRegistro[]): MachineData[] {
     const maquinasMap = new Map<string, { porcentajes: number[]; dias: Set<string>; observaciones: Set<string> }>();
 
     for (const registro of registros) {
-      // NO contar días sin detalle
       if (!registro.detalle_produccion?.length) continue;
 
-      const maquinaNombre = registro.maquinas?.nombre || "Sin máquina";
-      if (!maquinasMap.has(maquinaNombre)) {
-        maquinasMap.set(maquinaNombre, {
-          porcentajes: [],
-          dias: new Set<string>(),
-          observaciones: new Set<string>(),
-        });
+      const nombre = registro.maquinas?.nombre || "Sin máquina";
+      if (!maquinasMap.has(nombre)) {
+        maquinasMap.set(nombre, { porcentajes: [], dias: new Set<string>(), observaciones: new Set<string>() });
       }
-
-      const agg = maquinasMap.get(maquinaNombre)!;
+      const agg = maquinasMap.get(nombre)!;
       agg.dias.add(registro.fecha);
 
       let pctRegistro = 0;
       for (const d of registro.detalle_produccion) {
-        // Para árboles amarradora, usar el porcentaje_cumplimiento directamente
         if (d.productos?.tipo_producto === "arbol_amarradora") {
           pctRegistro += Number(d.porcentaje_cumplimiento) || 0;
         } else {
-          // Para otros productos, calcular el porcentaje con el tope apropiado
           let jornadaTope: number | null = null;
           const turnoTexto = this.formatTurno(registro.turno);
-
-          if (turnoTexto === "7:00am - 5:00pm") {
-            jornadaTope = d.productos?.tope_jornada_10h ?? null;
-          } else {
-            jornadaTope = d.productos?.tope_jornada_8h ?? null;
-          }
-
+          if (turnoTexto === "7:00am - 5:00pm") jornadaTope = d.productos?.tope_jornada_10h ?? null;
+          else jornadaTope = d.productos?.tope_jornada_8h ?? null;
           const tope = jornadaTope ?? d.productos?.tope ?? 0;
           pctRegistro += tope > 0 ? (Number(d.produccion_real) / Number(tope)) * 100 : 0;
         }
-
-        // Recopilar observaciones
-        if (d.observaciones && d.observaciones.trim()) {
-          agg.observaciones.add(d.observaciones.trim());
-        }
+        if (d.observaciones?.trim()) agg.observaciones.add(d.observaciones.trim());
       }
       agg.porcentajes.push(pctRegistro);
     }
@@ -488,9 +325,6 @@ export class SummaryExcelService {
       .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }
 
-  /**
-   * Formatea el turno para mostrar
-   */
   private formatTurno(turno: string): string {
     switch (turno) {
       case "manana":
@@ -500,40 +334,27 @@ export class SummaryExcelService {
       case "noche":
         return "11:30pm - 7:00am";
       default:
-        // Si viene "7:00am - 5:00pm" u otros ya formateados, los respeta
         return turno;
     }
   }
 
-  /**
-   * Exporta a Excel con:
-   *  - porcentajes como NÚMEROS
-   *  - fórmula dinámica en BONO TOTAL (col D)
-   */
+  // ================== Export a Excel ==================
   private async exportToExcel(employeeData: EmployeeData[], fechaInicio: Date, fechaFin: Date): Promise<void> {
     const workbook = XLSX.utils.book_new();
 
-    // Categorías presentes
     const todasCategorias = [...new Set(employeeData.flatMap((e) => e.bloques.map((b) => b.categoria)))].sort();
 
-    // Encabezados (2 filas) + datos (con % numéricos)
     const headers = this.createHeaders(todasCategorias);
     const rows = this.createDataRows(employeeData, todasCategorias);
     const sheetData = [...headers, ...rows];
 
     const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
-    // === Fórmula dinámica en D (bono total = SUMA de todos los % de OP y AYU / DIAS X LABORAR) ===
-    const startRow = 3; // tras 2 filas de encabezado
+    // Fórmula dinámica en D (BONO TOTAL = SUMA % OP/AYU / DÍAS X LABORAR)
+    const startRow = 3; // después de 2 filas de encabezado
     for (let i = 0; i < employeeData.length; i++) {
       const rowIndex = startRow + i;
-
-      // Columna 2 (B) tiene DIAS X LABORAR
       const diasCell = `B${rowIndex}`;
-
-      // Construcción de celdas de porcentaje (OP% y AYU%) por categoría:
-      // E es col 5. Por cada categoría hay 6 columnas:
-      // [OP% (5+6k), OP DÍAS, OP OBS, AYU% (8+6k), AYU DÍAS, AYU OBS]
       const percentCells: string[] = [];
       for (let k = 0; k < todasCategorias.length; k++) {
         const opPctCol = 5 + 6 * k;
@@ -541,14 +362,11 @@ export class SummaryExcelService {
         percentCells.push(`${this.columnLetter(opPctCol)}${rowIndex}`);
         percentCells.push(`${this.columnLetter(ayuPctCol)}${rowIndex}`);
       }
-
-      const formula =
-        percentCells.length > 0 ? `IF(${diasCell}>0,SUM(${percentCells.join(",")})/${diasCell},0)` : `0`;
-
-      worksheet[`D${rowIndex}`] = { f: formula };
+      worksheet[`D${rowIndex}`] = {
+        f: percentCells.length > 0 ? `IF(${diasCell}>0,SUM(${percentCells.join(",")})/${diasCell},0)` : `0`,
+      };
     }
 
-    // Estilos/bordes (nota: estilos requieren SheetJS Pro; si no, se ignoran)
     this.applyWorksheetStyles(worksheet, todasCategorias, employeeData.length);
 
     XLSX.utils.book_append_sheet(workbook, worksheet, "Resumen Producción");
@@ -561,9 +379,6 @@ export class SummaryExcelService {
     saveAs(blob, filename);
   }
 
-  /**
-   * Convierte índice (1=A) a letra Excel
-   */
   private columnLetter(colIndex: number): string {
     let letter = "";
     while (colIndex > 0) {
@@ -574,107 +389,72 @@ export class SummaryExcelService {
     return letter;
   }
 
-  /**
-   * Crea los encabezados del Excel (dos filas)
-   * (tipado numérico para permitir números en datos)
-   */
   private createHeaders(categorias: string[]): (string | number)[][] {
-    const header1: (string | number)[] = ["NOMBRE", "DIAS X LABORAR", "DIAS REAL LABORADOS", "BONO TOTAL"];
-    const header2: (string | number)[] = ["", "", "", ""];
-
+    const h1: (string | number)[] = ["NOMBRE", "DIAS X LABORAR", "DIAS REAL LABORADOS", "BONO TOTAL"];
+    const h2: (string | number)[] = ["", "", "", ""];
     for (const categoria of categorias) {
-      // OP
-      header1.push(`OP. ${categoria.toUpperCase()}`, "", "");
-      header2.push("%", "DÍAS", "OBSERVACIONES");
-      // AYU
-      header1.push(`AYU. ${categoria.toUpperCase()}`, "", "");
-      header2.push("%", "DÍAS", "OBSERVACIONES");
+      h1.push(`OP. ${categoria.toUpperCase()}`, "", "");
+      h2.push("%", "DÍAS", "OBSERVACIONES");
+      h1.push(`AYU. ${categoria.toUpperCase()}`, "", "");
+      h2.push("%", "DÍAS", "OBSERVACIONES");
     }
-
-    return [header1, header2];
+    return [h1, h2];
   }
 
-  /**
-   * Crea las filas de datos del Excel
-   * — Porcentajes como NÚMEROS (no "85%")
-   */
   private createDataRows(employeeData: EmployeeData[], categorias: string[]): (string | number)[][] {
     const rows: (string | number)[][] = [];
-
     for (const empleado of employeeData) {
       const row: (string | number)[] = [
         empleado.nombre,
         empleado.diasXLaborar,
         empleado.diasRealLaborados,
-        empleado.bonoTotal, // será reemplazado por fórmula al exportar
+        empleado.bonoTotal, // se reemplaza por fórmula al exportar
       ];
-
       for (const categoria of categorias) {
-        const bloque = empleado.bloques.find((b) => b.categoria === categoria);
-
-        if (bloque) {
-          // OP
-          if (bloque.operario.dias > 0) {
-            row.push(
-              Number(bloque.operario.porcentaje), // % numérico
-              Number(bloque.operario.dias),
-              bloque.operario.observaciones || "",
-            );
+        const b = empleado.bloques.find((x) => x.categoria === categoria);
+        if (b) {
+          if (b.operario.dias > 0) {
+            row.push(Number(b.operario.porcentaje), Number(b.operario.dias), b.operario.observaciones || "");
           } else {
             row.push("", "", "");
           }
-          // AYU
-          if (bloque.ayudante.dias > 0) {
-            row.push(
-              Number(bloque.ayudante.porcentaje), // % numérico
-              Number(bloque.ayudante.dias),
-              bloque.ayudante.observaciones || "",
-            );
+          if (b.ayudante.dias > 0) {
+            row.push(Number(b.ayudante.porcentaje), Number(b.ayudante.dias), b.ayudante.observaciones || "");
           } else {
             row.push("", "", "");
           }
         } else {
-          // Sin datos en la categoría
           row.push("", "", "", "", "", "");
         }
       }
-
       rows.push(row);
     }
-
     return rows;
   }
 
-  /**
-   * Aplica estilos a la hoja
-   */
   private applyWorksheetStyles(worksheet: XLSX.WorkSheet, categorias: string[], numEmployees: number): void {
     const rangeRef = worksheet["!ref"] || "A1:A1";
     const range = XLSX.utils.decode_range(rangeRef);
 
-    // Anchos de columnas base
     const colWidths = [
       { width: 25 }, // NOMBRE
       { width: 15 }, // DIAS X LABORAR
       { width: 18 }, // DIAS REAL LABORADOS
       { width: 12 }, // BONO TOTAL
     ];
-
-    // Por cada categoría: OP(3) + AYU(3)
     for (let i = 0; i < categorias.length; i++) {
       colWidths.push(
         { width: 8 }, // OP %
         { width: 8 }, // OP DÍAS
-        { width: 30 }, // OP OBSERVACIONES
+        { width: 30 }, // OP OBS
         { width: 8 }, // AYU %
         { width: 8 }, // AYU DÍAS
-        { width: 30 }, // AYU OBSERVACIONES
+        { width: 30 } // AYU OBS
       );
     }
     (worksheet as any)["!cols"] = colWidths;
 
-    // Bordes y alineación básica para todas las celdas existentes
-    const totalRows = numEmployees + 2; // 2 filas de encabezado
+    const totalRows = numEmployees + 2;
     for (let r = 0; r < totalRows; r++) {
       for (let c = range.s.c; c <= range.e.c; c++) {
         const addr = XLSX.utils.encode_cell({ r, c });
@@ -692,9 +472,6 @@ export class SummaryExcelService {
     }
   }
 
-  /**
-   * Genera el nombre del archivo
-   */
   private generateFilename(fechaInicio: Date, fechaFin: Date): string {
     const inicio = fechaInicio.toISOString().split("T")[0].replace(/-/g, "");
     const fin = fechaFin.toISOString().split("T")[0].replace(/-/g, "");
