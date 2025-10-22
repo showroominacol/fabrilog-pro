@@ -21,9 +21,9 @@ export interface MachineReportByCategory {
 
 export class MachineReportService {
   async generateMachineReport(fechaInicio: Date, fechaFin: Date): Promise<MachineReportByCategory[]> {
-    // NO usar toISOString(): se conserva la fecha local (date-only)
-    const startDate = this.toYMD(fechaInicio);
-    const endDate   = this.toYMD(fechaFin);
+    // Fechas puras para columna DATE
+    const startDate = this.toYMD(fechaInicio); // YYYY-MM-DD
+    const endDate   = this.toYMD(fechaFin);    // YYYY-MM-DD
 
     const { data: operarios } = await supabase
       .from("usuarios")
@@ -67,8 +67,8 @@ export class MachineReportService {
         )
       `,
       )
-      .gte("fecha", startDate)
-      .lte("fecha", endDate)
+      .gte("fecha", startDate) // inclusivo
+      .lte("fecha", endDate)   // inclusivo (columna DATE)
       .order("fecha", { ascending: true })
       .order("turno", { ascending: true });
 
@@ -186,17 +186,16 @@ export class MachineReportService {
     return tope8; // por defecto 8h
   }
 
-  // Helper: convierte Date a 'YYYY-MM-DD' con componentes locales (sin UTC)
-  private toYMD(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }
+  // Reemplaza tu toYMD por esta versión
+private toYMD(d: Date): string {
+  // IMPORTANTÍSIMO: usar UTC para evitar el corrimiento -05:00
+  // Si el Date viene de "YYYY-MM-DD", toISOString() preserva ese día exacto.
+  return d.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+}
 
-  // Formatea una fecha 'YYYY-MM-DD' (o 'YYYY-MM-DDTHH:mm:ss...') a 'dd/mm/yyyy' sin usar new Date
+  // Formatea una fecha 'YYYY-MM-DD' a 'dd/mm/yyyy' sin usar new Date
   private formatDate(dbDate: string): string {
-    const ymd = dbDate.split("T")[0];
+    const ymd = dbDate.split("T")[0]; // si viene como 'YYYY-MM-DD' se queda igual
     const [y, m, d] = ymd.split("-");
     return `${d.padStart(2, "0")}/${m.padStart(2, "0")}/${y}`;
   }
@@ -225,8 +224,8 @@ export class MachineReportService {
     fechaInicio: Date,
     fechaFin: Date,
   ): Promise<{ fecha: string; porcentajeTotal: number }[]> {
-    const startDate = this.toYMD(fechaInicio);
-    const endDate   = this.toYMD(fechaFin);
+    const startDate = this.toYMD(fechaInicio); // YYYY-MM-DD
+    const endDate   = this.toYMD(fechaFin);    // YYYY-MM-DD
 
     const { data: registros } = await supabase
       .from("registros_produccion")
@@ -241,13 +240,13 @@ export class MachineReportService {
       .eq("operario_id", operarioId)
       .eq("es_asistente", false)
       .gte("fecha", startDate)
-      .lte("fecha", endDate);
+      .lte("fecha", endDate); // inclusivo
 
     if (!registros) return [];
 
     const diasMap = new Map<string, number>();
     for (const registro of registros) {
-      const ymd = (registro as any).fecha.split("T")[0]; // asegura date-only
+      const ymd = (registro as any).fecha.split("T")[0]; // asegura 'YYYY-MM-DD'
       if (!diasMap.has(ymd)) diasMap.set(ymd, 0);
       if ((registro as any).detalle_produccion) {
         const porcentajeTotal = (registro as any).detalle_produccion.reduce(
@@ -257,7 +256,7 @@ export class MachineReportService {
         diasMap.set(ymd, (diasMap.get(ymd) || 0) + porcentajeTotal);
       }
     }
-    // devolvemos fecha ya formateada dd/mm/yyyy
+    // devolvemos fecha formateada dd/mm/yyyy
     return Array.from(diasMap.entries()).map(([ymd, porcentajeTotal]) => ({
       fecha: this.formatDate(ymd),
       porcentajeTotal,
