@@ -7,9 +7,9 @@ export interface EmployeeData {
   id: string;
   nombre: string;
   diasXLaborar: number;
-  diasRealLaborados: number;
+  diasRealLaborados: number; // se calculará en Excel
   observacion: string;
-  bonoTotal: number;
+  bonoTotal: number; // se calculará en Excel
   bloques: CategoryBlock[];
 }
 
@@ -110,7 +110,7 @@ export class SummaryExcelService {
     const registros = (regs as unknown as PrefetchedRegistro[]) ?? [];
     if (registros.length === 0) return [];
 
-    // 2) Asistentes por lotes para evitar URLs gigantes en .in()
+    // 2) Asistentes por lotes
     const ids = registros.map((r) => r.id);
     const chunks = chunkArray(ids, IN_CHUNK_SIZE);
 
@@ -151,7 +151,7 @@ export class SummaryExcelService {
     // Prefetch único
     const registros = await this.fetchRegistrosRange(fechaInicio, fechaFin);
 
-    // Días a laborar
+    // Días a laborar (B)
     const diasXLaborar = this.calculateWorkingDays(fechaInicio, fechaFin);
 
     // Categorías únicas desde los registros
@@ -159,12 +159,10 @@ export class SummaryExcelService {
       new Set(registros.map((r) => r.maquinas?.categoria).filter((c): c is string => !!c))
     ).sort();
 
-    // Armar data sin más fetch
+    // Armar data (dejamos bonoTotal y diasRealLaborados a 0; Excel los calculará)
     return empleados.map((empleado) => {
       const regsOp = registros.filter((r) => r.operario_id === empleado.id);
       const regsAyu = registros.filter((r) => (r.registro_asistentes ?? []).some((a) => a.asistente_id === empleado.id));
-
-      const diasRealLaborados = this.getRealWorkedDaysFromPrefetched(regsOp, regsAyu);
 
       const bloques: CategoryBlock[] = categoriasUnicas
         .map((categoria) => {
@@ -178,15 +176,13 @@ export class SummaryExcelService {
         })
         .filter((b) => b.operario.dias > 0 || b.ayudante.dias > 0);
 
-      const bonoTotal = this.calculateBonoTotal(bloques, diasXLaborar);
-
       return {
         id: empleado.id,
         nombre: empleado.nombre,
         diasXLaborar,
-        diasRealLaborados,
+        diasRealLaborados: 0, // lo sobreescribimos en Excel
         observacion: "",
-        bonoTotal,
+        bonoTotal: 0, // lo sobreescribimos en Excel
         bloques,
       };
     });
@@ -203,37 +199,6 @@ export class SummaryExcelService {
       current.setUTCDate(current.getUTCDate() + 1);
     }
     return count;
-  }
-
-  private getRealWorkedDaysFromPrefetched(regsOp: PrefetchedRegistro[], regsAyu: PrefetchedRegistro[]): number {
-    const fechas = new Set<string>();
-    for (const r of regsOp) if (r.detalle_produccion?.length) fechas.add(r.fecha);
-    for (const r of regsAyu) if (r.detalle_produccion?.length) fechas.add(r.fecha);
-    return fechas.size;
-  }
-
-  private calculateBonoTotal(bloques: CategoryBlock[], diasDelRango: number): number {
-    if (diasDelRango <= 0 || !bloques?.length) return 0;
-    let sumaPonderada = 0;
-
-    for (const bloque of bloques) {
-      const mOp = bloque.operario?.maquinas ?? [];
-      if (mOp.length) {
-        for (const m of mOp) sumaPonderada += (Number(m.porcentaje) || 0) * (Number(m.dias) || 0);
-      } else if ((bloque.operario?.dias ?? 0) > 0) {
-        sumaPonderada += (Number(bloque.operario.porcentaje) || 0) * (Number(bloque.operario.dias) || 0);
-      }
-
-      const mAy = bloque.ayudante?.maquinas ?? [];
-      if (mAy.length) {
-        for (const m of mAy) sumaPonderada += (Number(m.porcentaje) || 0) * (Number(m.dias) || 0);
-      } else if ((bloque.ayudante?.dias ?? 0) > 0) {
-        sumaPonderada += (Number(bloque.ayudante.porcentaje) || 0) * (Number(bloque.ayudante.dias) || 0);
-      }
-    }
-
-    const bono = sumaPonderada / diasDelRango;
-    return Math.round(bono * 10) / 10;
   }
 
   private generateBlockDataSync(registros: PrefetchedRegistro[]): BlockData {
@@ -275,7 +240,7 @@ export class SummaryExcelService {
 
     return {
       porcentaje: Math.round(porcentajePromedio * 10) / 10,
-      dias: porcentajesPorDia.size,
+      dias: porcentajesPorDia.size, // estos DÍAS se mostrarán por categoría; C se calculará en Excel sumando todos
       observaciones: Array.from(observacionesSet).join(" | "),
       maquinas: maquinasData,
     };
@@ -350,21 +315,61 @@ export class SummaryExcelService {
 
     const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
-    // Fórmula dinámica en D (BONO TOTAL = SUMA % OP/AYU / DÍAS X LABORAR)
-    const startRow = 3; // después de 2 filas de encabezado
-    for (let i = 0; i < employeeData.length; i++) {
-      const rowIndex = startRow + i;
-      const diasCell = `B${rowIndex}`;
-      const percentCells: string[] = [];
-      for (let k = 0; k < todasCategorias.length; k++) {
-        const opPctCol = 5 + 6 * k;
-        const ayuPctCol = 8 + 6 * k;
-        percentCells.push(`${this.columnLetter(opPctCol)}${rowIndex}`);
-        percentCells.push(`${this.columnLetter(ayuPctCol)}${rowIndex}`);
+    // === Fórmula dinámica en C: DIAS REAL LABORADOS =========
+    // C{fila} = SUM(N(<todas las celdas DÍAS OP/AYU>))
+    {
+      const startRow = 3; // después de 2 filas de encabezado
+      for (let i = 0; i < employeeData.length; i++) {
+        const rowIndex = startRow + i;
+
+        const diasCells: string[] = [];
+        for (let k = 0; k < todasCategorias.length; k++) {
+          const opDiasCol = (5 + 6 * k) + 1;  // F, L, R, ...
+          const ayuDiasCol = (8 + 6 * k) + 1; // I, O, U, ...
+
+          const opDiasAddr = `${this.columnLetter(opDiasCol)}${rowIndex}`;
+          const ayuDiasAddr = `${this.columnLetter(ayuDiasCol)}${rowIndex}`;
+          diasCells.push(opDiasAddr, ayuDiasAddr);
+        }
+
+        const sumaDias = diasCells.length
+          ? `SUM(${diasCells.map(addr => `N(${addr})`).join(",")})`
+          : "0";
+
+        worksheet[`C${rowIndex}`] = { f: sumaDias };
+        (worksheet[`C${rowIndex}`] as any).z = "0";
       }
-      worksheet[`D${rowIndex}`] = {
-        f: percentCells.length > 0 ? `IF(${diasCell}>0,SUM(${percentCells.join(",")})/${diasCell},0)` : `0`,
-      };
+    }
+
+    // === Fórmula dinámica en D: BONO TOTAL ==================
+    // D{fila} = IF(N(B{fila})>0, (Σ(OP_%*OP_DÍAS)+Σ(AYU_%*AYU_DÍAS))/N(B{fila})/100, 0)
+    {
+      const startRow = 3; // después de 2 filas de encabezado
+      for (let i = 0; i < employeeData.length; i++) {
+        const rowIndex = startRow + i;
+        const diasXLaborarCell = `B${rowIndex}`;
+
+        const terminos: string[] = [];
+        for (let k = 0; k < todasCategorias.length; k++) {
+          const opPctCol   = 5 + 6 * k;
+          const opDiasCol  = opPctCol + 1;
+          const ayuPctCol  = 8 + 6 * k;
+          const ayuDiasCol = ayuPctCol + 1;
+
+          const opPct   = `${this.columnLetter(opPctCol)}${rowIndex}`;
+          const opDias  = `${this.columnLetter(opDiasCol)}${rowIndex}`;
+          const ayuPct  = `${this.columnLetter(ayuPctCol)}${rowIndex}`;
+          const ayuDias = `${this.columnLetter(ayuDiasCol)}${rowIndex}`;
+
+          terminos.push(`N(${opPct})*N(${opDias})`, `N(${ayuPct})*N(${ayuDias})`);
+        }
+
+        const numerador = terminos.length ? `(${terminos.join("+")})` : "0";
+        worksheet[`D${rowIndex}`] = {
+          f: `IF(N(${diasXLaborarCell})>0, ${numerador}/N(${diasXLaborarCell})/100, 0)`,
+        };
+        (worksheet[`D${rowIndex}`] as any).z = "0.0%";
+      }
     }
 
     this.applyWorksheetStyles(worksheet, todasCategorias, employeeData.length);
@@ -407,24 +412,26 @@ export class SummaryExcelService {
       const row: (string | number)[] = [
         empleado.nombre,
         empleado.diasXLaborar,
-        empleado.diasRealLaborados,
-        empleado.bonoTotal, // se reemplaza por fórmula al exportar
+        0, // C se calculará con fórmula
+        0, // D se calculará con fórmula
       ];
       for (const categoria of categorias) {
         const b = empleado.bloques.find((x) => x.categoria === categoria);
         if (b) {
-          if (b.operario.dias > 0) {
-            row.push(Number(b.operario.porcentaje), Number(b.operario.dias), b.operario.observaciones || "");
-          } else {
-            row.push("", "", "");
-          }
-          if (b.ayudante.dias > 0) {
-            row.push(Number(b.ayudante.porcentaje), Number(b.ayudante.dias), b.ayudante.observaciones || "");
-          } else {
-            row.push("", "", "");
-          }
+          // Si hay bloque, usa números (0 en vacío) para ser Excel-friendly
+          row.push(
+            Number(b.operario.porcentaje) || 0,
+            Number(b.operario.dias) || 0,
+            b.operario.observaciones || ""
+          );
+          row.push(
+            Number(b.ayudante.porcentaje) || 0,
+            Number(b.ayudante.dias) || 0,
+            b.ayudante.observaciones || ""
+          );
         } else {
-          row.push("", "", "", "", "", "");
+          // Categoría no presente para el empleado: 0 en % y DÍAS
+          row.push(0, 0, "", 0, 0, "");
         }
       }
       rows.push(row);
@@ -444,12 +451,12 @@ export class SummaryExcelService {
     ];
     for (let i = 0; i < categorias.length; i++) {
       colWidths.push(
-        { width: 8 }, // OP %
-        { width: 8 }, // OP DÍAS
+        { width: 8 },  // OP %
+        { width: 8 },  // OP DÍAS
         { width: 30 }, // OP OBS
-        { width: 8 }, // AYU %
-        { width: 8 }, // AYU DÍAS
-        { width: 30 } // AYU OBS
+        { width: 8 },  // AYU %
+        { width: 8 },  // AYU DÍAS
+        { width: 30 }  // AYU OBS
       );
     }
     (worksheet as any)["!cols"] = colWidths;

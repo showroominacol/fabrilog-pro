@@ -3,7 +3,7 @@ import { saveAs } from "file-saver";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface MachineReportData {
-  fecha: string;
+  fecha: string; // dd/mm/yyyy (texto, sin new Date)
   turno: string;
   operario: string;
   asistente: string;
@@ -21,13 +21,20 @@ export interface MachineReportByCategory {
 
 export class MachineReportService {
   async generateMachineReport(fechaInicio: Date, fechaFin: Date): Promise<MachineReportByCategory[]> {
-    const startDate = fechaInicio.toISOString().split("T")[0];
-    const endDate = fechaFin.toISOString().split("T")[0];
+    // NO usar toISOString(): se conserva la fecha local (date-only)
+    const startDate = this.toYMD(fechaInicio);
+    const endDate   = this.toYMD(fechaFin);
 
-    const { data: operarios } = await supabase.from("usuarios").select("id, nombre").eq("activo", true);
+    const { data: operarios } = await supabase
+      .from("usuarios")
+      .select("id, nombre")
+      .eq("activo", true);
     if (!operarios) return [];
 
-    const { data: maquinas } = await supabase.from("maquinas").select("id, nombre, categoria").eq("activa", true);
+    const { data: maquinas } = await supabase
+      .from("maquinas")
+      .select("id, nombre, categoria")
+      .eq("activa", true);
     if (!maquinas) return [];
 
     const { data: registros, error } = await supabase
@@ -71,19 +78,19 @@ export class MachineReportService {
     const porcentajesSumaOperarios = await this.calcularPorcentajesSuma(registros || [], fechaInicio, fechaFin);
 
     // Asistentes por registro
-    const asistentesMap = await this.obtenerAsistentes(registros ? registros.map((r) => r.id) : []);
+    const asistentesMap = await this.obtenerAsistentes(registros ? registros.map((r: any) => r.id) : []);
 
-    // Prepara contenedor por categoría existente
+    // Contenedor por categoría existente
     const categorias = new Map<string, MachineReportData[]>();
     for (const maquina of maquinas) {
-      const categoria = maquina.categoria || "Sin Categoría";
+      const categoria = (maquina as any).categoria || "Sin Categoría";
       if (!categorias.has(categoria)) categorias.set(categoria, []);
     }
 
-    // —— CAMBIO CLAVE: solo iteramos por REGISTROS reales de cada operario (no por días vacíos)
+    // Solo iteramos por REGISTROS reales (no generamos filas por días vacíos)
     for (const operario of operarios) {
       const registrosOperario =
-        registros?.filter((r) => r.operario_id === operario.id && !r.es_asistente) || [];
+        (registros || []).filter((r: any) => r.operario_id === (operario as any).id && !r.es_asistente) || [];
 
       if (registrosOperario.length === 0) continue;
 
@@ -118,9 +125,9 @@ export class MachineReportService {
             }
 
             categoriaDatos.push({
-              fecha: this.formatDate(registro.fecha),
+              fecha: this.formatDate(registro.fecha), // SIN new Date
               turno: this.formatTurno(registro.turno),
-              operario: operario.nombre,
+              operario: (operario as any).nombre,
               asistente: asistenteNombres,
               maquina: maquinaNombre,
               producto: detalle?.productos?.nombre || "N/A",
@@ -130,11 +137,11 @@ export class MachineReportService {
             });
           }
         } else {
-          // Si existe un registro real pero SIN detalle, aún lo contamos como trabajado (sin producto)
-          categorias.get(categoria)!.push({
+          // Registro real pero SIN detalle
+          categoriaDatos.push({
             fecha: this.formatDate(registro.fecha),
             turno: this.formatTurno(registro.turno),
-            operario: operario.nombre,
+            operario: (operario as any).nombre,
             asistente: asistenteNombres,
             maquina: maquinaNombre,
             producto: "Sin producto",
@@ -146,14 +153,17 @@ export class MachineReportService {
       }
     }
 
+    // Ordenamos por fecha (dd/mm/yyyy) sin usar Date (evita desfases)
     return Array.from(categorias.entries())
       .filter(([_, registros]) => registros.length > 0)
       .map(([categoria, registros]) => ({
         categoria,
         registros: registros.sort((a, b) => {
-          const dateA = new Date(a.fecha.split("/").reverse().join("-"));
-          const dateB = new Date(b.fecha.split("/").reverse().join("-"));
-          if (dateA.getTime() !== dateB.getTime()) return dateA.getTime() - dateB.getTime();
+          const [da, ma, ya] = a.fecha.split("/").map(n => parseInt(n, 10));
+          const [db, mb, yb] = b.fecha.split("/").map(n => parseInt(n, 10));
+          if (ya !== yb) return ya - yb;
+          if (ma !== mb) return ma - mb;
+          if (da !== db) return da - db;
           return a.operario.localeCompare(b.operario);
         }),
       }))
@@ -176,37 +186,19 @@ export class MachineReportService {
     return tope8; // por defecto 8h
   }
 
-  // (Aún disponible si lo necesitas en otros lugares)
-  private generateDateRange(startDate: Date, endDate: Date): Date[] {
-    const dates: Date[] = [];
-    const currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-      dates.push(new Date(currentDate));
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    return dates;
+  // Helper: convierte Date a 'YYYY-MM-DD' con componentes locales (sin UTC)
+  private toYMD(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   }
 
-  // (Ya no se usa para crear filas en días sin registros, lo dejo por si lo ocupas en otro lado)
-  private async getOperatorCategories(operarioId: string, fechaInicio: Date, fechaFin: Date): Promise<string[]> {
-    const startDate = fechaInicio.toISOString().split("T")[0];
-    const endDate = fechaFin.toISOString().split("T")[0];
-
-    const { data: registros } = await supabase
-      .from("registros_produccion")
-      .select(` maquinas!fk_registros_produccion_maquina(categoria) `)
-      .eq("operario_id", operarioId)
-      .eq("es_asistente", false)
-      .gte("fecha", startDate)
-      .lte("fecha", endDate);
-
-    if (!registros) return [];
-
-    const categorias = new Set<string>();
-    for (const registro of registros) {
-      if (registro.maquinas?.categoria) categorias.add(registro.maquinas.categoria);
-    }
-    return categorias.size === 0 ? ["General"] : Array.from(categorias);
+  // Formatea una fecha 'YYYY-MM-DD' (o 'YYYY-MM-DDTHH:mm:ss...') a 'dd/mm/yyyy' sin usar new Date
+  private formatDate(dbDate: string): string {
+    const ymd = dbDate.split("T")[0];
+    const [y, m, d] = ymd.split("-");
+    return `${d.padStart(2, "0")}/${m.padStart(2, "0")}/${y}`;
   }
 
   private async calcularPorcentajesSuma(
@@ -214,7 +206,7 @@ export class MachineReportService {
     fechaInicio: Date,
     fechaFin: Date,
   ): Promise<Map<string, number>> {
-    const operarioIds = [...new Set(registros.map((r) => r.operario_id))];
+    const operarioIds = [...new Set(registros.map((r: any) => r.operario_id))];
     const porcentajesSuma = new Map<string, number>();
 
     for (const operarioId of operarioIds) {
@@ -233,8 +225,8 @@ export class MachineReportService {
     fechaInicio: Date,
     fechaFin: Date,
   ): Promise<{ fecha: string; porcentajeTotal: number }[]> {
-    const startDate = fechaInicio.toISOString().split("T")[0];
-    const endDate = fechaFin.toISOString().split("T")[0];
+    const startDate = this.toYMD(fechaInicio);
+    const endDate   = this.toYMD(fechaFin);
 
     const { data: registros } = await supabase
       .from("registros_produccion")
@@ -255,20 +247,26 @@ export class MachineReportService {
 
     const diasMap = new Map<string, number>();
     for (const registro of registros) {
-      const fecha = registro.fecha;
-      if (!diasMap.has(fecha)) diasMap.set(fecha, 0);
-      if (registro.detalle_produccion) {
-        const porcentajeTotal = registro.detalle_produccion.reduce(
-          (sum, d) => sum + (d.porcentaje_cumplimiento || 0),
+      const ymd = (registro as any).fecha.split("T")[0]; // asegura date-only
+      if (!diasMap.has(ymd)) diasMap.set(ymd, 0);
+      if ((registro as any).detalle_produccion) {
+        const porcentajeTotal = (registro as any).detalle_produccion.reduce(
+          (sum: number, d: any) => sum + (d.porcentaje_cumplimiento || 0),
           0,
         );
-        diasMap.set(fecha, diasMap.get(fecha)! + porcentajeTotal);
+        diasMap.set(ymd, (diasMap.get(ymd) || 0) + porcentajeTotal);
       }
     }
-    return Array.from(diasMap.entries()).map(([fecha, porcentajeTotal]) => ({ fecha, porcentajeTotal }));
+    // devolvemos fecha ya formateada dd/mm/yyyy
+    return Array.from(diasMap.entries()).map(([ymd, porcentajeTotal]) => ({
+      fecha: this.formatDate(ymd),
+      porcentajeTotal,
+    }));
   }
 
   private async obtenerAsistentes(registroIds: string[]): Promise<Map<string, string[]>> {
+    if (!registroIds || registroIds.length === 0) return new Map();
+
     const { data: asistentes } = await supabase
       .from("registro_asistentes")
       .select(
@@ -282,8 +280,8 @@ export class MachineReportService {
     const asistentesMap = new Map<string, string[]>();
     if (asistentes) {
       for (const asistente of asistentes) {
-        const registroId = asistente.registro_id;
-        const nombreAsistente = asistente.usuarios?.nombre || "N/A";
+        const registroId = (asistente as any).registro_id;
+        const nombreAsistente = (asistente as any).usuarios?.nombre || "N/A";
         if (!asistentesMap.has(registroId)) asistentesMap.set(registroId, []);
         asistentesMap.get(registroId)!.push(nombreAsistente);
       }
@@ -302,7 +300,7 @@ export class MachineReportService {
       const sheetData = [
         headers,
         ...categoria.registros.map((registro) => [
-          registro.fecha,
+          registro.fecha, // texto dd/mm/yyyy (evita desfases)
           registro.turno,
           registro.operario,
           registro.asistente,
@@ -354,11 +352,6 @@ export class MachineReportService {
     }
   }
 
-  private formatDate(dateString: string): string {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
-  }
-
   private formatTurno(turno: string): string {
     switch (turno) {
       case "manana":
@@ -373,8 +366,8 @@ export class MachineReportService {
   }
 
   private generateFilename(fechaInicio: Date, fechaFin: Date): string {
-    const inicio = fechaInicio.toISOString().split("T")[0];
-    const fin = fechaFin.toISOString().split("T")[0];
+    const inicio = this.toYMD(fechaInicio);
+    const fin = this.toYMD(fechaFin);
     return `reporte_produccion_maquinas_${inicio}_${fin}.xlsx`;
   }
 }
