@@ -235,6 +235,21 @@ export default function RegistroProduccion() {
     }
     return Number(productoInfo.tope_jornada_8h) || 0;
   };
+  
+  // % individual (0–100) solo para productos "generales"
+const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string): number => {
+  if (!producto.producto_id) return 0;
+  const info = productos.find((p) => p.id === producto.producto_id);
+  if (!info) return 0;
+
+  // si NO es árbol navideño ni amarradora, es "general"
+  if (info.tipo_producto === "arbol_navideno" || info.tipo_producto === "arbol_amarradora") return 0;
+
+  const tope = getTopeForProduct(info, turno);
+  if (tope <= 0) return 0;
+  return (Number(producto.produccion_real) / Number(tope)) * 100;
+};
+
 
   const calculatePerformance = () => {
   if (!formData.productos.length || !formData.turno) {
@@ -261,47 +276,9 @@ export default function RegistroProduccion() {
     }
   });
 
-  // Ahora el “porcentajeCumplimiento” que se muestra en el Card es la SUMA de %.
   setPorcentajeCumplimiento(sumaPorcentajes);
 };
 
-
-  // const calculatePerformance = () => {
-  //   if (!formData.productos.length || !formData.turno) {
-  //     setPorcentajeCumplimiento(0);
-  //     return;
-  //   }
-
-  //   let totalProduccionReal = 0;
-  //   let totalMeta = 0;
-
-  //   formData.productos.forEach((producto) => {
-  //     if (!producto.producto_id) return;
-
-  //     const productoInfo = productos.find((p) => p.id === producto.producto_id);
-  //     if (!productoInfo) return;
-
-  //     if (productoInfo.tipo_producto === "arbol_amarradora") {
-  //       // ⚠️ calcular en tiempo real con el turno actual
-  //       const avg = calculatePromedioRamas(producto.ramas_amarradora || [], formData.turno as string);
-  //       totalProduccionReal += avg; // 0–100
-  //       totalMeta += 100;
-  //     } else {
-  //       const tope = getTopeForProduct(productoInfo, formData.turno as string);
-  //       if (tope > 0) {
-  //         totalProduccionReal += producto.produccion_real;
-  //         totalMeta += tope;
-  //       }
-  //     }
-  //   });
-
-  //   if (totalMeta > 0) {
-  //     const porcentaje = (totalProduccionReal / totalMeta) * 100;
-  //     setPorcentajeCumplimiento(porcentaje);
-  //   } else {
-  //     setPorcentajeCumplimiento(0);
-  //   }
-  // };
 
   const adjustDateForNightShift = (fecha: string, turno: string): string => {
     if (turno === "10:00pm - 6:00am") {
@@ -1212,6 +1189,24 @@ export default function RegistroProduccion() {
                             placeholder="Anota cualquier observación necesaria..."
                             className="input-touch"
                           />
+
+                           {/* NUEVO: Cumplimiento SOLO para "general" */}
+{selectedProduct &&
+  selectedProduct.tipo_producto !== "arbol_navideno" &&
+  selectedProduct.tipo_producto !== "arbol_amarradora" &&
+  (() => {
+    const pct = getProductoPorcentajeGeneral(producto, formData.turno as string);
+    return pct > 0 || Number(producto.produccion_real) > 0 ? (
+      <div className="flex items-center justify-between mt-3 p-3 bg-primary/10 rounded-lg">
+        <span className="text-sm font-medium">Cumplimiento:</span>
+        <Badge variant="secondary" className="text-lg font-bold">
+          {pct.toFixed(1)}%
+        </Badge>
+      </div>
+    ) : null;
+  })()
+}
+
                         </div>
                       )}
                     </div>
