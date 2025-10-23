@@ -108,7 +108,7 @@ export default function AdminMaquinasProductos() {
     nombre: string; 
     tope?: number; 
     categoria: string;
-    tipo_producto: 'general' | 'arbol_navideno' | 'producido_molino' | 'arbol_amarradora';
+    tipo_producto: 'general' | 'arbol_navideno' | 'arbol_amarradora';
     diseno_id?: string;
     diseno_nombre?: string;
     diseno_descripcion?: string;
