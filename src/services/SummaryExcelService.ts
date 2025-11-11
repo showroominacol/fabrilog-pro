@@ -204,13 +204,16 @@ export class SummaryExcelService {
   private generateBlockDataSync(registros: PrefetchedRegistro[]): BlockData {
     if (!registros?.length) return { porcentaje: 0, dias: 0, observaciones: "", maquinas: [] };
 
-    const porcentajesPorDia = new Map<string, number>();
+    const diasUnicos = new Set<string>();
     const observacionesSet = new Set<string>();
+    let totalSum = 0;
+    let totalCount = 0;
 
     for (const registro of registros) {
       if (!registro.detalle_produccion?.length) continue;
 
-      let sumaPorcentajeDia = 0;
+      diasUnicos.add(registro.fecha);
+
       for (const detalle of registro.detalle_produccion) {
         let pct = 0;
         if (detalle.productos?.tipo_producto === "arbol_amarradora") {
@@ -221,65 +224,76 @@ export class SummaryExcelService {
           if (turnoTexto === "7:00am - 5:00pm") jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
           else jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
           const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
-          pct = tope > 0 ? (Number(detalle.produccion_real) / Number(tope)) * 100 : 0;
+          if (tope > 0) {
+            pct = (Number(detalle.produccion_real) / Number(tope)) * 100;
+            totalSum += pct;
+            totalCount += 1;
+          }
         }
-        sumaPorcentajeDia += pct;
 
         if (detalle.observaciones?.trim()) observacionesSet.add(detalle.observaciones.trim());
       }
-
-      const anterior = porcentajesPorDia.get(registro.fecha) ?? 0;
-      porcentajesPorDia.set(registro.fecha, anterior + sumaPorcentajeDia);
     }
 
-    const porcentajes = Array.from(porcentajesPorDia.values());
-    const porcentajePromedio =
-      porcentajes.length > 0 ? porcentajes.reduce((s, v) => s + v, 0) / porcentajes.length : 0;
+    const porcentajePromedio = totalCount > 0 ? totalSum / totalCount : 0;
 
     const maquinasData = this.generateMachineDataSync(registros);
 
     return {
       porcentaje: Math.round(porcentajePromedio * 10) / 10,
-      dias: porcentajesPorDia.size, // estos DÍAS se mostrarán por categoría; C se calculará en Excel sumando todos
+      dias: diasUnicos.size,
       observaciones: Array.from(observacionesSet).join(" | "),
       maquinas: maquinasData,
     };
   }
 
   private generateMachineDataSync(registros: PrefetchedRegistro[]): MachineData[] {
-    const maquinasMap = new Map<string, { porcentajes: number[]; dias: Set<string>; observaciones: Set<string> }>();
+    const maquinasMap = new Map<string, { 
+      sumPorcentajes: number; 
+      countDatos: number; 
+      dias: Set<string>; 
+      observaciones: Set<string> 
+    }>();
 
     for (const registro of registros) {
       if (!registro.detalle_produccion?.length) continue;
 
       const nombre = registro.maquinas?.nombre || "Sin máquina";
       if (!maquinasMap.has(nombre)) {
-        maquinasMap.set(nombre, { porcentajes: [], dias: new Set<string>(), observaciones: new Set<string>() });
+        maquinasMap.set(nombre, { 
+          sumPorcentajes: 0, 
+          countDatos: 0, 
+          dias: new Set<string>(), 
+          observaciones: new Set<string>() 
+        });
       }
       const agg = maquinasMap.get(nombre)!;
       agg.dias.add(registro.fecha);
 
-      let pctRegistro = 0;
       for (const d of registro.detalle_produccion) {
         if (d.productos?.tipo_producto === "arbol_amarradora") {
-          pctRegistro += Number(d.porcentaje_cumplimiento) || 0;
+          const pct = Number(d.porcentaje_cumplimiento) || 0;
+          agg.sumPorcentajes += pct;
+          agg.countDatos += 1;
         } else {
           let jornadaTope: number | null = null;
           const turnoTexto = this.formatTurno(registro.turno);
           if (turnoTexto === "7:00am - 5:00pm") jornadaTope = d.productos?.tope_jornada_10h ?? null;
           else jornadaTope = d.productos?.tope_jornada_8h ?? null;
           const tope = jornadaTope ?? d.productos?.tope ?? 0;
-          pctRegistro += tope > 0 ? (Number(d.produccion_real) / Number(tope)) * 100 : 0;
+          if (tope > 0) {
+            const pct = (Number(d.produccion_real) / Number(tope)) * 100;
+            agg.sumPorcentajes += pct;
+            agg.countDatos += 1;
+          }
         }
         if (d.observaciones?.trim()) agg.observaciones.add(d.observaciones.trim());
       }
-      agg.porcentajes.push(pctRegistro);
     }
 
     return Array.from(maquinasMap.entries())
       .map(([nombre, data]) => {
-        const promedio =
-          data.porcentajes.length > 0 ? data.porcentajes.reduce((s, v) => s + v, 0) / data.porcentajes.length : 0;
+        const promedio = data.countDatos > 0 ? data.sumPorcentajes / data.countDatos : 0;
         return {
           nombre,
           porcentaje: Math.round(promedio * 10) / 10,
