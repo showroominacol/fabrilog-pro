@@ -486,7 +486,7 @@ export type Database = {
         }[]
       }
       get_usuarios_list: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           activo: boolean
           cedula: string
