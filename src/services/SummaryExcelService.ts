@@ -218,6 +218,8 @@ export class SummaryExcelService {
         let pct = 0;
         if (detalle.productos?.tipo_producto === "arbol_amarradora") {
           pct = Number(detalle.porcentaje_cumplimiento) || 0;
+          totalSum += pct;
+          totalCount += 1;
         } else {
           let jornadaTope: number | null = null;
           const turnoTexto = this.formatTurno(registro.turno);
