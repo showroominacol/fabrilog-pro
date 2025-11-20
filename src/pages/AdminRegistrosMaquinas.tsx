@@ -25,6 +25,10 @@ interface RegistroProduccion {
     nombre: string;
     cedula: string;
   };
+  asistentes: {
+    nombre: string;
+    cedula: string;
+  }[];
   porcentaje_cumplimiento: number;
   produccion_total: number;
 }
@@ -73,7 +77,7 @@ export default function AdminRegistrosMaquinas() {
     try {
       setLoading(true);
       
-      // Cargar registros con relaciones
+      // Cargar solo registros principales (no asistentes)
       const { data: registrosData, error: registrosError } = await supabase
         .from("registros_produccion")
         .select(`
@@ -91,13 +95,28 @@ export default function AdminRegistrosMaquinas() {
             cedula
           )
         `)
+        .eq("es_asistente", false)
         .order("fecha", { ascending: false })
         .order("turno", { ascending: false });
 
       if (registrosError) throw registrosError;
 
-      // Cargar detalles de producción para calcular porcentajes
+      // Cargar asistentes
       const registroIds = registrosData?.map(r => r.id) || [];
+      const { data: asistentesData, error: asistentesError } = await supabase
+        .from("registro_asistentes")
+        .select(`
+          registro_id,
+          usuarios!registro_asistentes_asistente_id_fkey (
+            nombre,
+            cedula
+          )
+        `)
+        .in("registro_id", registroIds);
+
+      if (asistentesError) throw asistentesError;
+
+      // Cargar detalles de producción para calcular porcentajes
       const { data: detallesData, error: detallesError } = await supabase
         .from("detalle_produccion")
         .select("registro_id, produccion_real, porcentaje_cumplimiento")
@@ -113,6 +132,18 @@ export default function AdminRegistrosMaquinas() {
         acc[detalle.registro_id].push(detalle);
         return acc;
       }, {} as Record<string, typeof detallesData>);
+
+      // Agrupar asistentes por registro
+      const asistentesPorRegistro = asistentesData?.reduce((acc, item) => {
+        if (!acc[item.registro_id]) {
+          acc[item.registro_id] = [];
+        }
+        acc[item.registro_id].push({
+          nombre: item.usuarios?.nombre || "N/A",
+          cedula: item.usuarios?.cedula || "N/A",
+        });
+        return acc;
+      }, {} as Record<string, { nombre: string; cedula: string }[]>);
 
       // Procesar registros
       const registrosProcesados = registrosData?.map(registro => {
@@ -134,6 +165,7 @@ export default function AdminRegistrosMaquinas() {
             nombre: registro.usuarios?.nombre || "N/A",
             cedula: registro.usuarios?.cedula || "N/A",
           },
+          asistentes: asistentesPorRegistro?.[registro.id] || [],
           porcentaje_cumplimiento: porcentajePromedio,
           produccion_total: produccionTotal,
         };
@@ -322,11 +354,12 @@ export default function AdminRegistrosMaquinas() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>ID</TableHead>
                       <TableHead>Fecha</TableHead>
                       <TableHead>Máquina</TableHead>
                       <TableHead>Categoría</TableHead>
                       <TableHead>Turno</TableHead>
-                      <TableHead>Operario</TableHead>
+                      <TableHead>Operario / Asistentes</TableHead>
                       <TableHead>Producción</TableHead>
                       <TableHead>Cumplimiento</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
@@ -335,6 +368,9 @@ export default function AdminRegistrosMaquinas() {
                   <TableBody>
                     {currentRegistros.map((registro) => (
                       <TableRow key={registro.id}>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {registro.id.substring(0, 8)}...
+                        </TableCell>
                         <TableCell className="font-medium">
                           {format(new Date(registro.fecha), "dd MMM yyyy", { locale: es })}
                         </TableCell>
@@ -347,7 +383,16 @@ export default function AdminRegistrosMaquinas() {
                           )}
                         </TableCell>
                         <TableCell className="text-sm">{registro.turno}</TableCell>
-                        <TableCell>{registro.operario.nombre}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="font-medium">{registro.operario.nombre}</div>
+                            {registro.asistentes.length > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                Asist: {registro.asistentes.map(a => a.nombre).join(", ")}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{registro.produccion_total.toLocaleString()}</TableCell>
                         <TableCell>
                           <Badge variant={getBadgeVariant(registro.porcentaje_cumplimiento)}>
