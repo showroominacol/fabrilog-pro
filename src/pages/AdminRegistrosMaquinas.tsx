@@ -46,7 +46,7 @@ export default function AdminRegistrosMaquinas() {
   // Filtros
   const [maquinas, setMaquinas] = useState<{ id: string; nombre: string }[]>([]);
   const [operarios, setOperarios] = useState<{ id: string; nombre: string }[]>([]);
-  const [filtroMaquina, setFiltroMaquina] = useState("");
+  const [filtroMaquina, setFiltroMaquina] = useState("all");
   const [filtroOperario, setFiltroOperario] = useState("");
   const [filtroTurno, setFiltroTurno] = useState("all");
   const [filtroFechaInicio, setFiltroFechaInicio] = useState("");
@@ -210,7 +210,7 @@ export default function AdminRegistrosMaquinas() {
   const applyFilters = () => {
     let filtered = [...registros];
 
-    if (filtroMaquina) {
+    if (filtroMaquina && filtroMaquina !== "all") {
       filtered = filtered.filter(r => r.maquina_id === filtroMaquina);
     }
 
@@ -238,7 +238,7 @@ export default function AdminRegistrosMaquinas() {
   };
 
   const clearFilters = () => {
-    setFiltroMaquina("");
+    setFiltroMaquina("all");
     setFiltroOperario("");
     setFiltroTurno("all");
     setFiltroFechaInicio("");
@@ -427,7 +427,7 @@ export default function AdminRegistrosMaquinas() {
                   <SelectValue placeholder="Todas las máquinas" />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
-                  <SelectItem value="">Todas las máquinas</SelectItem>
+                  <SelectItem value="all">Todas las máquinas</SelectItem>
                   {maquinas.map(maquina => (
                     <SelectItem key={maquina.id} value={maquina.id}>
                       {maquina.nombre}
