@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Factory, Search, Calendar, Edit, ChevronLeft, ChevronRight, FileDown } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 
 interface RegistroProduccion {
@@ -306,7 +306,7 @@ export default function AdminRegistrosMaquinas() {
       
       doc.text(`ID: ${registroData.id}`, 14, yPos);
       yPos += 7;
-      doc.text(`Fecha: ${format(new Date(registroData.fecha), "dd/MM/yyyy", { locale: es })}`, 14, yPos);
+      doc.text(`Fecha: ${format(parseISO(registroData.fecha + 'T12:00:00'), "dd/MM/yyyy", { locale: es })}`, 14, yPos);
       yPos += 7;
       doc.text(`Turno: ${registroData.turno}`, 14, yPos);
       yPos += 7;
@@ -360,7 +360,7 @@ export default function AdminRegistrosMaquinas() {
       doc.text(`Cumplimiento Promedio: ${cumplimientoPromedio.toFixed(1)}%`, 14, finalY + 17);
 
       // Guardar PDF
-      const fileName = `registro_${registroData.maquinas?.nombre}_${format(new Date(registroData.fecha), "yyyyMMdd")}.pdf`;
+      const fileName = `registro_${registroData.maquinas?.nombre}_${format(parseISO(registroData.fecha + 'T12:00:00'), "yyyyMMdd")}.pdf`;
       doc.save(fileName);
 
       toast({
@@ -511,7 +511,7 @@ export default function AdminRegistrosMaquinas() {
                           {registro.id.substring(0, 8)}...
                         </TableCell>
                         <TableCell className="font-medium">
-                          {format(new Date(registro.fecha), "dd MMM yyyy", { locale: es })}
+                          {format(parseISO(registro.fecha + 'T12:00:00'), "dd MMM yyyy", { locale: es })}
                         </TableCell>
                         <TableCell>{registro.maquina.nombre}</TableCell>
                         <TableCell>
