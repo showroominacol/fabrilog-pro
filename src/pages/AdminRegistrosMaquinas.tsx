@@ -254,6 +254,7 @@ export default function AdminRegistrosMaquinas() {
         .from("registros_produccion")
         .select(`
           id,
+          id_consecutivo,
           fecha,
           turno,
           maquinas!registros_produccion_maquina_id_fkey (
@@ -307,7 +308,7 @@ export default function AdminRegistrosMaquinas() {
       doc.setFont("helvetica", "normal");
       let yPos = 35;
       
-      doc.text(`ID: ${registroData.id}`, 14, yPos);
+      doc.text(`ID: ${registroData.id_consecutivo}`, 14, yPos);
       yPos += 7;
       doc.text(`Fecha: ${format(parseISO(registroData.fecha + 'T12:00:00'), "dd/MM/yyyy", { locale: es })}`, 14, yPos);
       yPos += 7;
