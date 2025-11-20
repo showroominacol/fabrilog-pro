@@ -57,9 +57,12 @@ export default function AdminEditarRegistro() {
   const [registro, setRegistro] = useState<RegistroData | null>(null);
 
   // Datos para edición
+  const [fecha, setFecha] = useState<string>("");
+  const [operarioId, setOperarioId] = useState<string>("");
   const [turno, setTurno] = useState<string>("");
   const [detalles, setDetalles] = useState<DetalleProducto[]>([]);
   const [operarios, setOperarios] = useState<{ id: string; nombre: string; cedula: string }[]>([]);
+  const [asistentes, setAsistentes] = useState<string[]>([]);
 
   const turnos = [
     "6:00am - 2:00pm",
@@ -140,6 +143,14 @@ export default function AdminEditarRegistro() {
 
       if (detallesError) throw detallesError;
 
+      // Cargar asistentes
+      const { data: asistentesData, error: asistentesError } = await supabase
+        .from("registro_asistentes")
+        .select("asistente_id")
+        .eq("registro_id", id);
+
+      if (asistentesError) throw asistentesError;
+
       const registroCompleto: RegistroData = {
         id: registroData.id,
         fecha: registroData.fecha,
@@ -171,8 +182,11 @@ export default function AdminEditarRegistro() {
       };
 
       setRegistro(registroCompleto);
+      setFecha(registroCompleto.fecha);
+      setOperarioId(registroCompleto.operario_id);
       setTurno(registroCompleto.turno);
       setDetalles(registroCompleto.detalles);
+      setAsistentes(asistentesData?.map(a => a.asistente_id) || []);
 
     } catch (error) {
       console.error("Error al cargar registro:", error);
@@ -249,10 +263,32 @@ export default function AdminEditarRegistro() {
         return;
       }
 
+      if (!operarioId) {
+        toast({
+          title: "Error",
+          description: "Debe seleccionar un operario",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!fecha) {
+        toast({
+          title: "Error",
+          description: "Debe seleccionar una fecha",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Actualizar registro de producción
       const { error: registroError } = await supabase
         .from("registros_produccion")
-        .update({ turno: turno as any })
+        .update({ 
+          turno: turno as any,
+          operario_id: operarioId,
+          fecha: fecha
+        })
         .eq("id", id);
 
       if (registroError) throw registroError;
@@ -269,6 +305,28 @@ export default function AdminEditarRegistro() {
           .eq("id", detalle.id);
 
         if (detalleError) throw detalleError;
+      }
+
+      // Actualizar asistentes: eliminar los existentes y agregar los nuevos
+      const { error: deleteAsistentesError } = await supabase
+        .from("registro_asistentes")
+        .delete()
+        .eq("registro_id", id);
+
+      if (deleteAsistentesError) throw deleteAsistentesError;
+
+      // Insertar nuevos asistentes
+      if (asistentes.length > 0) {
+        const { error: insertAsistentesError } = await supabase
+          .from("registro_asistentes")
+          .insert(
+            asistentes.map(asistenteId => ({
+              registro_id: id,
+              asistente_id: asistenteId
+            }))
+          );
+
+        if (insertAsistentesError) throw insertAsistentesError;
       }
 
       toast({
@@ -342,13 +400,34 @@ export default function AdminEditarRegistro() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label className="text-muted-foreground">Fecha</Label>
-              <p className="font-medium mt-1">
-                {format(new Date(registro.fecha), "dd 'de' MMMM 'de' yyyy", { locale: es })}
-              </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="fecha">Fecha *</Label>
+              <Input
+                id="fecha"
+                type="date"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+              />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="operario">Operario *</Label>
+              <Select value={operarioId} onValueChange={setOperarioId}>
+                <SelectTrigger id="operario">
+                  <SelectValue placeholder="Seleccionar operario" />
+                </SelectTrigger>
+                <SelectContent>
+                  {operarios.map(op => (
+                    <SelectItem key={op.id} value={op.id}>
+                      {op.nombre} - {op.cedula}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label className="text-muted-foreground">Máquina</Label>
               <p className="font-medium mt-1">{registro.maquina.nombre}</p>
@@ -356,27 +435,44 @@ export default function AdminEditarRegistro() {
                 <Badge variant="outline" className="mt-1">{registro.maquina.categoria}</Badge>
               )}
             </div>
-            <div>
-              <Label className="text-muted-foreground">Operario</Label>
-              <p className="font-medium mt-1">{registro.operario.nombre}</p>
-              <p className="text-sm text-muted-foreground">{registro.operario.cedula}</p>
+            <div className="space-y-2">
+              <Label htmlFor="turno">Turno *</Label>
+              <Select value={turno} onValueChange={handleTurnoChange}>
+                <SelectTrigger id="turno">
+                  <SelectValue placeholder="Seleccionar turno" />
+                </SelectTrigger>
+                <SelectContent>
+                  {turnos.map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <Separator />
 
           <div className="space-y-2">
-            <Label htmlFor="turno">Turno *</Label>
-            <Select value={turno} onValueChange={handleTurnoChange}>
-              <SelectTrigger id="turno">
-                <SelectValue placeholder="Seleccionar turno" />
-              </SelectTrigger>
-              <SelectContent>
-                {turnos.map(t => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Asistentes</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {operarios.filter(op => op.id !== operarioId).map(op => (
+                <label key={op.id} className="flex items-center space-x-2 cursor-pointer p-2 rounded border hover:bg-accent">
+                  <input
+                    type="checkbox"
+                    checked={asistentes.includes(op.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setAsistentes([...asistentes, op.id]);
+                      } else {
+                        setAsistentes(asistentes.filter(id => id !== op.id));
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <span className="text-sm">{op.nombre}</span>
+                </label>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
