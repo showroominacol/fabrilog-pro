@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Factory, Search, Calendar, Edit, ChevronLeft, ChevronRight } from "lucide-react";
+import { Factory, Search, Calendar, Edit, ChevronLeft, ChevronRight, FileDown } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -240,6 +240,144 @@ export default function AdminRegistrosMaquinas() {
     setFiltroFechaFin("");
   };
 
+  const exportarRegistroPDF = async (registroId: string) => {
+    try {
+      // Importar jsPDF dinámicamente
+      const jsPDF = (await import('jspdf')).default;
+      const autoTable = (await import('jspdf-autotable')).default;
+      
+      // Cargar detalles completos del registro
+      const { data: registroData, error: registroError } = await supabase
+        .from("registros_produccion")
+        .select(`
+          id,
+          fecha,
+          turno,
+          maquinas!registros_produccion_maquina_id_fkey (
+            nombre,
+            categoria
+          ),
+          usuarios!registros_produccion_operario_id_fkey (
+            nombre,
+            cedula
+          )
+        `)
+        .eq("id", registroId)
+        .single();
+
+      if (registroError) throw registroError;
+
+      // Cargar asistentes
+      const { data: asistentesData } = await supabase
+        .from("registro_asistentes")
+        .select(`
+          usuarios!registro_asistentes_asistente_id_fkey (
+            nombre,
+            cedula
+          )
+        `)
+        .eq("registro_id", registroId);
+
+      // Cargar detalles de producción
+      const { data: detallesData } = await supabase
+        .from("detalle_produccion")
+        .select(`
+          produccion_real,
+          porcentaje_cumplimiento,
+          observaciones,
+          productos!detalle_produccion_producto_id_fkey (
+            nombre
+          )
+        `)
+        .eq("registro_id", registroId);
+
+      // Crear PDF
+      const doc = new jsPDF();
+      
+      // Título
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("Registro de Producción", 14, 20);
+      
+      // Información general
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      let yPos = 35;
+      
+      doc.text(`ID: ${registroData.id}`, 14, yPos);
+      yPos += 7;
+      doc.text(`Fecha: ${format(new Date(registroData.fecha), "dd/MM/yyyy", { locale: es })}`, 14, yPos);
+      yPos += 7;
+      doc.text(`Turno: ${registroData.turno}`, 14, yPos);
+      yPos += 7;
+      doc.text(`Máquina: ${registroData.maquinas?.nombre || "N/A"}`, 14, yPos);
+      yPos += 7;
+      if (registroData.maquinas?.categoria) {
+        doc.text(`Categoría: ${registroData.maquinas.categoria}`, 14, yPos);
+        yPos += 7;
+      }
+      doc.text(`Operario: ${registroData.usuarios?.nombre || "N/A"} (${registroData.usuarios?.cedula || "N/A"})`, 14, yPos);
+      yPos += 7;
+      
+      if (asistentesData && asistentesData.length > 0) {
+        doc.text("Asistentes:", 14, yPos);
+        yPos += 7;
+        asistentesData.forEach((asistente) => {
+          doc.text(`  • ${asistente.usuarios?.nombre} (${asistente.usuarios?.cedula})`, 14, yPos);
+          yPos += 7;
+        });
+      }
+
+      // Tabla de producción
+      yPos += 5;
+      
+      const tableData = detallesData?.map((detalle) => [
+        detalle.productos?.nombre || "N/A",
+        detalle.produccion_real.toString(),
+        `${detalle.porcentaje_cumplimiento.toFixed(1)}%`,
+        detalle.observaciones || "-"
+      ]) || [];
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Producto", "Producción", "Cumplimiento", "Observaciones"]],
+        body: tableData,
+        theme: "grid",
+        headStyles: { fillColor: [59, 130, 246] },
+        styles: { fontSize: 9 }
+      });
+
+      // Calcular totales
+      const produccionTotal = detallesData?.reduce((sum, d) => sum + d.produccion_real, 0) || 0;
+      const cumplimientoPromedio = detallesData && detallesData.length > 0
+        ? detallesData.reduce((sum, d) => sum + d.porcentaje_cumplimiento, 0) / detallesData.length
+        : 0;
+
+      const finalY = (doc as any).lastAutoTable.finalY || yPos;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Producción Total: ${produccionTotal.toLocaleString()}`, 14, finalY + 10);
+      doc.text(`Cumplimiento Promedio: ${cumplimientoPromedio.toFixed(1)}%`, 14, finalY + 17);
+
+      // Guardar PDF
+      const fileName = `registro_${registroData.maquinas?.nombre}_${format(new Date(registroData.fecha), "yyyyMMdd")}.pdf`;
+      doc.save(fileName);
+
+      toast({
+        title: "PDF Exportado",
+        description: "El registro se ha exportado correctamente",
+      });
+
+    } catch (error) {
+      console.error("Error al exportar PDF:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo exportar el registro",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getBadgeVariant = (porcentaje: number) => {
     if (porcentaje >= 80) return "default";
     if (porcentaje >= 60) return "secondary";
@@ -401,14 +539,25 @@ export default function AdminRegistrosMaquinas() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => navigate(`/admin/registros-maquinas/${registro.id}`)}
-                          >
-                            <Edit className="h-4 w-4 mr-1" />
-                            Editar
-                          </Button>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => exportarRegistroPDF(registro.id)}
+                              title="Exportar PDF"
+                            >
+                              <FileDown className="h-4 w-4 mr-1" />
+                              PDF
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => navigate(`/admin/registros-maquinas/${registro.id}`)}
+                            >
+                              <Edit className="h-4 w-4 mr-1" />
+                              Editar
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
