@@ -53,6 +53,7 @@ export default function AdminRegistrosMaquinas() {
   const [filtroMaquina, setFiltroMaquina] = useState("all");
   const [filtroOperario, setFiltroOperario] = useState("");
   const [filtroTurno, setFiltroTurno] = useState("all");
+  const [filtroIdConsecutivo, setFiltroIdConsecutivo] = useState("");
   const [filtroFechaInicio, setFiltroFechaInicio] = useState("");
   const [filtroFechaFin, setFiltroFechaFin] = useState("");
   
@@ -77,7 +78,7 @@ export default function AdminRegistrosMaquinas() {
 
   useEffect(() => {
     applyFilters();
-  }, [registros, filtroMaquina, filtroOperario, filtroTurno, filtroFechaInicio, filtroFechaFin]);
+  }, [registros, filtroMaquina, filtroOperario, filtroTurno, filtroIdConsecutivo, filtroFechaInicio, filtroFechaFin]);
 
   const loadData = async () => {
     try {
@@ -225,6 +226,12 @@ export default function AdminRegistrosMaquinas() {
       );
     }
 
+    if (filtroIdConsecutivo) {
+      filtered = filtered.filter(r => 
+        r.id_consecutivo.toLowerCase().includes(filtroIdConsecutivo.toLowerCase())
+      );
+    }
+
     if (filtroTurno && filtroTurno !== "all") {
       filtered = filtered.filter(r => r.turno === filtroTurno);
     }
@@ -245,6 +252,7 @@ export default function AdminRegistrosMaquinas() {
     setFiltroMaquina("all");
     setFiltroOperario("");
     setFiltroTurno("all");
+    setFiltroIdConsecutivo("");
     setFiltroFechaInicio("");
     setFiltroFechaFin("");
   };
@@ -492,6 +500,15 @@ export default function AdminRegistrosMaquinas() {
                 placeholder="Buscar por nombre o cédula"
                 value={filtroOperario}
                 onChange={(e) => setFiltroOperario(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>ID Registro</Label>
+              <Input
+                placeholder="Buscar por ID (ej: MONT1-001)"
+                value={filtroIdConsecutivo}
+                onChange={(e) => setFiltroIdConsecutivo(e.target.value)}
               />
             </div>
 
