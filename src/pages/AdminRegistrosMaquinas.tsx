@@ -9,9 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Factory, Search, Calendar, Edit, ChevronLeft, ChevronRight, FileDown } from "lucide-react";
+import { Factory, Search, Calendar, Edit, ChevronLeft, ChevronRight, FileDown, Check, ChevronsUpDown } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 interface RegistroProduccion {
   id: string;
@@ -42,6 +45,7 @@ export default function AdminRegistrosMaquinas() {
   const [registros, setRegistros] = useState<RegistroProduccion[]>([]);
   const [filteredRegistros, setFilteredRegistros] = useState<RegistroProduccion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openMaquina, setOpenMaquina] = useState(false);
   
   // Filtros
   const [maquinas, setMaquinas] = useState<{ id: string; nombre: string }[]>([]);
@@ -422,19 +426,64 @@ export default function AdminRegistrosMaquinas() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Máquina</Label>
-              <Select value={filtroMaquina} onValueChange={setFiltroMaquina}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Todas las máquinas" />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  <SelectItem value="all">Todas las máquinas</SelectItem>
-                  {maquinas.map(maquina => (
-                    <SelectItem key={maquina.id} value={maquina.id}>
-                      {maquina.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={openMaquina} onOpenChange={setOpenMaquina}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openMaquina}
+                    className="w-full justify-between bg-background"
+                  >
+                    {filtroMaquina && filtroMaquina !== "all"
+                      ? maquinas.find((maquina) => maquina.id === filtroMaquina)?.nombre
+                      : "Todas las máquinas"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar máquina..." />
+                    <CommandList>
+                      <CommandEmpty>No se encontró la máquina.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="all"
+                          onSelect={() => {
+                            setFiltroMaquina("all");
+                            setOpenMaquina(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              filtroMaquina === "all" ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          Todas las máquinas
+                        </CommandItem>
+                        {maquinas.map((maquina) => (
+                          <CommandItem
+                            key={maquina.id}
+                            value={maquina.nombre}
+                            onSelect={() => {
+                              setFiltroMaquina(maquina.id);
+                              setOpenMaquina(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                filtroMaquina === maquina.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {maquina.nombre}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="space-y-2">
