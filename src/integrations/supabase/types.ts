@@ -368,6 +368,7 @@ export type Database = {
           fecha: string
           fecha_registro: string
           id: string
+          id_consecutivo: string | null
           maquina_id: string
           operario_id: string
           turno: Database["public"]["Enums"]["turno_produccion"]
@@ -377,6 +378,7 @@ export type Database = {
           fecha: string
           fecha_registro?: string
           id?: string
+          id_consecutivo?: string | null
           maquina_id: string
           operario_id: string
           turno: Database["public"]["Enums"]["turno_produccion"]
@@ -386,6 +388,7 @@ export type Database = {
           fecha?: string
           fecha_registro?: string
           id?: string
+          id_consecutivo?: string | null
           maquina_id?: string
           operario_id?: string
           turno?: Database["public"]["Enums"]["turno_produccion"]
@@ -463,6 +466,10 @@ export type Database = {
           fecha_inicio: string
         }
         Returns: Record<string, unknown>[]
+      }
+      generar_id_consecutivo: {
+        Args: { p_maquina_id: string }
+        Returns: string
       }
       get_user_for_auth: {
         Args: { p_cedula: string }
