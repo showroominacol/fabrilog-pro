@@ -15,6 +15,7 @@ import { es } from "date-fns/locale";
 
 interface RegistroProduccion {
   id: string;
+  id_consecutivo: string;
   fecha: string;
   turno: string;
   maquina: {
@@ -82,6 +83,7 @@ export default function AdminRegistrosMaquinas() {
         .from("registros_produccion")
         .select(`
           id,
+          id_consecutivo,
           fecha,
           turno,
           maquina_id,
@@ -155,6 +157,7 @@ export default function AdminRegistrosMaquinas() {
 
         return {
           id: registro.id,
+          id_consecutivo: registro.id_consecutivo || "N/A",
           fecha: registro.fecha,
           turno: registro.turno,
           maquina: {
@@ -507,8 +510,8 @@ export default function AdminRegistrosMaquinas() {
                   <TableBody>
                     {currentRegistros.map((registro) => (
                       <TableRow key={registro.id}>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {registro.id.substring(0, 8)}...
+                        <TableCell className="font-mono text-sm font-semibold">
+                          {registro.id_consecutivo}
                         </TableCell>
                         <TableCell className="font-medium">
                           {format(parseISO(registro.fecha + 'T12:00:00'), "dd MMM yyyy", { locale: es })}

@@ -562,6 +562,12 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
     try {
       const fechaAjustada = adjustDateForNightShift(formData.fecha, formData.turno as string);
 
+      // Generar ID consecutivo
+      const { data: idConsecutivo, error: idError } = await supabase
+        .rpc('generar_id_consecutivo', { p_maquina_id: formData.maquina_id });
+
+      if (idError) throw idError;
+
       const { data: registro, error: registroError } = await supabase
         .from("registros_produccion")
         .insert({
@@ -570,6 +576,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
           operario_id: formData.operario_principal_id,
           maquina_id: formData.maquina_id,
           es_asistente: false,
+          id_consecutivo: idConsecutivo,
         })
         .select()
         .single();
