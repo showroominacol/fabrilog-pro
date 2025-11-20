@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Factory, Package, Users, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, Factory, Package, Users, AlertCircle, X, Search } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
@@ -63,6 +63,7 @@ export default function AdminEditarRegistro() {
   const [detalles, setDetalles] = useState<DetalleProducto[]>([]);
   const [operarios, setOperarios] = useState<{ id: string; nombre: string; cedula: string }[]>([]);
   const [asistentes, setAsistentes] = useState<string[]>([]);
+  const [busquedaAsistente, setBusquedaAsistente] = useState<string>("");
 
   const turnos = [
     "6:00am - 2:00pm",
@@ -454,25 +455,75 @@ export default function AdminEditarRegistro() {
 
           <div className="space-y-2">
             <Label>Asistentes</Label>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-              {operarios.filter(op => op.id !== operarioId).map(op => (
-                <label key={op.id} className="flex items-center space-x-2 cursor-pointer p-2 rounded border hover:bg-accent">
-                  <input
-                    type="checkbox"
-                    checked={asistentes.includes(op.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setAsistentes([...asistentes, op.id]);
-                      } else {
-                        setAsistentes(asistentes.filter(id => id !== op.id));
-                      }
-                    }}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{op.nombre}</span>
-                </label>
-              ))}
+            
+            {/* Asistentes seleccionados */}
+            {asistentes.length > 0 && (
+              <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/50">
+                {asistentes.map(asistenteId => {
+                  const asistente = operarios.find(op => op.id === asistenteId);
+                  return asistente ? (
+                    <Badge key={asistenteId} variant="secondary" className="gap-1">
+                      {asistente.nombre}
+                      <button
+                        onClick={() => setAsistentes(asistentes.filter(id => id !== asistenteId))}
+                        className="ml-1 hover:bg-destructive/20 rounded-full"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ) : null;
+                })}
+              </div>
+            )}
+
+            {/* Búsqueda de asistentes */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar asistente por nombre o cédula..."
+                value={busquedaAsistente}
+                onChange={(e) => setBusquedaAsistente(e.target.value)}
+                className="pl-9"
+              />
             </div>
+
+            {/* Lista de asistentes filtrados */}
+            {busquedaAsistente && (
+              <div className="border rounded-md max-h-48 overflow-y-auto">
+                {operarios
+                  .filter(op => 
+                    op.id !== operarioId && 
+                    !asistentes.includes(op.id) &&
+                    (op.nombre.toLowerCase().includes(busquedaAsistente.toLowerCase()) ||
+                     op.cedula.includes(busquedaAsistente))
+                  )
+                  .map(op => (
+                    <button
+                      key={op.id}
+                      onClick={() => {
+                        setAsistentes([...asistentes, op.id]);
+                        setBusquedaAsistente("");
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-accent transition-colors flex items-center justify-between"
+                    >
+                      <div>
+                        <p className="font-medium">{op.nombre}</p>
+                        <p className="text-sm text-muted-foreground">{op.cedula}</p>
+                      </div>
+                    </button>
+                  ))}
+                {operarios.filter(op => 
+                  op.id !== operarioId && 
+                  !asistentes.includes(op.id) &&
+                  (op.nombre.toLowerCase().includes(busquedaAsistente.toLowerCase()) ||
+                   op.cedula.includes(busquedaAsistente))
+                ).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No se encontraron asistentes
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
