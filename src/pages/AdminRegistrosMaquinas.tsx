@@ -42,7 +42,7 @@ export default function AdminRegistrosMaquinas() {
   const [operarios, setOperarios] = useState<{ id: string; nombre: string }[]>([]);
   const [filtroMaquina, setFiltroMaquina] = useState("");
   const [filtroOperario, setFiltroOperario] = useState("");
-  const [filtroTurno, setFiltroTurno] = useState("");
+  const [filtroTurno, setFiltroTurno] = useState("all");
   const [filtroFechaInicio, setFiltroFechaInicio] = useState("");
   const [filtroFechaFin, setFiltroFechaFin] = useState("");
   
@@ -184,7 +184,7 @@ export default function AdminRegistrosMaquinas() {
       );
     }
 
-    if (filtroTurno) {
+    if (filtroTurno && filtroTurno !== "all") {
       filtered = filtered.filter(r => r.turno === filtroTurno);
     }
 
@@ -203,7 +203,7 @@ export default function AdminRegistrosMaquinas() {
   const clearFilters = () => {
     setFiltroMaquina("");
     setFiltroOperario("");
-    setFiltroTurno("");
+    setFiltroTurno("all");
     setFiltroFechaInicio("");
     setFiltroFechaFin("");
   };
@@ -269,7 +269,7 @@ export default function AdminRegistrosMaquinas() {
                   <SelectValue placeholder="Todos los turnos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos los turnos</SelectItem>
+                  <SelectItem value="all">Todos los turnos</SelectItem>
                   {turnos.map(turno => (
                     <SelectItem key={turno} value={turno}>{turno}</SelectItem>
                   ))}
