@@ -18,6 +18,7 @@ interface RegistroProduccion {
   id_consecutivo: string;
   fecha: string;
   turno: string;
+  maquina_id: string;
   maquina: {
     nombre: string;
     categoria: string | null;
@@ -160,6 +161,7 @@ export default function AdminRegistrosMaquinas() {
           id_consecutivo: registro.id_consecutivo || "N/A",
           fecha: registro.fecha,
           turno: registro.turno,
+          maquina_id: registro.maquina_id,
           maquina: {
             nombre: registro.maquinas?.nombre || "N/A",
             categoria: registro.maquinas?.categoria || null,
@@ -209,7 +211,7 @@ export default function AdminRegistrosMaquinas() {
     let filtered = [...registros];
 
     if (filtroMaquina) {
-      filtered = filtered.filter(r => r.maquina.nombre.toLowerCase().includes(filtroMaquina.toLowerCase()));
+      filtered = filtered.filter(r => r.maquina_id === filtroMaquina);
     }
 
     if (filtroOperario) {
@@ -420,11 +422,19 @@ export default function AdminRegistrosMaquinas() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Máquina</Label>
-              <Input
-                placeholder="Buscar por nombre de máquina"
-                value={filtroMaquina}
-                onChange={(e) => setFiltroMaquina(e.target.value)}
-              />
+              <Select value={filtroMaquina} onValueChange={setFiltroMaquina}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Todas las máquinas" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="">Todas las máquinas</SelectItem>
+                  {maquinas.map(maquina => (
+                    <SelectItem key={maquina.id} value={maquina.id}>
+                      {maquina.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -439,10 +449,10 @@ export default function AdminRegistrosMaquinas() {
             <div className="space-y-2">
               <Label>Turno</Label>
               <Select value={filtroTurno} onValueChange={setFiltroTurno}>
-                <SelectTrigger>
+                <SelectTrigger className="bg-background">
                   <SelectValue placeholder="Todos los turnos" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background z-50">
                   <SelectItem value="all">Todos los turnos</SelectItem>
                   {turnos.map(turno => (
                     <SelectItem key={turno} value={turno}>{turno}</SelectItem>
