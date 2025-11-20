@@ -43,6 +43,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       roles: ['admin'] 
     },
     { 
+      name: 'Registros por Máquina', 
+      href: '/admin/registros-maquinas', 
+      icon: Factory, 
+      roles: ['admin'] 
+    },
+    { 
       name: 'Admin Máquinas y Productos', 
       href: '/admin/maquinas-productos', 
       icon: Settings, 

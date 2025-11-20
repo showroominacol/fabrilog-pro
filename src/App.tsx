@@ -10,6 +10,8 @@ import Dashboard from "./pages/Dashboard";
 import RegistroProduccion from "./pages/RegistroProduccion";
 import AdminMaquinasProductos from "./pages/AdminMaquinasProductos";
 import AdminUsuarios from "./pages/AdminUsuarios";
+import AdminRegistrosMaquinas from "./pages/AdminRegistrosMaquinas";
+import AdminEditarRegistro from "./pages/AdminEditarRegistro";
 import Metricas from "./pages/Metricas";
 import ConsultaCumplimiento from "./pages/ConsultaCumplimiento";
 import NotFound from "./pages/NotFound";
@@ -98,6 +100,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AdminUsuarios />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/registros-maquinas" 
+        element={
+          <ProtectedRoute>
+            <AdminRegistrosMaquinas />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/admin/registros-maquinas/:id" 
+        element={
+          <ProtectedRoute>
+            <AdminEditarRegistro />
           </ProtectedRoute>
         } 
       />
