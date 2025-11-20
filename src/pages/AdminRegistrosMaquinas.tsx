@@ -359,7 +359,8 @@ export default function AdminRegistrosMaquinas() {
                       <TableHead>Máquina</TableHead>
                       <TableHead>Categoría</TableHead>
                       <TableHead>Turno</TableHead>
-                      <TableHead>Operario / Asistentes</TableHead>
+                      <TableHead>Operario</TableHead>
+                      <TableHead>Asistentes</TableHead>
                       <TableHead>Producción</TableHead>
                       <TableHead>Cumplimiento</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
@@ -383,15 +384,15 @@ export default function AdminRegistrosMaquinas() {
                           )}
                         </TableCell>
                         <TableCell className="text-sm">{registro.turno}</TableCell>
+                        <TableCell className="font-medium">{registro.operario.nombre}</TableCell>
                         <TableCell>
-                          <div className="space-y-1">
-                            <div className="font-medium">{registro.operario.nombre}</div>
-                            {registro.asistentes.length > 0 && (
-                              <div className="text-xs text-muted-foreground">
-                                Asist: {registro.asistentes.map(a => a.nombre).join(", ")}
-                              </div>
-                            )}
-                          </div>
+                          {registro.asistentes.length > 0 ? (
+                            <div className="text-sm text-muted-foreground">
+                              {registro.asistentes.map(a => a.nombre).join(", ")}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>{registro.produccion_total.toLocaleString()}</TableCell>
                         <TableCell>
