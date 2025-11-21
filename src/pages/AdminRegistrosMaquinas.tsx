@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Factory, Search, Calendar, Edit, ChevronLeft, ChevronRight, FileDown, Check, ChevronsUpDown } from "lucide-react";
+import { Factory, Search, Calendar, Edit, ChevronLeft, ChevronRight, FileDown, Check, ChevronsUpDown, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 interface RegistroProduccion {
@@ -46,6 +47,8 @@ export default function AdminRegistrosMaquinas() {
   const [filteredRegistros, setFilteredRegistros] = useState<RegistroProduccion[]>([]);
   const [loading, setLoading] = useState(true);
   const [openMaquina, setOpenMaquina] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [registroToDelete, setRegistroToDelete] = useState<string | null>(null);
   
   // Filtros
   const [maquinas, setMaquinas] = useState<{ id: string; nombre: string }[]>([]);
@@ -396,6 +399,43 @@ export default function AdminRegistrosMaquinas() {
     }
   };
 
+  const handleDeleteClick = (registroId: string) => {
+    setRegistroToDelete(registroId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!registroToDelete) return;
+
+    try {
+      // Eliminar el registro (los registros relacionados se eliminan en cascada)
+      const { error } = await supabase
+        .from("registros_produccion")
+        .delete()
+        .eq("id", registroToDelete);
+
+      if (error) throw error;
+
+      toast({
+        title: "Registro eliminado",
+        description: "El registro se ha eliminado correctamente",
+      });
+
+      // Recargar datos
+      await loadData();
+    } catch (error) {
+      console.error("Error al eliminar registro:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el registro",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setRegistroToDelete(null);
+    }
+  };
+
   const getBadgeVariant = (porcentaje: number) => {
     if (porcentaje >= 80) return "default";
     if (porcentaje >= 60) return "secondary";
@@ -637,6 +677,16 @@ export default function AdminRegistrosMaquinas() {
                               <Edit className="h-4 w-4 mr-1" />
                               Editar
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteClick(registro.id)}
+                              title="Eliminar registro"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Eliminar
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -678,6 +728,24 @@ export default function AdminRegistrosMaquinas() {
           )}
         </CardContent>
       </Card>
+
+      {/* Diálogo de confirmación de eliminación */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará el registro de producción y todos sus datos relacionados (detalles de producción, asistentes, etc.).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
