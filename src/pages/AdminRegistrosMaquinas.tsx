@@ -621,7 +621,7 @@ export default function AdminRegistrosMaquinas() {
                       <TableHead>Asistentes</TableHead>
                       <TableHead>Producción</TableHead>
                       <TableHead>Cumplimiento</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+                      <TableHead className="text-center">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -658,8 +658,8 @@ export default function AdminRegistrosMaquinas() {
                             {registro.porcentaje_cumplimiento.toFixed(1)}%
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-2">
                             <Button
                               size="sm"
                               variant="ghost"
