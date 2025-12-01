@@ -241,15 +241,15 @@ export class SummaryExcelService {
 
       porcentajePromedio = totalCount > 0 ? totalSum / totalCount : 0;
     } else {
-      // Para operarios: agrupar por día, promediar cada día, luego promediar los días
-      const porcentajesPorDia = new Map<string, number[]>();
+      // Para operarios: sumar porcentajes de cada día, luego dividir entre número de días
+      const sumasPorDia = new Map<string, number>();
 
       for (const registro of registros) {
         if (!registro.detalle_produccion?.length) continue;
         diasUnicos.add(registro.fecha);
 
-        if (!porcentajesPorDia.has(registro.fecha)) {
-          porcentajesPorDia.set(registro.fecha, []);
+        if (!sumasPorDia.has(registro.fecha)) {
+          sumasPorDia.set(registro.fecha, 0);
         }
 
         for (const detalle of registro.detalle_produccion) {
@@ -266,25 +266,16 @@ export class SummaryExcelService {
               pct = (Number(detalle.produccion_real) / Number(tope)) * 100;
             }
           }
-          porcentajesPorDia.get(registro.fecha)!.push(pct);
+          sumasPorDia.set(registro.fecha, sumasPorDia.get(registro.fecha)! + pct);
 
           if (detalle.observaciones?.trim()) observacionesSet.add(detalle.observaciones.trim());
         }
       }
 
-      // Calcular promedio por día, luego promedio de días
-      const promediosPorDia: number[] = [];
-      for (const porcentajes of porcentajesPorDia.values()) {
-        if (porcentajes.length > 0) {
-          const sumaDia = porcentajes.reduce((a, b) => a + b, 0);
-          const promedioDia = sumaDia / porcentajes.length;
-          promediosPorDia.push(promedioDia);
-        }
-      }
-
-      porcentajePromedio = promediosPorDia.length > 0 
-        ? promediosPorDia.reduce((a, b) => a + b, 0) / promediosPorDia.length 
-        : 0;
+      // Sumar todas las sumas diarias y dividir entre el número de días
+      const sumaTotalDeSumasDiarias = Array.from(sumasPorDia.values()).reduce((a, b) => a + b, 0);
+      const numeroDeDias = sumasPorDia.size;
+      porcentajePromedio = numeroDeDias > 0 ? sumaTotalDeSumasDiarias / numeroDeDias : 0;
     }
 
     const maquinasData = this.generateMachineDataSync(registros, esAsistente);
@@ -355,9 +346,9 @@ export class SummaryExcelService {
         })
         .sort((a, b) => a.nombre.localeCompare(b.nombre));
     } else {
-      // Para operarios: agrupar por día primero
+      // Para operarios: sumar porcentajes de cada día, luego dividir entre número de días
       const maquinasMap = new Map<string, { 
-        porcentajesPorDia: Map<string, number[]>;
+        sumasPorDia: Map<string, number>;
         dias: Set<string>; 
         observaciones: Set<string> 
       }>();
@@ -368,7 +359,7 @@ export class SummaryExcelService {
         const nombre = registro.maquinas?.nombre || "Sin máquina";
         if (!maquinasMap.has(nombre)) {
           maquinasMap.set(nombre, { 
-            porcentajesPorDia: new Map<string, number[]>(),
+            sumasPorDia: new Map<string, number>(),
             dias: new Set<string>(), 
             observaciones: new Set<string>() 
           });
@@ -376,8 +367,8 @@ export class SummaryExcelService {
         const agg = maquinasMap.get(nombre)!;
         agg.dias.add(registro.fecha);
 
-        if (!agg.porcentajesPorDia.has(registro.fecha)) {
-          agg.porcentajesPorDia.set(registro.fecha, []);
+        if (!agg.sumasPorDia.has(registro.fecha)) {
+          agg.sumasPorDia.set(registro.fecha, 0);
         }
 
         for (const d of registro.detalle_produccion) {
@@ -394,25 +385,16 @@ export class SummaryExcelService {
               pct = (Number(d.produccion_real) / Number(tope)) * 100;
             }
           }
-          agg.porcentajesPorDia.get(registro.fecha)!.push(pct);
+          agg.sumasPorDia.set(registro.fecha, agg.sumasPorDia.get(registro.fecha)! + pct);
           if (d.observaciones?.trim()) agg.observaciones.add(d.observaciones.trim());
         }
       }
 
       return Array.from(maquinasMap.entries())
         .map(([nombre, data]) => {
-          const promediosPorDia: number[] = [];
-          for (const porcentajes of data.porcentajesPorDia.values()) {
-            if (porcentajes.length > 0) {
-              const sumaDia = porcentajes.reduce((a, b) => a + b, 0);
-              const promedioDia = sumaDia / porcentajes.length;
-              promediosPorDia.push(promedioDia);
-            }
-          }
-
-          const promedio = promediosPorDia.length > 0 
-            ? promediosPorDia.reduce((a, b) => a + b, 0) / promediosPorDia.length 
-            : 0;
+          const sumaTotalDeSumasDiarias = Array.from(data.sumasPorDia.values()).reduce((a, b) => a + b, 0);
+          const numeroDeDias = data.sumasPorDia.size;
+          const promedio = numeroDeDias > 0 ? sumaTotalDeSumasDiarias / numeroDeDias : 0;
 
           return {
             nombre,
