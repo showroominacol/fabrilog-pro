@@ -210,9 +210,10 @@ export class SummaryExcelService {
     let porcentajePromedio = 0;
 
     if (esAsistente) {
-      // Para asistentes: sumar porcentajes de cada día, dividir por número de máquinas del día, luego promediar
+      // Para asistentes: sumar porcentajes de cada día, dividir por número de detalles, dividir por número de máquinas, luego promediar
       const sumasPorDia = new Map<string, number>();
       const maquinasPorDia = new Map<string, Set<string>>();
+      const detallesPorDia = new Map<string, number>();
 
       for (const registro of registros) {
         if (!registro.detalle_produccion?.length) continue;
@@ -221,6 +222,7 @@ export class SummaryExcelService {
         if (!sumasPorDia.has(registro.fecha)) {
           sumasPorDia.set(registro.fecha, 0);
           maquinasPorDia.set(registro.fecha, new Set<string>());
+          detallesPorDia.set(registro.fecha, 0);
         }
 
         // Registrar la máquina del día
@@ -242,16 +244,18 @@ export class SummaryExcelService {
             }
           }
           sumasPorDia.set(registro.fecha, sumasPorDia.get(registro.fecha)! + pct);
+          detallesPorDia.set(registro.fecha, detallesPorDia.get(registro.fecha)! + 1);
 
           if (detalle.observaciones?.trim()) observacionesSet.add(detalle.observaciones.trim());
         }
       }
 
-      // Promediar cada día por número de máquinas, luego sumar y dividir por días
+      // Dividir suma del día por número de detalles, luego por número de máquinas, luego promediar por días
       let sumaTotalPromediosDiarios = 0;
       for (const [fecha, sumaDia] of sumasPorDia.entries()) {
+        const numDetalles = detallesPorDia.get(fecha) || 1;
         const numMaquinas = maquinasPorDia.get(fecha)?.size || 1;
-        const promedioDia = sumaDia / numMaquinas;
+        const promedioDia = (sumaDia / numDetalles) / numMaquinas;
         sumaTotalPromediosDiarios += promedioDia;
       }
       
@@ -307,9 +311,10 @@ export class SummaryExcelService {
 
   private generateMachineDataSync(registros: PrefetchedRegistro[], esAsistente: boolean): MachineData[] {
     if (esAsistente) {
-      // Para asistentes: por máquina, sumar porcentajes de cada día, dividir por días trabajados en esa máquina
+      // Para asistentes: por máquina, sumar porcentajes de cada día, dividir por número de detalles, dividir por días trabajados
       const maquinasMap = new Map<string, { 
         sumasPorDia: Map<string, number>;
+        detallesPorDia: Map<string, number>;
         dias: Set<string>; 
         observaciones: Set<string> 
       }>();
@@ -321,6 +326,7 @@ export class SummaryExcelService {
         if (!maquinasMap.has(nombre)) {
           maquinasMap.set(nombre, { 
             sumasPorDia: new Map<string, number>(),
+            detallesPorDia: new Map<string, number>(),
             dias: new Set<string>(), 
             observaciones: new Set<string>() 
           });
@@ -330,6 +336,7 @@ export class SummaryExcelService {
 
         if (!agg.sumasPorDia.has(registro.fecha)) {
           agg.sumasPorDia.set(registro.fecha, 0);
+          agg.detallesPorDia.set(registro.fecha, 0);
         }
 
         for (const d of registro.detalle_produccion) {
@@ -347,15 +354,22 @@ export class SummaryExcelService {
             }
           }
           agg.sumasPorDia.set(registro.fecha, agg.sumasPorDia.get(registro.fecha)! + pct);
+          agg.detallesPorDia.set(registro.fecha, agg.detallesPorDia.get(registro.fecha)! + 1);
           if (d.observaciones?.trim()) agg.observaciones.add(d.observaciones.trim());
         }
       }
 
       return Array.from(maquinasMap.entries())
         .map(([nombre, data]) => {
-          const sumaTotalDeSumasDiarias = Array.from(data.sumasPorDia.values()).reduce((a, b) => a + b, 0);
+          // Dividir suma del día por número de detalles, luego promediar por días
+          let sumaTotalPromediosDiarios = 0;
+          for (const [fecha, sumaDia] of data.sumasPorDia.entries()) {
+            const numDetalles = data.detallesPorDia.get(fecha) || 1;
+            const promedioDia = sumaDia / numDetalles;
+            sumaTotalPromediosDiarios += promedioDia;
+          }
           const numeroDeDias = data.sumasPorDia.size;
-          const promedio = numeroDeDias > 0 ? sumaTotalDeSumasDiarias / numeroDeDias : 0;
+          const promedio = numeroDeDias > 0 ? sumaTotalPromediosDiarios / numeroDeDias : 0;
 
           return {
             nombre,
