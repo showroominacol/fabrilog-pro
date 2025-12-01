@@ -210,8 +210,9 @@ export class SummaryExcelService {
     let porcentajePromedio = 0;
 
     if (esAsistente) {
-      // Para asistentes: sumar porcentajes de cada día, luego dividir entre número de días
+      // Para asistentes: sumar porcentajes de cada día, dividir por número de máquinas del día, luego promediar
       const sumasPorDia = new Map<string, number>();
+      const maquinasPorDia = new Map<string, Set<string>>();
 
       for (const registro of registros) {
         if (!registro.detalle_produccion?.length) continue;
@@ -219,7 +220,12 @@ export class SummaryExcelService {
 
         if (!sumasPorDia.has(registro.fecha)) {
           sumasPorDia.set(registro.fecha, 0);
+          maquinasPorDia.set(registro.fecha, new Set<string>());
         }
+
+        // Registrar la máquina del día
+        const nombreMaquina = registro.maquinas?.nombre || "Sin máquina";
+        maquinasPorDia.get(registro.fecha)!.add(nombreMaquina);
 
         for (const detalle of registro.detalle_produccion) {
           let pct = 0;
@@ -241,10 +247,16 @@ export class SummaryExcelService {
         }
       }
 
-      // Sumar todas las sumas diarias y dividir entre el número de días
-      const sumaTotalDeSumasDiarias = Array.from(sumasPorDia.values()).reduce((a, b) => a + b, 0);
+      // Promediar cada día por número de máquinas, luego sumar y dividir por días
+      let sumaTotalPromediosDiarios = 0;
+      for (const [fecha, sumaDia] of sumasPorDia.entries()) {
+        const numMaquinas = maquinasPorDia.get(fecha)?.size || 1;
+        const promedioDia = sumaDia / numMaquinas;
+        sumaTotalPromediosDiarios += promedioDia;
+      }
+      
       const numeroDeDias = sumasPorDia.size;
-      porcentajePromedio = numeroDeDias > 0 ? sumaTotalDeSumasDiarias / numeroDeDias : 0;
+      porcentajePromedio = numeroDeDias > 0 ? sumaTotalPromediosDiarios / numeroDeDias : 0;
     } else {
       // Para operarios: sumar porcentajes de cada día, luego dividir entre número de días
       const sumasPorDia = new Map<string, number>();
@@ -295,7 +307,7 @@ export class SummaryExcelService {
 
   private generateMachineDataSync(registros: PrefetchedRegistro[], esAsistente: boolean): MachineData[] {
     if (esAsistente) {
-      // Para asistentes: sumar porcentajes de cada día, luego dividir entre número de días
+      // Para asistentes: por máquina, sumar porcentajes de cada día, dividir por días trabajados en esa máquina
       const maquinasMap = new Map<string, { 
         sumasPorDia: Map<string, number>;
         dias: Set<string>; 
