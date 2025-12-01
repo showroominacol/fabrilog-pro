@@ -170,8 +170,8 @@ export class SummaryExcelService {
           const regsAyuCat = regsAyu.filter((r) => r.maquinas?.categoria === categoria);
           return {
             categoria,
-            operario: this.generateBlockDataSync(regsOpCat),
-            ayudante: this.generateBlockDataSync(regsAyuCat),
+            operario: this.generateBlockDataSync(regsOpCat, false),
+            ayudante: this.generateBlockDataSync(regsAyuCat, true),
           };
         })
         .filter((b) => b.operario.dias > 0 || b.ayudante.dias > 0);
@@ -201,45 +201,93 @@ export class SummaryExcelService {
     return count;
   }
 
-  private generateBlockDataSync(registros: PrefetchedRegistro[]): BlockData {
+  private generateBlockDataSync(registros: PrefetchedRegistro[], esAsistente: boolean): BlockData {
     if (!registros?.length) return { porcentaje: 0, dias: 0, observaciones: "", maquinas: [] };
 
     const diasUnicos = new Set<string>();
     const observacionesSet = new Set<string>();
-    let totalSum = 0;
-    let totalCount = 0;
 
-    for (const registro of registros) {
-      if (!registro.detalle_produccion?.length) continue;
+    let porcentajePromedio = 0;
 
-      diasUnicos.add(registro.fecha);
+    if (esAsistente) {
+      // Para asistentes: suma total / cantidad total de detalles (fórmula original)
+      let totalSum = 0;
+      let totalCount = 0;
 
-      for (const detalle of registro.detalle_produccion) {
-        let pct = 0;
-        if (detalle.productos?.tipo_producto === "arbol_amarradora") {
-          pct = Number(detalle.porcentaje_cumplimiento) || 0;
+      for (const registro of registros) {
+        if (!registro.detalle_produccion?.length) continue;
+        diasUnicos.add(registro.fecha);
+
+        for (const detalle of registro.detalle_produccion) {
+          let pct = 0;
+          if (detalle.productos?.tipo_producto === "arbol_amarradora") {
+            pct = Number(detalle.porcentaje_cumplimiento) || 0;
+          } else {
+            let jornadaTope: number | null = null;
+            const turnoTexto = this.formatTurno(registro.turno);
+            if (turnoTexto === "7:00am - 5:00pm") jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
+            else jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
+            const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
+            if (tope > 0) {
+              pct = (Number(detalle.produccion_real) / Number(tope)) * 100;
+            }
+          }
           totalSum += pct;
           totalCount += 1;
-        } else {
-          let jornadaTope: number | null = null;
-          const turnoTexto = this.formatTurno(registro.turno);
-          if (turnoTexto === "7:00am - 5:00pm") jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
-          else jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
-          const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
-          if (tope > 0) {
-            pct = (Number(detalle.produccion_real) / Number(tope)) * 100;
-            totalSum += pct;
-            totalCount += 1;
-          }
+
+          if (detalle.observaciones?.trim()) observacionesSet.add(detalle.observaciones.trim());
+        }
+      }
+
+      porcentajePromedio = totalCount > 0 ? totalSum / totalCount : 0;
+    } else {
+      // Para operarios: agrupar por día, promediar cada día, luego promediar los días
+      const porcentajesPorDia = new Map<string, number[]>();
+
+      for (const registro of registros) {
+        if (!registro.detalle_produccion?.length) continue;
+        diasUnicos.add(registro.fecha);
+
+        if (!porcentajesPorDia.has(registro.fecha)) {
+          porcentajesPorDia.set(registro.fecha, []);
         }
 
-        if (detalle.observaciones?.trim()) observacionesSet.add(detalle.observaciones.trim());
+        for (const detalle of registro.detalle_produccion) {
+          let pct = 0;
+          if (detalle.productos?.tipo_producto === "arbol_amarradora") {
+            pct = Number(detalle.porcentaje_cumplimiento) || 0;
+          } else {
+            let jornadaTope: number | null = null;
+            const turnoTexto = this.formatTurno(registro.turno);
+            if (turnoTexto === "7:00am - 5:00pm") jornadaTope = detalle.productos?.tope_jornada_10h ?? null;
+            else jornadaTope = detalle.productos?.tope_jornada_8h ?? null;
+            const tope = jornadaTope ?? detalle.productos?.tope ?? 0;
+            if (tope > 0) {
+              pct = (Number(detalle.produccion_real) / Number(tope)) * 100;
+            }
+          }
+          porcentajesPorDia.get(registro.fecha)!.push(pct);
+
+          if (detalle.observaciones?.trim()) observacionesSet.add(detalle.observaciones.trim());
+        }
       }
+
+      // Calcular promedio por día, luego promedio de días
+      const promediosPorDia: number[] = [];
+      for (const porcentajes of porcentajesPorDia.values()) {
+        if (porcentajes.length > 0) {
+          const sumaDia = porcentajes.reduce((a, b) => a + b, 0);
+          const promedioDia = sumaDia / porcentajes.length;
+          promediosPorDia.push(promedioDia);
+        }
+      }
+
+      porcentajePromedio = promediosPorDia.length > 0 
+        ? promediosPorDia.reduce((a, b) => a + b, 0) / promediosPorDia.length 
+        : 0;
     }
 
-    const porcentajePromedio = totalCount > 0 ? totalSum / totalCount : 0;
-
-    const maquinasData = this.generateMachineDataSync(registros);
+    const maquinasData = this.generateMachineDataSync(registros, esAsistente);
 
     return {
       porcentaje: Math.round(porcentajePromedio * 10) / 10,
@@ -249,61 +297,132 @@ export class SummaryExcelService {
     };
   }
 
-  private generateMachineDataSync(registros: PrefetchedRegistro[]): MachineData[] {
-    const maquinasMap = new Map<string, { 
-      sumPorcentajes: number; 
-      countDatos: number; 
-      dias: Set<string>; 
-      observaciones: Set<string> 
-    }>();
+  private generateMachineDataSync(registros: PrefetchedRegistro[], esAsistente: boolean): MachineData[] {
+    if (esAsistente) {
+      // Para asistentes: fórmula original (suma / count)
+      const maquinasMap = new Map<string, { 
+        sumPorcentajes: number; 
+        countDatos: number; 
+        dias: Set<string>; 
+        observaciones: Set<string> 
+      }>();
 
-    for (const registro of registros) {
-      if (!registro.detalle_produccion?.length) continue;
+      for (const registro of registros) {
+        if (!registro.detalle_produccion?.length) continue;
 
-      const nombre = registro.maquinas?.nombre || "Sin máquina";
-      if (!maquinasMap.has(nombre)) {
-        maquinasMap.set(nombre, { 
-          sumPorcentajes: 0, 
-          countDatos: 0, 
-          dias: new Set<string>(), 
-          observaciones: new Set<string>() 
-        });
-      }
-      const agg = maquinasMap.get(nombre)!;
-      agg.dias.add(registro.fecha);
+        const nombre = registro.maquinas?.nombre || "Sin máquina";
+        if (!maquinasMap.has(nombre)) {
+          maquinasMap.set(nombre, { 
+            sumPorcentajes: 0, 
+            countDatos: 0, 
+            dias: new Set<string>(), 
+            observaciones: new Set<string>() 
+          });
+        }
+        const agg = maquinasMap.get(nombre)!;
+        agg.dias.add(registro.fecha);
 
-      for (const d of registro.detalle_produccion) {
-        if (d.productos?.tipo_producto === "arbol_amarradora") {
-          const pct = Number(d.porcentaje_cumplimiento) || 0;
-          agg.sumPorcentajes += pct;
-          agg.countDatos += 1;
-        } else {
-          let jornadaTope: number | null = null;
-          const turnoTexto = this.formatTurno(registro.turno);
-          if (turnoTexto === "7:00am - 5:00pm") jornadaTope = d.productos?.tope_jornada_10h ?? null;
-          else jornadaTope = d.productos?.tope_jornada_8h ?? null;
-          const tope = jornadaTope ?? d.productos?.tope ?? 0;
-          if (tope > 0) {
-            const pct = (Number(d.produccion_real) / Number(tope)) * 100;
+        for (const d of registro.detalle_produccion) {
+          if (d.productos?.tipo_producto === "arbol_amarradora") {
+            const pct = Number(d.porcentaje_cumplimiento) || 0;
             agg.sumPorcentajes += pct;
             agg.countDatos += 1;
+          } else {
+            let jornadaTope: number | null = null;
+            const turnoTexto = this.formatTurno(registro.turno);
+            if (turnoTexto === "7:00am - 5:00pm") jornadaTope = d.productos?.tope_jornada_10h ?? null;
+            else jornadaTope = d.productos?.tope_jornada_8h ?? null;
+            const tope = jornadaTope ?? d.productos?.tope ?? 0;
+            if (tope > 0) {
+              const pct = (Number(d.produccion_real) / Number(tope)) * 100;
+              agg.sumPorcentajes += pct;
+              agg.countDatos += 1;
+            }
           }
+          if (d.observaciones?.trim()) agg.observaciones.add(d.observaciones.trim());
         }
-        if (d.observaciones?.trim()) agg.observaciones.add(d.observaciones.trim());
       }
-    }
 
-    return Array.from(maquinasMap.entries())
-      .map(([nombre, data]) => {
-        const promedio = data.countDatos > 0 ? data.sumPorcentajes / data.countDatos : 0;
-        return {
-          nombre,
-          porcentaje: Math.round(promedio * 10) / 10,
-          dias: data.dias.size,
-          observaciones: Array.from(data.observaciones).join(" | "),
-        };
-      })
-      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+      return Array.from(maquinasMap.entries())
+        .map(([nombre, data]) => {
+          const promedio = data.countDatos > 0 ? data.sumPorcentajes / data.countDatos : 0;
+          return {
+            nombre,
+            porcentaje: Math.round(promedio * 10) / 10,
+            dias: data.dias.size,
+            observaciones: Array.from(data.observaciones).join(" | "),
+          };
+        })
+        .sort((a, b) => a.nombre.localeCompare(b.nombre));
+    } else {
+      // Para operarios: agrupar por día primero
+      const maquinasMap = new Map<string, { 
+        porcentajesPorDia: Map<string, number[]>;
+        dias: Set<string>; 
+        observaciones: Set<string> 
+      }>();
+
+      for (const registro of registros) {
+        if (!registro.detalle_produccion?.length) continue;
+
+        const nombre = registro.maquinas?.nombre || "Sin máquina";
+        if (!maquinasMap.has(nombre)) {
+          maquinasMap.set(nombre, { 
+            porcentajesPorDia: new Map<string, number[]>(),
+            dias: new Set<string>(), 
+            observaciones: new Set<string>() 
+          });
+        }
+        const agg = maquinasMap.get(nombre)!;
+        agg.dias.add(registro.fecha);
+
+        if (!agg.porcentajesPorDia.has(registro.fecha)) {
+          agg.porcentajesPorDia.set(registro.fecha, []);
+        }
+
+        for (const d of registro.detalle_produccion) {
+          let pct = 0;
+          if (d.productos?.tipo_producto === "arbol_amarradora") {
+            pct = Number(d.porcentaje_cumplimiento) || 0;
+          } else {
+            let jornadaTope: number | null = null;
+            const turnoTexto = this.formatTurno(registro.turno);
+            if (turnoTexto === "7:00am - 5:00pm") jornadaTope = d.productos?.tope_jornada_10h ?? null;
+            else jornadaTope = d.productos?.tope_jornada_8h ?? null;
+            const tope = jornadaTope ?? d.productos?.tope ?? 0;
+            if (tope > 0) {
+              pct = (Number(d.produccion_real) / Number(tope)) * 100;
+            }
+          }
+          agg.porcentajesPorDia.get(registro.fecha)!.push(pct);
+          if (d.observaciones?.trim()) agg.observaciones.add(d.observaciones.trim());
+        }
+      }
+
+      return Array.from(maquinasMap.entries())
+        .map(([nombre, data]) => {
+          const promediosPorDia: number[] = [];
+          for (const porcentajes of data.porcentajesPorDia.values()) {
+            if (porcentajes.length > 0) {
+              const sumaDia = porcentajes.reduce((a, b) => a + b, 0);
+              const promedioDia = sumaDia / porcentajes.length;
+              promediosPorDia.push(promedioDia);
+            }
+          }
+
+          const promedio = promediosPorDia.length > 0 
+            ? promediosPorDia.reduce((a, b) => a + b, 0) / promediosPorDia.length 
+            : 0;
+
+          return {
+            nombre,
+            porcentaje: Math.round(promedio * 10) / 10,
+            dias: data.dias.size,
+            observaciones: Array.from(data.observaciones).join(" | "),
+          };
+        })
+        .sort((a, b) => a.nombre.localeCompare(b.nombre));
+    }
   }
 
   private formatTurno(turno: string): string {
