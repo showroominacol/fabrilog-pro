@@ -210,9 +210,8 @@ export class SummaryExcelService {
     let porcentajePromedio = 0;
 
     if (esAsistente) {
-      // Para asistentes: sumar porcentajes de cada día, dividir por número de detalles, dividir por número de máquinas, luego promediar
+      // Para asistentes: sumar porcentajes de cada día, dividir por número de detalles del día, luego promediar
       const sumasPorDia = new Map<string, number>();
-      const maquinasPorDia = new Map<string, Set<string>>();
       const detallesPorDia = new Map<string, number>();
 
       for (const registro of registros) {
@@ -221,13 +220,8 @@ export class SummaryExcelService {
 
         if (!sumasPorDia.has(registro.fecha)) {
           sumasPorDia.set(registro.fecha, 0);
-          maquinasPorDia.set(registro.fecha, new Set<string>());
           detallesPorDia.set(registro.fecha, 0);
         }
-
-        // Registrar la máquina del día
-        const nombreMaquina = registro.maquinas?.nombre || "Sin máquina";
-        maquinasPorDia.get(registro.fecha)!.add(nombreMaquina);
 
         for (const detalle of registro.detalle_produccion) {
           let pct = 0;
@@ -250,12 +244,11 @@ export class SummaryExcelService {
         }
       }
 
-      // Dividir suma del día por número de detalles, luego por número de máquinas, luego promediar por días
+      // Dividir suma del día por número de detalles, luego promediar por días
       let sumaTotalPromediosDiarios = 0;
       for (const [fecha, sumaDia] of sumasPorDia.entries()) {
         const numDetalles = detallesPorDia.get(fecha) || 1;
-        const numMaquinas = maquinasPorDia.get(fecha)?.size || 1;
-        const promedioDia = (sumaDia / numDetalles) / numMaquinas;
+        const promedioDia = sumaDia / numDetalles;
         sumaTotalPromediosDiarios += promedioDia;
       }
       
