@@ -210,9 +210,12 @@ export class SummaryExcelService {
     let porcentajePromedio = 0;
 
     if (esAsistente) {
-      // Para asistentes: sumar porcentajes de cada día, dividir por número de detalles del día, luego promediar
+      // Para asistentes: sumar porcentajes de cada día
+      // Para Monterrey: solo sumar, no dividir por número de detalles
+      // Para otras categorías: dividir por número de detalles del día
       const sumasPorDia = new Map<string, number>();
       const detallesPorDia = new Map<string, number>();
+      const categoriasPorDia = new Map<string, string>();
 
       for (const registro of registros) {
         if (!registro.detalle_produccion?.length) continue;
@@ -221,6 +224,12 @@ export class SummaryExcelService {
         if (!sumasPorDia.has(registro.fecha)) {
           sumasPorDia.set(registro.fecha, 0);
           detallesPorDia.set(registro.fecha, 0);
+        }
+
+        // Guardar la categoría de la máquina del día
+        const categoria = registro.maquinas?.categoria || "";
+        if (!categoriasPorDia.has(registro.fecha)) {
+          categoriasPorDia.set(registro.fecha, categoria);
         }
 
         for (const detalle of registro.detalle_produccion) {
@@ -244,12 +253,20 @@ export class SummaryExcelService {
         }
       }
 
-      // Dividir suma del día por número de detalles, luego promediar por días
+      // Calcular promedio según categoría
       let sumaTotalPromediosDiarios = 0;
       for (const [fecha, sumaDia] of sumasPorDia.entries()) {
-        const numDetalles = detallesPorDia.get(fecha) || 1;
-        const promedioDia = sumaDia / numDetalles;
-        sumaTotalPromediosDiarios += promedioDia;
+        const categoria = categoriasPorDia.get(fecha) || "";
+        
+        if (categoria === "Monterrey") {
+          // Para Monterrey: solo usar la suma del día sin dividir por número de detalles
+          sumaTotalPromediosDiarios += sumaDia;
+        } else {
+          // Para otras categorías: dividir por número de detalles del día
+          const numDetalles = detallesPorDia.get(fecha) || 1;
+          const promedioDia = sumaDia / numDetalles;
+          sumaTotalPromediosDiarios += promedioDia;
+        }
       }
       
       const numeroDeDias = sumasPorDia.size;
@@ -304,24 +321,30 @@ export class SummaryExcelService {
 
   private generateMachineDataSync(registros: PrefetchedRegistro[], esAsistente: boolean): MachineData[] {
     if (esAsistente) {
-      // Para asistentes: por máquina, sumar porcentajes de cada día, dividir por número de detalles, dividir por días trabajados
+      // Para asistentes: por máquina
+      // Para Monterrey: solo sumar, no dividir por número de detalles
+      // Para otras categorías: dividir por número de detalles del día
       const maquinasMap = new Map<string, { 
         sumasPorDia: Map<string, number>;
         detallesPorDia: Map<string, number>;
         dias: Set<string>; 
-        observaciones: Set<string> 
+        observaciones: Set<string>;
+        categoria: string;
       }>();
 
       for (const registro of registros) {
         if (!registro.detalle_produccion?.length) continue;
 
         const nombre = registro.maquinas?.nombre || "Sin máquina";
+        const categoria = registro.maquinas?.categoria || "";
+        
         if (!maquinasMap.has(nombre)) {
           maquinasMap.set(nombre, { 
             sumasPorDia: new Map<string, number>(),
             detallesPorDia: new Map<string, number>(),
             dias: new Set<string>(), 
-            observaciones: new Set<string>() 
+            observaciones: new Set<string>(),
+            categoria
           });
         }
         const agg = maquinasMap.get(nombre)!;
@@ -354,13 +377,23 @@ export class SummaryExcelService {
 
       return Array.from(maquinasMap.entries())
         .map(([nombre, data]) => {
-          // Dividir suma del día por número de detalles, luego promediar por días
+          // Calcular según categoría de la máquina
           let sumaTotalPromediosDiarios = 0;
-          for (const [fecha, sumaDia] of data.sumasPorDia.entries()) {
-            const numDetalles = data.detallesPorDia.get(fecha) || 1;
-            const promedioDia = sumaDia / numDetalles;
-            sumaTotalPromediosDiarios += promedioDia;
+          
+          if (data.categoria === "Monterrey") {
+            // Para Monterrey: solo sumar sin dividir por número de detalles
+            for (const [fecha, sumaDia] of data.sumasPorDia.entries()) {
+              sumaTotalPromediosDiarios += sumaDia;
+            }
+          } else {
+            // Para otras categorías: dividir suma del día por número de detalles
+            for (const [fecha, sumaDia] of data.sumasPorDia.entries()) {
+              const numDetalles = data.detallesPorDia.get(fecha) || 1;
+              const promedioDia = sumaDia / numDetalles;
+              sumaTotalPromediosDiarios += promedioDia;
+            }
           }
+          
           const numeroDeDias = data.sumasPorDia.size;
           const promedio = numeroDeDias > 0 ? sumaTotalPromediosDiarios / numeroDeDias : 0;
 
