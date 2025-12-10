@@ -210,27 +210,30 @@ export class SummaryExcelService {
     let porcentajePromedio = 0;
 
     if (esAsistente) {
-      // Para asistentes: sumar porcentajes de cada día
-      // Para Monterrey: solo sumar, no dividir por número de detalles
-      // Para otras categorías: dividir por número de detalles del día
-      const sumasPorDia = new Map<string, number>();
-      const detallesPorDia = new Map<string, number>();
-      const categoriasPorDia = new Map<string, string>();
+      // Para asistentes: agrupar por máquina dentro del día
+      // Cada máquina cuenta como un dato único
+      // Para Monterrey: sumar directamente
+      // Para otras categorías (Amarradora, etc.): agrupar por máquina, sumar productos, promediar máquinas
+      
+      // Estructura: fecha -> maquina -> { suma, categoria }
+      const porDiaYMaquina = new Map<string, Map<string, { suma: number; categoria: string }>>();
 
       for (const registro of registros) {
         if (!registro.detalle_produccion?.length) continue;
         diasUnicos.add(registro.fecha);
 
-        if (!sumasPorDia.has(registro.fecha)) {
-          sumasPorDia.set(registro.fecha, 0);
-          detallesPorDia.set(registro.fecha, 0);
-        }
-
-        // Guardar la categoría de la máquina del día
+        const nombreMaquina = registro.maquinas?.nombre || "Sin máquina";
         const categoria = registro.maquinas?.categoria || "";
-        if (!categoriasPorDia.has(registro.fecha)) {
-          categoriasPorDia.set(registro.fecha, categoria);
+
+        if (!porDiaYMaquina.has(registro.fecha)) {
+          porDiaYMaquina.set(registro.fecha, new Map());
         }
+        const maquinasDia = porDiaYMaquina.get(registro.fecha)!;
+
+        if (!maquinasDia.has(nombreMaquina)) {
+          maquinasDia.set(nombreMaquina, { suma: 0, categoria });
+        }
+        const maquinaData = maquinasDia.get(nombreMaquina)!;
 
         for (const detalle of registro.detalle_produccion) {
           let pct = 0;
@@ -246,8 +249,7 @@ export class SummaryExcelService {
               pct = (Number(detalle.produccion_real) / Number(tope)) * 100;
             }
           }
-          sumasPorDia.set(registro.fecha, sumasPorDia.get(registro.fecha)! + pct);
-          detallesPorDia.set(registro.fecha, detallesPorDia.get(registro.fecha)! + 1);
+          maquinaData.suma += pct;
 
           if (detalle.observaciones?.trim()) observacionesSet.add(detalle.observaciones.trim());
         }
@@ -255,21 +257,37 @@ export class SummaryExcelService {
 
       // Calcular promedio según categoría
       let sumaTotalPromediosDiarios = 0;
-      for (const [fecha, sumaDia] of sumasPorDia.entries()) {
-        const categoria = categoriasPorDia.get(fecha) || "";
-        
-        if (categoria === "Monterrey") {
-          // Para Monterrey: solo usar la suma del día sin dividir por número de detalles
+      let totalDatosUnicos = 0;
+
+      for (const [fecha, maquinasDia] of porDiaYMaquina.entries()) {
+        // Verificar si es día de Monterrey (todas las máquinas del día son Monterrey)
+        const categorias = Array.from(maquinasDia.values()).map(m => m.categoria);
+        const esMonterreyDia = categorias.every(c => c === "Monterrey");
+
+        if (esMonterreyDia) {
+          // Para Monterrey: sumar todos los porcentajes del día directamente
+          let sumaDia = 0;
+          for (const maquinaData of maquinasDia.values()) {
+            sumaDia += maquinaData.suma;
+          }
           sumaTotalPromediosDiarios += sumaDia;
+          totalDatosUnicos++; // El día cuenta como 1 dato
         } else {
-          // Para otras categorías: dividir por número de detalles del día
-          const numDetalles = detallesPorDia.get(fecha) || 1;
-          const promedioDia = sumaDia / numDetalles;
+          // Para otras categorías (Amarradora, etc.): cada máquina es un dato
+          // Sumar los porcentajes de cada máquina y promediar por número de máquinas
+          let sumaMaquinas = 0;
+          let numMaquinas = 0;
+          for (const maquinaData of maquinasDia.values()) {
+            sumaMaquinas += maquinaData.suma;
+            numMaquinas++;
+          }
+          const promedioDia = numMaquinas > 0 ? sumaMaquinas / numMaquinas : 0;
           sumaTotalPromediosDiarios += promedioDia;
+          totalDatosUnicos++; // El día cuenta como 1 dato
         }
       }
       
-      const numeroDeDias = sumasPorDia.size;
+      const numeroDeDias = porDiaYMaquina.size;
       porcentajePromedio = numeroDeDias > 0 ? sumaTotalPromediosDiarios / numeroDeDias : 0;
     } else {
       // Para operarios: sumar porcentajes de cada día, luego dividir entre número de días
@@ -377,25 +395,16 @@ export class SummaryExcelService {
 
       return Array.from(maquinasMap.entries())
         .map(([nombre, data]) => {
-          // Calcular según categoría de la máquina
-          let sumaTotalPromediosDiarios = 0;
+          // Para cada máquina: sumar los porcentajes de cada día y dividir por número de días
+          // (cada día ya tiene sumados todos los productos de esa máquina)
+          let sumaTotalDias = 0;
           
-          if (data.categoria === "Monterrey") {
-            // Para Monterrey: solo sumar sin dividir por número de detalles
-            for (const [fecha, sumaDia] of data.sumasPorDia.entries()) {
-              sumaTotalPromediosDiarios += sumaDia;
-            }
-          } else {
-            // Para otras categorías: dividir suma del día por número de detalles
-            for (const [fecha, sumaDia] of data.sumasPorDia.entries()) {
-              const numDetalles = data.detallesPorDia.get(fecha) || 1;
-              const promedioDia = sumaDia / numDetalles;
-              sumaTotalPromediosDiarios += promedioDia;
-            }
+          for (const [fecha, sumaDia] of data.sumasPorDia.entries()) {
+            sumaTotalDias += sumaDia;
           }
           
           const numeroDeDias = data.sumasPorDia.size;
-          const promedio = numeroDeDias > 0 ? sumaTotalPromediosDiarios / numeroDeDias : 0;
+          const promedio = numeroDeDias > 0 ? sumaTotalDias / numeroDeDias : 0;
 
           return {
             nombre,
