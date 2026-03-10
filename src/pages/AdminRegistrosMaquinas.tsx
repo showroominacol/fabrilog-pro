@@ -539,7 +539,7 @@ export default function AdminRegistrosMaquinas() {
               <Input
                 placeholder="Buscar por nombre o cédula"
                 value={filtroOperario}
-                onChange={(e) => setFiltroOperario(e.target.value)}
+                onChange={(e) => handleFilterChange(setFiltroOperario)(e.target.value)}
               />
             </div>
 
@@ -548,13 +548,13 @@ export default function AdminRegistrosMaquinas() {
               <Input
                 placeholder="Buscar por ID (ej: MONT1-001)"
                 value={filtroIdConsecutivo}
-                onChange={(e) => setFiltroIdConsecutivo(e.target.value)}
+                onChange={(e) => handleFilterChange(setFiltroIdConsecutivo)(e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
               <Label>Turno</Label>
-              <Select value={filtroTurno} onValueChange={setFiltroTurno}>
+              <Select value={filtroTurno} onValueChange={handleFilterChange(setFiltroTurno)}>
                 <SelectTrigger className="bg-background">
                   <SelectValue placeholder="Todos los turnos" />
                 </SelectTrigger>
@@ -572,7 +572,7 @@ export default function AdminRegistrosMaquinas() {
               <Input
                 type="date"
                 value={filtroFechaInicio}
-                onChange={(e) => setFiltroFechaInicio(e.target.value)}
+                onChange={(e) => handleFilterChange(setFiltroFechaInicio)(e.target.value)}
               />
             </div>
 
@@ -581,7 +581,7 @@ export default function AdminRegistrosMaquinas() {
               <Input
                 type="date"
                 value={filtroFechaFin}
-                onChange={(e) => setFiltroFechaFin(e.target.value)}
+                onChange={(e) => handleFilterChange(setFiltroFechaFin)(e.target.value)}
               />
             </div>
 
