@@ -699,7 +699,7 @@ export default function AdminRegistrosMaquinas() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Mostrando {startIndex + 1} - {Math.min(endIndex, filteredRegistros.length)} de {filteredRegistros.length} registros
+                    Mostrando {startIndex + 1} - {Math.min(endIndex, totalRegistros)} de {totalRegistros} registros
                   </p>
                   <div className="flex gap-2">
                     <Button
