@@ -501,12 +501,24 @@ export default function AdminRegistrosMaquinas() {
                             setCurrentPage(1);
                             setOpenMaquina(false);
                           }}
-...
-                          onSelect={() => {
-                            setFiltroMaquina(maquina.id);
-                            setCurrentPage(1);
-                            setOpenMaquina(false);
-                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              filtroMaquina === "all" ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          Todas las máquinas
+                        </CommandItem>
+                        {maquinas.map((maquina) => (
+                          <CommandItem
+                            key={maquina.id}
+                            value={maquina.nombre}
+                            onSelect={() => {
+                              setFiltroMaquina(maquina.id);
+                              setCurrentPage(1);
+                              setOpenMaquina(false);
+                            }}
                           >
                             <Check
                               className={cn(
