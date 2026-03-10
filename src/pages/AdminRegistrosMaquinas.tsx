@@ -44,7 +44,7 @@ export default function AdminRegistrosMaquinas() {
   const { toast } = useToast();
   
   const [registros, setRegistros] = useState<RegistroProduccion[]>([]);
-  const [filteredRegistros, setFilteredRegistros] = useState<RegistroProduccion[]>([]);
+  const [totalRegistros, setTotalRegistros] = useState(0);
   const [loading, setLoading] = useState(true);
   const [openMaquina, setOpenMaquina] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -52,7 +52,6 @@ export default function AdminRegistrosMaquinas() {
   
   // Filtros
   const [maquinas, setMaquinas] = useState<{ id: string; nombre: string }[]>([]);
-  const [operarios, setOperarios] = useState<{ id: string; nombre: string }[]>([]);
   const [filtroMaquina, setFiltroMaquina] = useState("all");
   const [filtroOperario, setFiltroOperario] = useState("");
   const [filtroTurno, setFiltroTurno] = useState("all");
@@ -60,7 +59,7 @@ export default function AdminRegistrosMaquinas() {
   const [filtroFechaInicio, setFiltroFechaInicio] = useState("");
   const [filtroFechaFin, setFiltroFechaFin] = useState("");
   
-  // Paginación
+  // Paginación server-side
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
   
@@ -76,19 +75,31 @@ export default function AdminRegistrosMaquinas() {
   ];
 
   useEffect(() => {
-    loadData();
+    loadMaquinas();
   }, []);
 
   useEffect(() => {
-    applyFilters();
-  }, [registros, filtroMaquina, filtroOperario, filtroTurno, filtroIdConsecutivo, filtroFechaInicio, filtroFechaFin]);
+    loadData();
+  }, [currentPage, filtroMaquina, filtroOperario, filtroTurno, filtroIdConsecutivo, filtroFechaInicio, filtroFechaFin]);
+
+  const loadMaquinas = async () => {
+    const { data } = await supabase
+      .from("maquinas")
+      .select("id, nombre")
+      .eq("activa", true)
+      .order("nombre");
+    setMaquinas(data || []);
+  };
 
   const loadData = async () => {
     try {
       setLoading(true);
       
-      // Cargar solo registros principales (no asistentes)
-      const { data: registrosData, error: registrosError } = await supabase
+      const from = (currentPage - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
+
+      // Construir query base con filtros server-side
+      let query = supabase
         .from("registros_produccion")
         .select(`
           id,
@@ -105,50 +116,87 @@ export default function AdminRegistrosMaquinas() {
             nombre,
             cedula
           )
-        `)
+        `, { count: "exact" })
         .eq("es_asistente", false)
         .order("fecha", { ascending: false })
-        .order("turno", { ascending: false });
+        .order("fecha_registro", { ascending: false })
+        .range(from, to);
+
+      if (filtroMaquina && filtroMaquina !== "all") {
+        query = query.eq("maquina_id", filtroMaquina);
+      }
+      if (filtroTurno && filtroTurno !== "all") {
+        query = query.eq("turno", filtroTurno as any);
+      }
+      if (filtroFechaInicio) {
+        query = query.gte("fecha", filtroFechaInicio);
+      }
+      if (filtroFechaFin) {
+        query = query.lte("fecha", filtroFechaFin);
+      }
+      if (filtroIdConsecutivo) {
+        query = query.ilike("id_consecutivo", `%${filtroIdConsecutivo}%`);
+      }
+      if (filtroOperario) {
+        // Filtrar por nombre/cédula de operario usando subquery
+        const { data: opData } = await supabase
+          .from("usuarios")
+          .select("id")
+          .or(`nombre.ilike.%${filtroOperario}%,cedula.ilike.%${filtroOperario}%`);
+        const opIds = opData?.map(o => o.id) || [];
+        if (opIds.length > 0) {
+          query = query.in("operario_id", opIds);
+        } else {
+          setRegistros([]);
+          setTotalRegistros(0);
+          setLoading(false);
+          return;
+        }
+      }
+
+      const { data: registrosData, error: registrosError, count } = await query;
 
       if (registrosError) throw registrosError;
 
-      // Cargar asistentes
-      const registroIds = registrosData?.map(r => r.id) || [];
-      const { data: asistentesData, error: asistentesError } = await supabase
-        .from("registro_asistentes")
-        .select(`
-          registro_id,
-          usuarios!registro_asistentes_asistente_id_fkey (
-            nombre,
-            cedula
-          )
-        `)
-        .in("registro_id", registroIds);
+      setTotalRegistros(count || 0);
 
-      if (asistentesError) throw asistentesError;
+      if (!registrosData || registrosData.length === 0) {
+        setRegistros([]);
+        return;
+      }
 
-      // Cargar detalles de producción para calcular porcentajes
-      const { data: detallesData, error: detallesError } = await supabase
-        .from("detalle_produccion")
-        .select("registro_id, produccion_real, porcentaje_cumplimiento")
-        .in("registro_id", registroIds);
+      // Cargar asistentes y detalles solo para esta página (máx 20 IDs)
+      const registroIds = registrosData.map(r => r.id);
 
-      if (detallesError) throw detallesError;
+      const [asistentesRes, detallesRes] = await Promise.all([
+        supabase
+          .from("registro_asistentes")
+          .select(`
+            registro_id,
+            usuarios!registro_asistentes_asistente_id_fkey (
+              nombre,
+              cedula
+            )
+          `)
+          .in("registro_id", registroIds),
+        supabase
+          .from("detalle_produccion")
+          .select("registro_id, produccion_real, porcentaje_cumplimiento")
+          .in("registro_id", registroIds),
+      ]);
 
-      // Agrupar detalles por registro
-      const detallesPorRegistro = detallesData?.reduce((acc, detalle) => {
-        if (!acc[detalle.registro_id]) {
-          acc[detalle.registro_id] = [];
-        }
-        acc[detalle.registro_id].push(detalle);
+      if (asistentesRes.error) throw asistentesRes.error;
+      if (detallesRes.error) throw detallesRes.error;
+
+      // Agrupar por registro
+      const detallesPorRegistro = (detallesRes.data || []).reduce((acc, d) => {
+        if (!acc[d.registro_id]) acc[d.registro_id] = [];
+        acc[d.registro_id].push(d);
         return acc;
-      }, {} as Record<string, typeof detallesData>);
+      }, {} as Record<string, typeof detallesRes.data>);
 
-      // Agrupar asistentes por registro
-      const asistentesPorRegistro = asistentesData?.reduce((acc, item) => {
-        if (!acc[item.registro_id]) {
-          acc[item.registro_id] = [];
-        }
+      const asistentesPorRegistro = (asistentesRes.data || []).reduce((acc, item) => {
+        if (!acc[item.registro_id]) acc[item.registro_id] = [];
         acc[item.registro_id].push({
           nombre: item.usuarios?.nombre || "N/A",
           cedula: item.usuarios?.cedula || "N/A",
@@ -156,8 +204,7 @@ export default function AdminRegistrosMaquinas() {
         return acc;
       }, {} as Record<string, { nombre: string; cedula: string }[]>);
 
-      // Procesar registros
-      const registrosProcesados = registrosData?.map(registro => {
+      const registrosProcesados = registrosData.map(registro => {
         const detalles = detallesPorRegistro[registro.id] || [];
         const produccionTotal = detalles.reduce((sum, d) => sum + (d.produccion_real || 0), 0);
         const porcentajePromedio = detalles.length > 0
@@ -178,30 +225,13 @@ export default function AdminRegistrosMaquinas() {
             nombre: registro.usuarios?.nombre || "N/A",
             cedula: registro.usuarios?.cedula || "N/A",
           },
-          asistentes: asistentesPorRegistro?.[registro.id] || [],
+          asistentes: asistentesPorRegistro[registro.id] || [],
           porcentaje_cumplimiento: porcentajePromedio,
           produccion_total: produccionTotal,
         };
-      }) || [];
+      });
 
       setRegistros(registrosProcesados);
-
-      // Cargar opciones para filtros
-      const { data: maquinasData } = await supabase
-        .from("maquinas")
-        .select("id, nombre")
-        .eq("activa", true)
-        .order("nombre");
-      
-      const { data: operariosData } = await supabase
-        .from("usuarios")
-        .select("id, nombre")
-        .eq("activo", true)
-        .eq("tipo_usuario", "operario")
-        .order("nombre");
-
-      setMaquinas(maquinasData || []);
-      setOperarios(operariosData || []);
       
     } catch (error) {
       console.error("Error al cargar registros:", error);
@@ -215,42 +245,6 @@ export default function AdminRegistrosMaquinas() {
     }
   };
 
-  const applyFilters = () => {
-    let filtered = [...registros];
-
-    if (filtroMaquina && filtroMaquina !== "all") {
-      filtered = filtered.filter(r => r.maquina_id === filtroMaquina);
-    }
-
-    if (filtroOperario) {
-      filtered = filtered.filter(r => 
-        r.operario.nombre.toLowerCase().includes(filtroOperario.toLowerCase()) ||
-        r.operario.cedula.includes(filtroOperario)
-      );
-    }
-
-    if (filtroIdConsecutivo) {
-      filtered = filtered.filter(r => 
-        r.id_consecutivo.toLowerCase().includes(filtroIdConsecutivo.toLowerCase())
-      );
-    }
-
-    if (filtroTurno && filtroTurno !== "all") {
-      filtered = filtered.filter(r => r.turno === filtroTurno);
-    }
-
-    if (filtroFechaInicio) {
-      filtered = filtered.filter(r => r.fecha >= filtroFechaInicio);
-    }
-
-    if (filtroFechaFin) {
-      filtered = filtered.filter(r => r.fecha <= filtroFechaFin);
-    }
-
-    setFilteredRegistros(filtered);
-    setCurrentPage(1);
-  };
-
   const clearFilters = () => {
     setFiltroMaquina("all");
     setFiltroOperario("");
@@ -258,6 +252,12 @@ export default function AdminRegistrosMaquinas() {
     setFiltroIdConsecutivo("");
     setFiltroFechaInicio("");
     setFiltroFechaFin("");
+    setCurrentPage(1);
+  };
+
+  const handleFilterChange = (setter: (v: string) => void) => (value: string) => {
+    setter(value);
+    setCurrentPage(1);
   };
 
   const exportarRegistroPDF = async (registroId: string) => {
