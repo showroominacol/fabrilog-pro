@@ -442,11 +442,11 @@ export default function AdminRegistrosMaquinas() {
     return "destructive";
   };
 
-  // Paginación
-  const totalPages = Math.ceil(filteredRegistros.length / itemsPerPage);
+  // Paginación server-side
+  const totalPages = Math.ceil(totalRegistros / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const currentRegistros = filteredRegistros.slice(startIndex, endIndex);
+  const currentRegistros = registros;
 
   return (
     <div className="space-y-6">
