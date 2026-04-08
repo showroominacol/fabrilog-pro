@@ -244,22 +244,37 @@ private toYMD(d: Date): string {
     const startDate = this.toYMD(fechaInicio); // YYYY-MM-DD
     const endDate   = this.toYMD(fechaFin);    // YYYY-MM-DD
 
-    const { data: registros } = await supabase
-      .from("registros_produccion")
-      .select(
-        `
-        fecha,
-        detalle_produccion!fk_detalle_produccion_registro(
-          porcentaje_cumplimiento
-        )
-      `,
-      )
-      .eq("operario_id", operarioId)
-      .eq("es_asistente", false)
-      .gte("fecha", startDate)
-      .lte("fecha", endDate); // inclusivo
+    // Paginar para evitar límite de 1000 filas
+    const registros: any[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    if (!registros) return [];
+    while (hasMore) {
+      const { data: page } = await supabase
+        .from("registros_produccion")
+        .select(
+          `
+          fecha,
+          detalle_produccion!fk_detalle_produccion_registro(
+            porcentaje_cumplimiento
+          )
+        `,
+        )
+        .eq("operario_id", operarioId)
+        .eq("es_asistente", false)
+        .gte("fecha", startDate)
+        .lte("fecha", endDate)
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (page && page.length > 0) {
+        registros.push(...page);
+        from += PAGE_SIZE;
+        hasMore = page.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
 
     const diasMap = new Map<string, number>();
     for (const registro of registros) {
