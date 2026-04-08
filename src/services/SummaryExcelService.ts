@@ -78,36 +78,51 @@ export class SummaryExcelService {
     const startDate = fechaInicio.toISOString().split("T")[0];
     const endDate = fechaFin.toISOString().split("T")[0];
 
-    // 1) Registros con máquina y detalle (sin registro_asistentes)
-    const { data: regs, error: regsErr } = await supabase
-      .from("registros_produccion")
-      .select(`
-        id,
-        fecha,
-        turno,
-        operario_id,
-        maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
-        detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
-          produccion_real,
-          porcentaje_cumplimiento,
-          observaciones,
-          productos:productos!detalle_produccion_producto_id_fkey (
-            nombre,
-            tipo_producto,
-            tope,
-            tope_jornada_8h,
-            tope_jornada_10h
+    // 1) Registros con máquina y detalle (paginados para evitar Bad Request)
+    const allRegs: any[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: page, error: regsErr } = await supabase
+        .from("registros_produccion")
+        .select(`
+          id,
+          fecha,
+          turno,
+          operario_id,
+          maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
+          detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
+            produccion_real,
+            porcentaje_cumplimiento,
+            observaciones,
+            productos:productos!detalle_produccion_producto_id_fkey (
+              nombre,
+              tipo_producto,
+              tope,
+              tope_jornada_8h,
+              tope_jornada_10h
+            )
           )
-        )
-      `)
-      .gte("fecha", startDate)
-      .lte("fecha", endDate)
-      .order("fecha", { ascending: true })
-      .limit(50000);
+        `)
+        .gte("fecha", startDate)
+        .lte("fecha", endDate)
+        .order("fecha", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
 
-    if (regsErr) throw regsErr;
+      if (regsErr) throw regsErr;
 
-    const registros = (regs as unknown as PrefetchedRegistro[]) ?? [];
+      if (page && page.length > 0) {
+        allRegs.push(...page);
+        from += PAGE_SIZE;
+        hasMore = page.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    const registros = (allRegs as unknown as PrefetchedRegistro[]);
     if (registros.length === 0) return [];
 
     // 2) Asistentes por lotes
