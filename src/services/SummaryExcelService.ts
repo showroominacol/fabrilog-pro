@@ -118,8 +118,8 @@ export class SummaryExcelService {
       const { data: page, error: regsErr } = await query;
 
       if (regsErr) {
-        console.error("Supabase query error:", JSON.stringify(regsErr));
-        throw regsErr;
+        const details = [regsErr.message, regsErr.details, regsErr.hint].filter(Boolean).join(" | ");
+        throw new Error(details || "Bad Request");
       }
 
       if (page && page.length > 0) {
