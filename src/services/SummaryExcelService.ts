@@ -80,7 +80,7 @@ export class SummaryExcelService {
 
     // 1) Registros paginados para evitar Bad Request
     const allRegs: any[] = [];
-    const PAGE_SIZE = 500;
+    const PAGE_SIZE = 200;
     let from = 0;
     let hasMore = true;
 
