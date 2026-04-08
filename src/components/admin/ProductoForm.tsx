@@ -567,7 +567,7 @@ export function ProductoForm({ producto, maquinas, onSubmit, onCancel }: Product
                         <SelectValue placeholder="Selecciona la categoría" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent side="top">
                       {categoriasUnicas.map((categoria) => (
                         <SelectItem key={categoria} value={categoria}>
                           {categoria}
