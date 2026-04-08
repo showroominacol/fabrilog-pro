@@ -108,7 +108,6 @@ export class SummaryExcelService {
         `)
         .gte("fecha", startDate)
         .lte("fecha", endDate)
-        .order("fecha", { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
 
       if (regsErr) throw regsErr;
