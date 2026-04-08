@@ -280,16 +280,8 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
 };
 
 
-  const adjustDateForNightShift = (fecha: string, turno: string): string => {
-    if (turno === "10:00pm - 6:00am") {
-      // Parse date parts manually to avoid timezone shifts
-      const [year, month, day] = fecha.split("-").map(Number);
-      const date = new Date(year, month - 1, day + 1);
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      return `${y}-${m}-${d}`;
-    }
+  const adjustDateForNightShift = (fecha: string, _turno: string): string => {
+    // Always keep the date as entered by the user, regardless of shift
     return fecha;
   };
 
