@@ -37,42 +37,59 @@ export class MachineReportService {
       .eq("activa", true);
     if (!maquinas) return [];
 
-    const { data: registros, error } = await supabase
-      .from("registros_produccion")
-      .select(
-        `
-        id,
-        fecha,
-        turno,
-        es_asistente,
-        operario_id,
-        maquina_id,
-        maquinas!fk_registros_produccion_maquina(
-          nombre,
-          categoria
-        ),
-        usuarios!fk_registros_produccion_operario(
-          nombre
-        ),
-        detalle_produccion!fk_detalle_produccion_registro(
-          produccion_real,
-          porcentaje_cumplimiento,
-          productos!fk_detalle_produccion_producto(
-            nombre,
-            tipo_producto,
-            tope,
-            tope_jornada_10h,
-            tope_jornada_8h
-          )
-        )
-      `,
-      )
-      .gte("fecha", startDate) // inclusivo
-      .lte("fecha", endDate)   // inclusivo (columna DATE)
-      .order("fecha", { ascending: true })
-      .order("turno", { ascending: true });
+    // Paginar para evitar el límite de 1000 filas de Supabase
+    const registros: any[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    if (error) throw new Error(`Error fetching production data: ${error.message}`);
+    while (hasMore) {
+      const { data: page, error } = await supabase
+        .from("registros_produccion")
+        .select(
+          `
+          id,
+          fecha,
+          turno,
+          es_asistente,
+          operario_id,
+          maquina_id,
+          maquinas!fk_registros_produccion_maquina(
+            nombre,
+            categoria
+          ),
+          usuarios!fk_registros_produccion_operario(
+            nombre
+          ),
+          detalle_produccion!fk_detalle_produccion_registro(
+            produccion_real,
+            porcentaje_cumplimiento,
+            productos!fk_detalle_produccion_producto(
+              nombre,
+              tipo_producto,
+              tope,
+              tope_jornada_10h,
+              tope_jornada_8h
+            )
+          )
+        `,
+        )
+        .gte("fecha", startDate)
+        .lte("fecha", endDate)
+        .order("fecha", { ascending: true })
+        .order("turno", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) throw new Error(`Error fetching production data: ${error.message}`);
+
+      if (page && page.length > 0) {
+        registros.push(...page);
+        from += PAGE_SIZE;
+        hasMore = page.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
 
     // Promedios por operario basados SOLO en días trabajados reales
     const porcentajesSumaOperarios = await this.calcularPorcentajesSuma(registros || [], fechaInicio, fechaFin);
@@ -227,22 +244,37 @@ private toYMD(d: Date): string {
     const startDate = this.toYMD(fechaInicio); // YYYY-MM-DD
     const endDate   = this.toYMD(fechaFin);    // YYYY-MM-DD
 
-    const { data: registros } = await supabase
-      .from("registros_produccion")
-      .select(
-        `
-        fecha,
-        detalle_produccion!fk_detalle_produccion_registro(
-          porcentaje_cumplimiento
-        )
-      `,
-      )
-      .eq("operario_id", operarioId)
-      .eq("es_asistente", false)
-      .gte("fecha", startDate)
-      .lte("fecha", endDate); // inclusivo
+    // Paginar para evitar límite de 1000 filas
+    const registros: any[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    if (!registros) return [];
+    while (hasMore) {
+      const { data: page } = await supabase
+        .from("registros_produccion")
+        .select(
+          `
+          fecha,
+          detalle_produccion!fk_detalle_produccion_registro(
+            porcentaje_cumplimiento
+          )
+        `,
+        )
+        .eq("operario_id", operarioId)
+        .eq("es_asistente", false)
+        .gte("fecha", startDate)
+        .lte("fecha", endDate)
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (page && page.length > 0) {
+        registros.push(...page);
+        from += PAGE_SIZE;
+        hasMore = page.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
 
     const diasMap = new Map<string, number>();
     for (const registro of registros) {
@@ -266,19 +298,27 @@ private toYMD(d: Date): string {
   private async obtenerAsistentes(registroIds: string[]): Promise<Map<string, string[]>> {
     if (!registroIds || registroIds.length === 0) return new Map();
 
-    const { data: asistentes } = await supabase
-      .from("registro_asistentes")
-      .select(
-        `
-        registro_id,
-        usuarios!fk_registro_asistentes_asistente(nombre)
-      `,
-      )
-      .in("registro_id", registroIds);
+    // Dividir en chunks para evitar límites de URL/query
+    const CHUNK_SIZE = 500;
+    const allAsistentes: any[] = [];
+
+    for (let i = 0; i < registroIds.length; i += CHUNK_SIZE) {
+      const chunk = registroIds.slice(i, i + CHUNK_SIZE);
+      const { data } = await supabase
+        .from("registro_asistentes")
+        .select(
+          `
+          registro_id,
+          usuarios!fk_registro_asistentes_asistente(nombre)
+        `,
+        )
+        .in("registro_id", chunk);
+      if (data) allAsistentes.push(...data);
+    }
 
     const asistentesMap = new Map<string, string[]>();
-    if (asistentes) {
-      for (const asistente of asistentes) {
+    if (allAsistentes.length > 0) {
+      for (const asistente of allAsistentes) {
         const registroId = (asistente as any).registro_id;
         const nombreAsistente = (asistente as any).usuarios?.nombre || "N/A";
         if (!asistentesMap.has(registroId)) asistentesMap.set(registroId, []);
