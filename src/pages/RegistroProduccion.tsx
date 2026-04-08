@@ -799,7 +799,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
                   <SelectTrigger className="input-touch">
                     <SelectValue placeholder="Selecciona el operario principal" />
                   </SelectTrigger>
-                  <SelectContent className="bg-background z-50 max-h-48 overflow-y-auto">
+                  <SelectContent side="top" className="bg-background z-50 max-h-48 overflow-y-auto">
                     {filteredUsuarios
                       .filter((u) => u.tipo_usuario === "operario" && u.activo)
                       .map((usuario) => (
@@ -915,7 +915,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
                   <SelectTrigger className="input-touch">
                     <SelectValue placeholder="Selecciona el turno" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent side="top">
                     {turnos.map((turno) => (
                       <SelectItem key={turno} value={turno}>
                         {turno}
@@ -939,7 +939,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
                 <SelectTrigger className="input-touch">
                   <SelectValue placeholder="Selecciona la categoría" />
                 </SelectTrigger>
-                <SelectContent className="bg-background z-50">
+                <SelectContent side="top" className="bg-background z-50">
                   {categoriasMaquinas.map((categoria) => (
                     <SelectItem key={categoria} value={categoria}>
                       {categoria}
@@ -960,7 +960,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
                   <SelectTrigger className="input-touch">
                     <SelectValue placeholder="Selecciona la máquina" />
                   </SelectTrigger>
-                  <SelectContent className="bg-background z-50">
+                  <SelectContent side="top" className="bg-background z-50">
                     {filteredMaquinas.length === 0 ? (
                       <div className="p-2 text-sm text-muted-foreground">No hay máquinas en esta categoría</div>
                     ) : (
@@ -1040,7 +1040,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
                             <SelectTrigger className="input-touch">
                               <SelectValue placeholder="Selecciona el producto" />
                             </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
+                            <SelectContent side="top" className="bg-background z-50">
                               {filteredProductos.map((prod) => (
                                 <SelectItem key={prod.id} value={prod.id}>
                                   {prod.nombre}
