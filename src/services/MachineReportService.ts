@@ -298,15 +298,23 @@ private toYMD(d: Date): string {
   private async obtenerAsistentes(registroIds: string[]): Promise<Map<string, string[]>> {
     if (!registroIds || registroIds.length === 0) return new Map();
 
-    const { data: asistentes } = await supabase
-      .from("registro_asistentes")
-      .select(
-        `
-        registro_id,
-        usuarios!fk_registro_asistentes_asistente(nombre)
-      `,
-      )
-      .in("registro_id", registroIds);
+    // Dividir en chunks para evitar límites de URL/query
+    const CHUNK_SIZE = 500;
+    const allAsistentes: any[] = [];
+
+    for (let i = 0; i < registroIds.length; i += CHUNK_SIZE) {
+      const chunk = registroIds.slice(i, i + CHUNK_SIZE);
+      const { data } = await supabase
+        .from("registro_asistentes")
+        .select(
+          `
+          registro_id,
+          usuarios!fk_registro_asistentes_asistente(nombre)
+        `,
+        )
+        .in("registro_id", chunk);
+      if (data) allAsistentes.push(...data);
+    }
 
     const asistentesMap = new Map<string, string[]>();
     if (asistentes) {
