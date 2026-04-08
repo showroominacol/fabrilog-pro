@@ -317,8 +317,8 @@ private toYMD(d: Date): string {
     }
 
     const asistentesMap = new Map<string, string[]>();
-    if (asistentes) {
-      for (const asistente of asistentes) {
+    if (allAsistentes.length > 0) {
+      for (const asistente of allAsistentes) {
         const registroId = (asistente as any).registro_id;
         const nombreAsistente = (asistente as any).usuarios?.nombre || "N/A";
         if (!asistentesMap.has(registroId)) asistentesMap.set(registroId, []);
