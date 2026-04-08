@@ -78,26 +78,30 @@ export class SummaryExcelService {
     const startDate = fechaInicio.toISOString().split("T")[0];
     const endDate = fechaFin.toISOString().split("T")[0];
 
-    // 1) Registros con máquina y detalle (paginados para evitar Bad Request)
+    // 1) Registros paginados para evitar Bad Request
     const allRegs: any[] = [];
-    const PAGE_SIZE = 1000;
+    const PAGE_SIZE = 500;
     let from = 0;
     let hasMore = true;
 
     while (hasMore) {
-      const { data: page, error: regsErr } = await supabase
+      const query = supabase
         .from("registros_produccion")
-        .select(`
+        .select(
+          `
           id,
           fecha,
           turno,
           operario_id,
-          maquinas!fk_registros_produccion_maquina ( nombre, categoria ),
-          detalle_produccion!fk_detalle_produccion_registro (
+          maquinas!fk_registros_produccion_maquina(
+            nombre,
+            categoria
+          ),
+          detalle_produccion!fk_detalle_produccion_registro(
             produccion_real,
             porcentaje_cumplimiento,
             observaciones,
-            productos!fk_detalle_produccion_producto (
+            productos!fk_detalle_produccion_producto(
               nombre,
               tipo_producto,
               tope,
@@ -105,12 +109,18 @@ export class SummaryExcelService {
               tope_jornada_10h
             )
           )
-        `)
+        `
+        )
         .gte("fecha", startDate)
         .lte("fecha", endDate)
         .range(from, from + PAGE_SIZE - 1);
 
-      if (regsErr) throw regsErr;
+      const { data: page, error: regsErr } = await query;
+
+      if (regsErr) {
+        console.error("Supabase query error:", JSON.stringify(regsErr));
+        throw regsErr;
+      }
 
       if (page && page.length > 0) {
         allRegs.push(...page);
@@ -121,7 +131,7 @@ export class SummaryExcelService {
       }
     }
 
-    const registros = (allRegs as unknown as PrefetchedRegistro[]);
+    const registros = allRegs as unknown as PrefetchedRegistro[];
     if (registros.length === 0) return [];
 
     // 2) Asistentes por lotes
