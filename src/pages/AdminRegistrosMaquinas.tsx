@@ -61,7 +61,7 @@ export default function AdminRegistrosMaquinas() {
   
   // Paginación server-side
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const itemsPerPage = 50;
   
   const turnos = [
     "6:00am - 2:00pm",
