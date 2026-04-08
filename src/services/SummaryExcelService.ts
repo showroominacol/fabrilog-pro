@@ -92,12 +92,12 @@ export class SummaryExcelService {
           fecha,
           turno,
           operario_id,
-          maquinas:maquinas!registros_produccion_maquina_id_fkey ( nombre, categoria ),
-          detalle_produccion:detalle_produccion!detalle_produccion_registro_id_fkey (
+          maquinas!fk_registros_produccion_maquina ( nombre, categoria ),
+          detalle_produccion!fk_detalle_produccion_registro (
             produccion_real,
             porcentaje_cumplimiento,
             observaciones,
-            productos:productos!detalle_produccion_producto_id_fkey (
+            productos!fk_detalle_produccion_producto (
               nombre,
               tipo_producto,
               tope,
