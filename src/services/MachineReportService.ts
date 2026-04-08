@@ -37,42 +37,59 @@ export class MachineReportService {
       .eq("activa", true);
     if (!maquinas) return [];
 
-    const { data: registros, error } = await supabase
-      .from("registros_produccion")
-      .select(
-        `
-        id,
-        fecha,
-        turno,
-        es_asistente,
-        operario_id,
-        maquina_id,
-        maquinas!fk_registros_produccion_maquina(
-          nombre,
-          categoria
-        ),
-        usuarios!fk_registros_produccion_operario(
-          nombre
-        ),
-        detalle_produccion!fk_detalle_produccion_registro(
-          produccion_real,
-          porcentaje_cumplimiento,
-          productos!fk_detalle_produccion_producto(
-            nombre,
-            tipo_producto,
-            tope,
-            tope_jornada_10h,
-            tope_jornada_8h
-          )
-        )
-      `,
-      )
-      .gte("fecha", startDate) // inclusivo
-      .lte("fecha", endDate)   // inclusivo (columna DATE)
-      .order("fecha", { ascending: true })
-      .order("turno", { ascending: true });
+    // Paginar para evitar el límite de 1000 filas de Supabase
+    const registros: any[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    if (error) throw new Error(`Error fetching production data: ${error.message}`);
+    while (hasMore) {
+      const { data: page, error } = await supabase
+        .from("registros_produccion")
+        .select(
+          `
+          id,
+          fecha,
+          turno,
+          es_asistente,
+          operario_id,
+          maquina_id,
+          maquinas!fk_registros_produccion_maquina(
+            nombre,
+            categoria
+          ),
+          usuarios!fk_registros_produccion_operario(
+            nombre
+          ),
+          detalle_produccion!fk_detalle_produccion_registro(
+            produccion_real,
+            porcentaje_cumplimiento,
+            productos!fk_detalle_produccion_producto(
+              nombre,
+              tipo_producto,
+              tope,
+              tope_jornada_10h,
+              tope_jornada_8h
+            )
+          )
+        `,
+        )
+        .gte("fecha", startDate)
+        .lte("fecha", endDate)
+        .order("fecha", { ascending: true })
+        .order("turno", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) throw new Error(`Error fetching production data: ${error.message}`);
+
+      if (page && page.length > 0) {
+        registros.push(...page);
+        from += PAGE_SIZE;
+        hasMore = page.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
 
     // Promedios por operario basados SOLO en días trabajados reales
     const porcentajesSumaOperarios = await this.calcularPorcentajesSuma(registros || [], fechaInicio, fechaFin);
