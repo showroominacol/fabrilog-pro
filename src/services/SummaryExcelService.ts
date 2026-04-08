@@ -59,7 +59,7 @@ type PrefetchedRegistro = {
 };
 
 // ===== util batching para .in() grandes =====
-const IN_CHUNK_SIZE = 1000;
+const IN_CHUNK_SIZE = 200;
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -80,7 +80,7 @@ export class SummaryExcelService {
 
     // 1) Registros paginados para evitar Bad Request
     const allRegs: any[] = [];
-    const PAGE_SIZE = 500;
+    const PAGE_SIZE = 200;
     let from = 0;
     let hasMore = true;
 
@@ -118,8 +118,8 @@ export class SummaryExcelService {
       const { data: page, error: regsErr } = await query;
 
       if (regsErr) {
-        console.error("Supabase query error:", JSON.stringify(regsErr));
-        throw regsErr;
+        const details = [regsErr.message, regsErr.details, regsErr.hint].filter(Boolean).join(" | ");
+        throw new Error(details || "Bad Request");
       }
 
       if (page && page.length > 0) {
