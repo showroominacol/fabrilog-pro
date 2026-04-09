@@ -589,7 +589,7 @@ export class SummaryExcelService {
       for (let i = 0; i < employeeData.length; i++) {
         const rowIndex = startRow + i;
         worksheet[`E${rowIndex}`] = {
-          f: `IF(D${rowIndex}>=0.8, 500000*D${rowIndex}, 0)`,
+          f: `IF(D${rowIndex}>=0.8, 500000*MIN(D${rowIndex},1), 0)`,
         };
         (worksheet[`E${rowIndex}`] as any).z = "#,##0";
       }
