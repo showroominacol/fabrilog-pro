@@ -534,8 +534,8 @@ export class SummaryExcelService {
 
         const diasCells: string[] = [];
         for (let k = 0; k < todasCategorias.length; k++) {
-          const opDiasCol = (5 + 6 * k) + 1;  // F, L, R, ...
-          const ayuDiasCol = (8 + 6 * k) + 1; // I, O, U, ...
+          const opDiasCol = (6 + 6 * k) + 1;  // G, M, S, ...
+          const ayuDiasCol = (9 + 6 * k) + 1; // J, P, V, ...
 
           const opDiasAddr = `${this.columnLetter(opDiasCol)}${rowIndex}`;
           const ayuDiasAddr = `${this.columnLetter(ayuDiasCol)}${rowIndex}`;
@@ -561,9 +561,9 @@ export class SummaryExcelService {
 
         const terminos: string[] = [];
         for (let k = 0; k < todasCategorias.length; k++) {
-          const opPctCol   = 5 + 6 * k;
+          const opPctCol   = 6 + 6 * k;
           const opDiasCol  = opPctCol + 1;
-          const ayuPctCol  = 8 + 6 * k;
+          const ayuPctCol  = 9 + 6 * k;
           const ayuDiasCol = ayuPctCol + 1;
 
           const opPct   = `${this.columnLetter(opPctCol)}${rowIndex}`;
@@ -579,6 +579,19 @@ export class SummaryExcelService {
           f: `IF(N(${diasXLaborarCell})>0, ${numerador}/N(${diasXLaborarCell})/100, 0)`,
         };
         (worksheet[`D${rowIndex}`] as any).z = "0.0%";
+      }
+    }
+
+    // === Fórmula dinámica en E: BONO EN PESOS ==================
+    // E{fila} = IF(D{fila} >= 0.8, 500000 * D{fila}, 0)
+    {
+      const startRow = 3;
+      for (let i = 0; i < employeeData.length; i++) {
+        const rowIndex = startRow + i;
+        worksheet[`E${rowIndex}`] = {
+          f: `IF(D${rowIndex}>=0.8, 500000*D${rowIndex}, 0)`,
+        };
+        (worksheet[`E${rowIndex}`] as any).z = "#,##0";
       }
     }
 
@@ -605,8 +618,8 @@ export class SummaryExcelService {
   }
 
   private createHeaders(categorias: string[]): (string | number)[][] {
-    const h1: (string | number)[] = ["NOMBRE", "DIAS X LABORAR", "DIAS REAL LABORADOS", "BONO TOTAL"];
-    const h2: (string | number)[] = ["", "", "", ""];
+    const h1: (string | number)[] = ["NOMBRE", "DIAS X LABORAR", "DIAS REAL LABORADOS", "BONO TOTAL", "BONO EN PESOS"];
+    const h2: (string | number)[] = ["", "", "", "", ""];
     for (const categoria of categorias) {
       h1.push(`OP. ${categoria.toUpperCase()}`, "", "");
       h2.push("%", "DÍAS", "OBSERVACIONES");
@@ -624,6 +637,7 @@ export class SummaryExcelService {
         empleado.diasXLaborar,
         0, // C se calculará con fórmula
         0, // D se calculará con fórmula
+        0, // E se calculará con fórmula (BONO EN PESOS)
       ];
       for (const categoria of categorias) {
         const b = empleado.bloques.find((x) => x.categoria === categoria);
@@ -658,6 +672,7 @@ export class SummaryExcelService {
       { width: 15 }, // DIAS X LABORAR
       { width: 18 }, // DIAS REAL LABORADOS
       { width: 12 }, // BONO TOTAL
+      { width: 15 }, // BONO EN PESOS
     ];
     for (let i = 0; i < categorias.length; i++) {
       colWidths.push(
