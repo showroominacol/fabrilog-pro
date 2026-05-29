@@ -625,6 +625,12 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
           alambre_calibre_22_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.alambre_calibre_22_kg) : null,
           festones_reciclados_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.festones_reciclados_kg) : null,
           desperdicio_puntas_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.desperdicio_puntas_kg) : null,
+          peso_pvc_ocre: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_pvc_ocre) : null,
+          peso_pvc_marron: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_pvc_marron) : null,
+          monofilamento_usado: formData.categoria_maquina === "Cepillos" ? toNum(formData.monofilamento_usado) : null,
+          peso_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_alambre) : null,
+          desperdicio_monofilamento: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_monofilamento) : null,
+          desperdicio_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_alambre) : null,
         })
         .select()
         .single();
