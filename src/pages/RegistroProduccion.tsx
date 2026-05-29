@@ -587,6 +587,13 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
           maquina_id: formData.maquina_id,
           es_asistente: false,
           id_consecutivo: idConsecutivo,
+          verde_medio_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.verde_medio_kg) : null,
+          verde_oscuro_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.verde_oscuro_kg) : null,
+          ocre_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.ocre_kg) : null,
+          alambre_calibre_20_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.alambre_calibre_20_kg) : null,
+          alambre_calibre_22_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.alambre_calibre_22_kg) : null,
+          festones_reciclados_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.festones_reciclados_kg) : null,
+          desperdicio_puntas_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.desperdicio_puntas_kg) : null,
         })
         .select()
         .single();
