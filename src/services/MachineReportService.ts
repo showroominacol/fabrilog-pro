@@ -79,6 +79,12 @@ export class MachineReportService {
           alambre_calibre_22_kg,
           festones_reciclados_kg,
           desperdicio_puntas_kg,
+          peso_pvc_ocre,
+          peso_pvc_marron,
+          monofilamento_usado,
+          peso_alambre,
+          desperdicio_monofilamento,
+          desperdicio_alambre,
           maquinas!fk_registros_produccion_maquina(
             nombre,
             categoria
