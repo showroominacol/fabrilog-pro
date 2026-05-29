@@ -479,6 +479,7 @@ private toYMD(d: Date): string {
 
       const isCuatroCabezas = categoria.categoria.toLowerCase() === "4 cabezas";
       const isCepillos = categoria.categoria.toLowerCase() === "cepillos";
+      const extraFields = CATEGORY_EXTRA_FIELDS[categoria.categoria] || [];
       const baseHeaders = ["Fecha", "Turno", "Operario", "Asistente", "Máquina", "Producto", "Producido", "% Cumplimiento"];
       const cuatroCabezasHeaders = [
         "VERDE MEDIO (KG)",
@@ -501,7 +502,9 @@ private toYMD(d: Date): string {
         ? [...baseHeaders, ...cuatroCabezasHeaders]
         : isCepillos
           ? [...baseHeaders, ...cepillosHeaders]
-          : baseHeaders;
+          : extraFields.length > 0
+            ? [...baseHeaders, ...extraFields.map(f => f.label)]
+            : baseHeaders;
 
       const sheetData = [
         headers,
@@ -543,6 +546,15 @@ private toYMD(d: Date): string {
               fmt(registro.peso_alambre),
               fmt(registro.desperdicio_monofilamento),
               fmt(registro.desperdicio_alambre),
+            ];
+          }
+          if (extraFields.length > 0) {
+            const show = registro.showExtras;
+            const fmt = (v: number | null | undefined) =>
+              show && v !== null && v !== undefined ? Number(v) : "";
+            return [
+              ...baseRow,
+              ...extraFields.map(f => fmt(registro.extras?.[f.key])),
             ];
           }
           return baseRow;
