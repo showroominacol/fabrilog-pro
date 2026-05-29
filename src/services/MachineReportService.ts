@@ -191,6 +191,13 @@ export class MachineReportService {
               festones_reciclados_kg: registro.festones_reciclados_kg ?? null,
               desperdicio_puntas_kg: registro.desperdicio_puntas_kg ?? null,
               showCuatroCabezasKg: detalleIdx === 0,
+              peso_pvc_ocre: registro.peso_pvc_ocre ?? null,
+              peso_pvc_marron: registro.peso_pvc_marron ?? null,
+              monofilamento_usado: registro.monofilamento_usado ?? null,
+              peso_alambre: registro.peso_alambre ?? null,
+              desperdicio_monofilamento: registro.desperdicio_monofilamento ?? null,
+              desperdicio_alambre: registro.desperdicio_alambre ?? null,
+              showCepillosKg: detalleIdx === 0,
             });
             detalleIdx++;
           }
@@ -214,6 +221,13 @@ export class MachineReportService {
             festones_reciclados_kg: registro.festones_reciclados_kg ?? null,
             desperdicio_puntas_kg: registro.desperdicio_puntas_kg ?? null,
             showCuatroCabezasKg: true,
+              peso_pvc_ocre: registro.peso_pvc_ocre ?? null,
+              peso_pvc_marron: registro.peso_pvc_marron ?? null,
+              monofilamento_usado: registro.monofilamento_usado ?? null,
+              peso_alambre: registro.peso_alambre ?? null,
+              desperdicio_monofilamento: registro.desperdicio_monofilamento ?? null,
+              desperdicio_alambre: registro.desperdicio_alambre ?? null,
+              showCepillosKg: true,
           });
         }
       }
