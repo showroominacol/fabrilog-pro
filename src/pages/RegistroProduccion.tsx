@@ -704,6 +704,13 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
         operario_principal_id: "",
         productos: [],
         asistentes: [],
+        verde_medio_kg: "",
+        verde_oscuro_kg: "",
+        ocre_kg: "",
+        alambre_calibre_20_kg: "",
+        alambre_calibre_22_kg: "",
+        festones_reciclados_kg: "",
+        desperdicio_puntas_kg: "",
       });
       setPorcentajeCumplimiento(0);
       setAsistentesOpen(false);
