@@ -73,7 +73,7 @@ export class SummaryExcelService {
     const registros = await this.fetchRegistrosRange(fechaInicio, fechaFin);
     const { data: empleados } = await supabase
       .from("usuarios")
-      .select("id, nombre")
+      .select("id, nombre, cedula")
       .eq("activo", true)
       .order("nombre", { ascending: true });
     await this.exportToExcel(employeeData, fechaInicio, fechaFin, empleados ?? [], registros);
@@ -172,7 +172,7 @@ export class SummaryExcelService {
     // Empleados activos
     const { data: empleados, error: errUsers } = await supabase
       .from("usuarios")
-      .select("id, nombre")
+      .select("id, nombre, cedula")
       .eq("activo", true)
       .order("nombre", { ascending: true });
 
@@ -525,7 +525,7 @@ export class SummaryExcelService {
     employeeData: EmployeeData[],
     fechaInicio: Date,
     fechaFin: Date,
-    empleados: { id: string; nombre: string }[] = [],
+    empleados: { id: string; nombre: string; cedula: string }[] = [],
     registros: PrefetchedRegistro[] = []
   ): Promise<void> {
     const workbook = XLSX.utils.book_new();
@@ -731,7 +731,7 @@ export class SummaryExcelService {
 
   // ================== Hojas por quincena (15 / 30 días) ==================
   private buildQuincenaSheet(
-    empleados: { id: string; nombre: string }[],
+    empleados: { id: string; nombre: string; cedula: string }[],
     registros: PrefetchedRegistro[],
     quincena: "primera" | "segunda"
   ): XLSX.WorkSheet {
@@ -741,7 +741,7 @@ export class SummaryExcelService {
       return quincena === "primera" ? day >= 1 && day <= 15 : day >= 16;
     });
 
-    const header = ["NOMBRE EMPLEADO", "VALOR", "ENTORCHADO", "AMARRADO", "AREA", "OTROS DIAS", "VALOR ENTORCHADO", "VALOR AMARRADO"];
+    const header = ["NOMBRE EMPLEADO", "CEDULA", "VALOR", "ENTORCHADO", "AMARRADO", "AREA", "OTROS DIAS", "VALOR ENTORCHADO", "VALOR AMARRADO"];
     const rows: (string | number)[][] = [header];
 
     for (const emp of empleados) {
@@ -786,23 +786,24 @@ export class SummaryExcelService {
         }
       }
 
-      rows.push([emp.nombre, "", entorchado, amarrado, categoriaPredominante, otrosDias, "", ""]);
+      rows.push([emp.nombre, emp.cedula, "", entorchado, amarrado, categoriaPredominante, otrosDias, "", ""]);
     }
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
 
-    // Fórmulas para VALOR ENTORCHADO (G) y VALOR AMARRADO (H)
-    // Si OTROS DIAS (F) <= 4, esos días se suman al área con mayor valor.
-    // G = (B/15) * (C + IF(AND(F>0, F<=4, C>=D), F, 0))
-    // H = (B/15) * (D + IF(AND(F>0, F<=4, D>C),  F, 0))
+    // Fórmulas para VALOR ENTORCHADO (H) y VALOR AMARRADO (I)
+    // Si OTROS DIAS (G) <= 4, esos días se suman al área con mayor valor.
+    // H = (C/15) * (D + IF(AND(G>0, G<=4, D>=E), G, 0))
+    // I = (C/15) * (E + IF(AND(G>0, G<=4, E>D),  G, 0))
     for (let i = 0; i < empleados.length; i++) {
       const r = i + 2; // fila Excel (1-based, +1 por header)
-      ws[`G${r}`] = { t: "n", f: `IF(N(B${r})=0,0,(B${r}/15)*(C${r}+IF(AND(F${r}>0,F${r}<=4,C${r}>=D${r}),F${r},0)))`, z: "#,##0.00" } as any;
-      ws[`H${r}`] = { t: "n", f: `IF(N(B${r})=0,0,(B${r}/15)*(D${r}+IF(AND(F${r}>0,F${r}<=4,D${r}>C${r}),F${r},0)))`, z: "#,##0.00" } as any;
+      ws[`H${r}`] = { t: "n", f: `IF(N(C${r})=0,0,(C${r}/15)*(D${r}+IF(AND(G${r}>0,G${r}<=4,D${r}>=E${r}),G${r},0)))`, z: "#,##0.00" } as any;
+      ws[`I${r}`] = { t: "n", f: `IF(N(C${r})=0,0,(C${r}/15)*(E${r}+IF(AND(G${r}>0,G${r}<=4,E${r}>D${r}),G${r},0)))`, z: "#,##0.00" } as any;
     }
 
     (ws as any)["!cols"] = [
       { width: 30 },
+      { width: 14 },
       { width: 12 },
       { width: 14 },
       { width: 14 },
