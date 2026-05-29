@@ -427,6 +427,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
         peso_alambre: "",
         desperdicio_monofilamento: "",
         desperdicio_alambre: "",
+        ...EMPTY_EXTRA,
       }));
     } else if (field === "maquina_id") {
       // Al cambiar máquina, resetear productos
