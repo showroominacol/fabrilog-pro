@@ -1,0 +1,2 @@
+UPDATE public.maquinas SET area = 'amarrado' WHERE categoria IN ('Amarradora','Cepillos','Copos','Embobinadora de alambre','Flecadora','Guirnalda de cepillo','Nevado','Pencil','Varillas');
+UPDATE public.maquinas SET area = 'entorchado' WHERE categoria IN ('Monterrey','China','4 cabezas');
