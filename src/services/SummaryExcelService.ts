@@ -728,6 +728,96 @@ export class SummaryExcelService {
     const fin = fechaFin.toISOString().split("T")[0].replace(/-/g, "");
     return `RESUMEN_${inicio}_${fin}.xlsx`;
   }
+
+  // ================== Hojas por quincena (15 / 30 días) ==================
+  private buildQuincenaSheet(
+    empleados: { id: string; nombre: string }[],
+    registros: PrefetchedRegistro[],
+    quincena: "primera" | "segunda"
+  ): XLSX.WorkSheet {
+    // Filtrar registros por día del mes
+    const regsQ = registros.filter((r) => {
+      const day = parseInt(r.fecha.split("-")[2], 10);
+      return quincena === "primera" ? day >= 1 && day <= 15 : day >= 16;
+    });
+
+    const header = ["NOMBRE EMPLEADO", "VALOR", "ENTORCHADO", "AMARRADO", "AREA"];
+    const rows: (string | number)[][] = [header];
+
+    for (const emp of empleados) {
+      // Registros donde participa como operario o asistente
+      const regsEmp = regsQ.filter(
+        (r) =>
+          r.operario_id === emp.id ||
+          (r.registro_asistentes ?? []).some((a) => a.asistente_id === emp.id)
+      );
+
+      // Días únicos por área
+      const diasPorArea: Record<string, Set<string>> = {
+        entorchado: new Set(),
+        amarrado: new Set(),
+      };
+      // Días únicos por categoría (para determinar área predominante)
+      const diasPorCategoria = new Map<string, Set<string>>();
+
+      for (const r of regsEmp) {
+        const area = (r.maquinas?.area || "").toLowerCase();
+        if (area === "entorchado" || area === "amarrado") {
+          diasPorArea[area].add(r.fecha);
+        }
+        const cat = r.maquinas?.categoria;
+        if (cat) {
+          if (!diasPorCategoria.has(cat)) diasPorCategoria.set(cat, new Set());
+          diasPorCategoria.get(cat)!.add(r.fecha);
+        }
+      }
+
+      const entorchado = diasPorArea.entorchado.size;
+      const amarrado = diasPorArea.amarrado.size;
+
+      // Categoría predominante
+      let categoriaPredominante = "";
+      let maxDias = 0;
+      for (const [cat, dias] of diasPorCategoria.entries()) {
+        if (dias.size > maxDias) {
+          maxDias = dias.size;
+          categoriaPredominante = cat;
+        }
+      }
+
+      rows.push([emp.nombre, "", entorchado, amarrado, categoriaPredominante]);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    (ws as any)["!cols"] = [
+      { width: 30 },
+      { width: 12 },
+      { width: 14 },
+      { width: 14 },
+      { width: 22 },
+    ];
+
+    // Estilos básicos
+    const range = XLSX.utils.decode_range(ws["!ref"] || "A1:A1");
+    for (let r = 0; r <= range.e.r; r++) {
+      for (let c = 0; c <= range.e.c; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        if (!ws[addr]) ws[addr] = { v: "", t: "s" } as any;
+        (ws[addr] as any).s = {
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" },
+          },
+          font: r === 0 ? { bold: true } : undefined,
+        };
+      }
+    }
+
+    return ws;
+  }
 }
 
 export const summaryExcelService = new SummaryExcelService();
