@@ -268,6 +268,11 @@ export class MachineReportService {
               desperdicio_monofilamento: registro.desperdicio_monofilamento ?? null,
               desperdicio_alambre: registro.desperdicio_alambre ?? null,
               showCepillosKg: detalleIdx === 0,
+              extras: ALL_EXTRA_KEYS.reduce((acc, k) => {
+                acc[k] = (registro as any)[k] ?? null;
+                return acc;
+              }, {} as Record<string, number | null>),
+              showExtras: detalleIdx === 0,
             });
             detalleIdx++;
           }
@@ -298,6 +303,11 @@ export class MachineReportService {
               desperdicio_monofilamento: registro.desperdicio_monofilamento ?? null,
               desperdicio_alambre: registro.desperdicio_alambre ?? null,
               showCepillosKg: true,
+              extras: ALL_EXTRA_KEYS.reduce((acc, k) => {
+                acc[k] = (registro as any)[k] ?? null;
+                return acc;
+              }, {} as Record<string, number | null>),
+              showExtras: true,
           });
         }
       }
