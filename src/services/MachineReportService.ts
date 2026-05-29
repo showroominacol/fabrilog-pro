@@ -12,6 +12,16 @@ export interface MachineReportData {
   producido: number;
   porcentajeCumplimiento: number;
   porcentajeSuma: number; // compatibilidad con UI; NO se exporta
+  // Solo aplican a categoría "4 cabezas"
+  verde_medio_kg?: number | null;
+  verde_oscuro_kg?: number | null;
+  ocre_kg?: number | null;
+  alambre_calibre_20_kg?: number | null;
+  alambre_calibre_22_kg?: number | null;
+  festones_reciclados_kg?: number | null;
+  desperdicio_puntas_kg?: number | null;
+  // Solo mostrar los kg en la primera fila por registro
+  showCuatroCabezasKg?: boolean;
 }
 
 export interface MachineReportByCategory {
@@ -54,6 +64,13 @@ export class MachineReportService {
           es_asistente,
           operario_id,
           maquina_id,
+          verde_medio_kg,
+          verde_oscuro_kg,
+          ocre_kg,
+          alambre_calibre_20_kg,
+          alambre_calibre_22_kg,
+          festones_reciclados_kg,
+          desperdicio_puntas_kg,
           maquinas!fk_registros_produccion_maquina(
             nombre,
             categoria
@@ -121,6 +138,7 @@ export class MachineReportService {
         const categoriaDatos = categorias.get(categoria)!;
 
         if (registro.detalle_produccion && registro.detalle_produccion.length > 0) {
+          let detalleIdx = 0;
           for (const detalle of registro.detalle_produccion) {
             const producido = Number(detalle?.produccion_real ?? 0);
             const tipo = detalle?.productos?.tipo_producto || null;
@@ -151,7 +169,16 @@ export class MachineReportService {
               producido,
               porcentajeCumplimiento,
               porcentajeSuma: porcentajeSuma,
+              verde_medio_kg: registro.verde_medio_kg ?? null,
+              verde_oscuro_kg: registro.verde_oscuro_kg ?? null,
+              ocre_kg: registro.ocre_kg ?? null,
+              alambre_calibre_20_kg: registro.alambre_calibre_20_kg ?? null,
+              alambre_calibre_22_kg: registro.alambre_calibre_22_kg ?? null,
+              festones_reciclados_kg: registro.festones_reciclados_kg ?? null,
+              desperdicio_puntas_kg: registro.desperdicio_puntas_kg ?? null,
+              showCuatroCabezasKg: detalleIdx === 0,
             });
+            detalleIdx++;
           }
         } else {
           // Registro real pero SIN detalle
@@ -165,6 +192,14 @@ export class MachineReportService {
             producido: 0,
             porcentajeCumplimiento: 0,
             porcentajeSuma: porcentajeSuma,
+            verde_medio_kg: registro.verde_medio_kg ?? null,
+            verde_oscuro_kg: registro.verde_oscuro_kg ?? null,
+            ocre_kg: registro.ocre_kg ?? null,
+            alambre_calibre_20_kg: registro.alambre_calibre_20_kg ?? null,
+            alambre_calibre_22_kg: registro.alambre_calibre_22_kg ?? null,
+            festones_reciclados_kg: registro.festones_reciclados_kg ?? null,
+            desperdicio_puntas_kg: registro.desperdicio_puntas_kg ?? null,
+            showCuatroCabezasKg: true,
           });
         }
       }
