@@ -1008,6 +1008,45 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
               </div>
             )}
 
+            {/* Campos exclusivos para categoría "4 cabezas" */}
+            {formData.categoria_maquina === "4 cabezas" && (
+              <Card className="p-4 bg-muted/30">
+                <Label className="text-sm font-medium text-primary mb-3 block">
+                  Datos adicionales 4 Cabezas (KG)
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {([
+                    ["verde_medio_kg", "Verde Medio (KG)"],
+                    ["verde_oscuro_kg", "Verde Oscuro (KG)"],
+                    ["ocre_kg", "Ocre (KG)"],
+                    ["alambre_calibre_20_kg", "Alambre Calibre 20 (KG)"],
+                    ["alambre_calibre_22_kg", "Alambre Calibre 22 (KG)"],
+                    ["festones_reciclados_kg", "Festones Reciclados (KG)"],
+                    ["desperdicio_puntas_kg", "Desperdicio Puntas (KG)"],
+                  ] as const).map(([key, label]) => (
+                    <div key={key} className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{label}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={formData[key] as number | ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            [key]: e.target.value === "" ? "" : parseFloat(e.target.value),
+                          }))
+                        }
+                        placeholder="0"
+                        className="input-touch"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
             {/* Productos */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
