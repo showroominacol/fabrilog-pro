@@ -74,6 +74,13 @@ interface FormData {
   alambre_calibre_22_kg: number | "";
   festones_reciclados_kg: number | "";
   desperdicio_puntas_kg: number | "";
+  // Cepillos
+  peso_pvc_ocre: number | "";
+  peso_pvc_marron: number | "";
+  monofilamento_usado: number | "";
+  peso_alambre: number | "";
+  desperdicio_monofilamento: number | "";
+  desperdicio_alambre: number | "";
 }
 
 // ===== Helpers de jornada (clave para amarradora) =====

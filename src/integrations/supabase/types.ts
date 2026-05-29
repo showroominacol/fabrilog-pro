@@ -369,6 +369,8 @@ export type Database = {
         Row: {
           alambre_calibre_20_kg: number | null
           alambre_calibre_22_kg: number | null
+          desperdicio_alambre: number | null
+          desperdicio_monofilamento: number | null
           desperdicio_puntas_kg: number | null
           es_asistente: boolean
           fecha: string
@@ -377,8 +379,12 @@ export type Database = {
           id: string
           id_consecutivo: string | null
           maquina_id: string
+          monofilamento_usado: number | null
           ocre_kg: number | null
           operario_id: string
+          peso_alambre: number | null
+          peso_pvc_marron: number | null
+          peso_pvc_ocre: number | null
           turno: Database["public"]["Enums"]["turno_produccion"]
           verde_medio_kg: number | null
           verde_oscuro_kg: number | null
@@ -386,6 +392,8 @@ export type Database = {
         Insert: {
           alambre_calibre_20_kg?: number | null
           alambre_calibre_22_kg?: number | null
+          desperdicio_alambre?: number | null
+          desperdicio_monofilamento?: number | null
           desperdicio_puntas_kg?: number | null
           es_asistente?: boolean
           fecha: string
@@ -394,8 +402,12 @@ export type Database = {
           id?: string
           id_consecutivo?: string | null
           maquina_id: string
+          monofilamento_usado?: number | null
           ocre_kg?: number | null
           operario_id: string
+          peso_alambre?: number | null
+          peso_pvc_marron?: number | null
+          peso_pvc_ocre?: number | null
           turno: Database["public"]["Enums"]["turno_produccion"]
           verde_medio_kg?: number | null
           verde_oscuro_kg?: number | null
@@ -403,6 +415,8 @@ export type Database = {
         Update: {
           alambre_calibre_20_kg?: number | null
           alambre_calibre_22_kg?: number | null
+          desperdicio_alambre?: number | null
+          desperdicio_monofilamento?: number | null
           desperdicio_puntas_kg?: number | null
           es_asistente?: boolean
           fecha?: string
@@ -411,8 +425,12 @@ export type Database = {
           id?: string
           id_consecutivo?: string | null
           maquina_id?: string
+          monofilamento_usado?: number | null
           ocre_kg?: number | null
           operario_id?: string
+          peso_alambre?: number | null
+          peso_pvc_marron?: number | null
+          peso_pvc_ocre?: number | null
           turno?: Database["public"]["Enums"]["turno_produccion"]
           verde_medio_kg?: number | null
           verde_oscuro_kg?: number | null
