@@ -1,0 +1,1 @@
+ALTER TABLE public.maquinas ADD COLUMN IF NOT EXISTS area text CHECK (area IN ('amarrado','entorchado'));
