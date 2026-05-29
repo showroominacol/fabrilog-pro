@@ -718,6 +718,12 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
           peso_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_alambre) : null,
           desperdicio_monofilamento: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_monofilamento) : null,
           desperdicio_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_alambre) : null,
+          ...ALL_EXTRA_KEYS.reduce((acc, k) => {
+            const fields = CATEGORY_EXTRA_FIELDS[formData.categoria_maquina] || [];
+            const isInCategory = fields.some(f => f.key === k);
+            (acc as any)[k] = isInCategory ? toNum(formData[k] as number | "") : null;
+            return acc;
+          }, {} as Record<ExtraFieldKey, number | null>),
         })
         .select()
         .single();
