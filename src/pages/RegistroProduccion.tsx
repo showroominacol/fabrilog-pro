@@ -81,7 +81,92 @@ interface FormData {
   peso_alambre: number | "";
   desperdicio_monofilamento: number | "";
   desperdicio_alambre: number | "";
+  // Otras categorías
+  alambre_desperdicio: number | "";
+  inyectora_peso_inyectado_kg: number | "";
+  inyectora_desperdicio_kg: number | "";
+  monterrey_peso_alambre: number | "";
+  monterrey_calibre_alambre: number | "";
+  monterrey_peso_cinta: number | "";
+  china_verde_claro: number | "";
+  china_verde_medio: number | "";
+  china_verde_oscuro: number | "";
+  china_ocre: number | "";
+  china_alambre: number | "";
+  calandra_calibre: number | "";
+  calandra_desperdicio: number | "";
+  pvc_peso_bobina: number | "";
+  pvc_peso_desperdicio: number | "";
+  pvc_cantidad_bobinas: number | "";
+  varillas_peso_material: number | "";
+  varillas_desperdicio: number | "";
+  nevado_nieve: number | "";
+  formulado_desperdicio: number | "";
+  flecadora_desperdicio: number | "";
 }
+
+// === Configuración de campos extra por categoría ===
+type ExtraFieldKey =
+  | "alambre_desperdicio"
+  | "inyectora_peso_inyectado_kg" | "inyectora_desperdicio_kg"
+  | "monterrey_peso_alambre" | "monterrey_calibre_alambre" | "monterrey_peso_cinta"
+  | "china_verde_claro" | "china_verde_medio" | "china_verde_oscuro" | "china_ocre" | "china_alambre"
+  | "calandra_calibre" | "calandra_desperdicio"
+  | "pvc_peso_bobina" | "pvc_peso_desperdicio" | "pvc_cantidad_bobinas"
+  | "varillas_peso_material" | "varillas_desperdicio"
+  | "nevado_nieve"
+  | "formulado_desperdicio"
+  | "flecadora_desperdicio";
+
+const CATEGORY_EXTRA_FIELDS: Record<string, { key: ExtraFieldKey; label: string }[]> = {
+  "Embobinadora de alambre": [
+    { key: "alambre_desperdicio", label: "Desperdicio" },
+  ],
+  "Inyectora": [
+    { key: "inyectora_peso_inyectado_kg", label: "Peso Inyectado (KG)" },
+    { key: "inyectora_desperdicio_kg", label: "Desperdicio (KG)" },
+  ],
+  "Monterrey": [
+    { key: "monterrey_peso_alambre", label: "Peso Alambre" },
+    { key: "monterrey_calibre_alambre", label: "Calibre del Alambre" },
+    { key: "monterrey_peso_cinta", label: "Peso Cinta" },
+  ],
+  "China": [
+    { key: "china_verde_claro", label: "Verde Claro" },
+    { key: "china_verde_medio", label: "Verde Medio" },
+    { key: "china_verde_oscuro", label: "Verde Oscuro" },
+    { key: "china_ocre", label: "Ocre" },
+    { key: "china_alambre", label: "Alambre" },
+  ],
+  "Calandra": [
+    { key: "calandra_calibre", label: "Calibre" },
+    { key: "calandra_desperdicio", label: "Desperdicio" },
+  ],
+  "Cortadora PVC": [
+    { key: "pvc_peso_bobina", label: "Peso Bobina" },
+    { key: "pvc_peso_desperdicio", label: "Peso Desperdicio" },
+    { key: "pvc_cantidad_bobinas", label: "Cantidad de Bobinas" },
+  ],
+  "Varillas": [
+    { key: "varillas_peso_material", label: "Peso Material" },
+    { key: "varillas_desperdicio", label: "Desperdicio" },
+  ],
+  "Nevado": [
+    { key: "nevado_nieve", label: "Nieve" },
+  ],
+  "Formulado": [
+    { key: "formulado_desperdicio", label: "Desperdicio" },
+  ],
+  "Flecadora": [
+    { key: "flecadora_desperdicio", label: "Desperdicio" },
+  ],
+};
+
+const ALL_EXTRA_KEYS: ExtraFieldKey[] = Object.values(CATEGORY_EXTRA_FIELDS).flat().map(f => f.key);
+const EMPTY_EXTRA: Record<ExtraFieldKey, ""> = ALL_EXTRA_KEYS.reduce(
+  (acc, k) => { acc[k] = ""; return acc; },
+  {} as Record<ExtraFieldKey, "">
+);
 
 // ===== Helpers de jornada (clave para amarradora) =====
 const isTenHourShift = (turno: string) => (turno || "").replace(/\s+/g, "").toLowerCase() === "7:00am-5:00pm";
@@ -117,6 +202,7 @@ export default function RegistroProduccion() {
     peso_alambre: "",
     desperdicio_monofilamento: "",
     desperdicio_alambre: "",
+    ...EMPTY_EXTRA,
   });
 
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
@@ -341,6 +427,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
         peso_alambre: "",
         desperdicio_monofilamento: "",
         desperdicio_alambre: "",
+        ...EMPTY_EXTRA,
       }));
     } else if (field === "maquina_id") {
       // Al cambiar máquina, resetear productos
@@ -631,6 +718,12 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
           peso_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_alambre) : null,
           desperdicio_monofilamento: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_monofilamento) : null,
           desperdicio_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_alambre) : null,
+          ...ALL_EXTRA_KEYS.reduce((acc, k) => {
+            const fields = CATEGORY_EXTRA_FIELDS[formData.categoria_maquina] || [];
+            const isInCategory = fields.some(f => f.key === k);
+            (acc as any)[k] = isInCategory ? toNum(formData[k] as number | "") : null;
+            return acc;
+          }, {} as Record<ExtraFieldKey, number | null>),
         })
         .select()
         .single();
@@ -761,6 +854,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
         peso_alambre: "",
         desperdicio_monofilamento: "",
         desperdicio_alambre: "",
+        ...EMPTY_EXTRA,
       });
       setPorcentajeCumplimiento(0);
       setAsistentesOpen(false);
@@ -1100,6 +1194,37 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
                     ["desperdicio_monofilamento", "Desperdicio Monofilamento"],
                     ["desperdicio_alambre", "Desperdicio Alambre"],
                   ] as const).map(([key, label]) => (
+                    <div key={key} className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{label}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={formData[key] as number | ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            [key]: e.target.value === "" ? "" : parseFloat(e.target.value),
+                          }))
+                        }
+                        placeholder="0"
+                        className="input-touch"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Campos extra dinámicos por categoría */}
+            {CATEGORY_EXTRA_FIELDS[formData.categoria_maquina] && (
+              <Card className="p-4 bg-muted/30">
+                <Label className="text-sm font-medium text-primary mb-3 block">
+                  Datos adicionales {formData.categoria_maquina}
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {CATEGORY_EXTRA_FIELDS[formData.categoria_maquina].map(({ key, label }) => (
                     <div key={key} className="space-y-1">
                       <Label className="text-xs text-muted-foreground">{label}</Label>
                       <Input

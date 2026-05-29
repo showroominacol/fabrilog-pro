@@ -2,6 +2,52 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { supabase } from "@/integrations/supabase/client";
 
+// === Campos extra por categoría (deben coincidir con RegistroProduccion.tsx) ===
+const CATEGORY_EXTRA_FIELDS: Record<string, { key: string; label: string }[]> = {
+  "Embobinadora de alambre": [
+    { key: "alambre_desperdicio", label: "DESPERDICIO" },
+  ],
+  "Inyectora": [
+    { key: "inyectora_peso_inyectado_kg", label: "PESO INYECTADO (KG)" },
+    { key: "inyectora_desperdicio_kg", label: "DESPERDICIO (KG)" },
+  ],
+  "Monterrey": [
+    { key: "monterrey_peso_alambre", label: "PESO ALAMBRE" },
+    { key: "monterrey_calibre_alambre", label: "CALIBRE ALAMBRE" },
+    { key: "monterrey_peso_cinta", label: "PESO CINTA" },
+  ],
+  "China": [
+    { key: "china_verde_claro", label: "VERDE CLARO" },
+    { key: "china_verde_medio", label: "VERDE MEDIO" },
+    { key: "china_verde_oscuro", label: "VERDE OSCURO" },
+    { key: "china_ocre", label: "OCRE" },
+    { key: "china_alambre", label: "ALAMBRE" },
+  ],
+  "Calandra": [
+    { key: "calandra_calibre", label: "CALIBRE" },
+    { key: "calandra_desperdicio", label: "DESPERDICIO" },
+  ],
+  "Cortadora PVC": [
+    { key: "pvc_peso_bobina", label: "PESO BOBINA" },
+    { key: "pvc_peso_desperdicio", label: "PESO DESPERDICIO" },
+    { key: "pvc_cantidad_bobinas", label: "CANTIDAD DE BOBINAS" },
+  ],
+  "Varillas": [
+    { key: "varillas_peso_material", label: "PESO MATERIAL" },
+    { key: "varillas_desperdicio", label: "DESPERDICIO" },
+  ],
+  "Nevado": [
+    { key: "nevado_nieve", label: "NIEVE" },
+  ],
+  "Formulado": [
+    { key: "formulado_desperdicio", label: "DESPERDICIO" },
+  ],
+  "Flecadora": [
+    { key: "flecadora_desperdicio", label: "DESPERDICIO" },
+  ],
+};
+const ALL_EXTRA_KEYS = Array.from(new Set(Object.values(CATEGORY_EXTRA_FIELDS).flat().map(f => f.key)));
+
 export interface MachineReportData {
   fecha: string; // dd/mm/yyyy (texto, sin new Date)
   turno: string;
@@ -30,6 +76,9 @@ export interface MachineReportData {
   // Solo mostrar los kg en la primera fila por registro
   showCuatroCabezasKg?: boolean;
   showCepillosKg?: boolean;
+  // Campos genéricos extra por categoría
+  extras?: Record<string, number | null>;
+  showExtras?: boolean;
 }
 
 export interface MachineReportByCategory {
@@ -85,6 +134,27 @@ export class MachineReportService {
           peso_alambre,
           desperdicio_monofilamento,
           desperdicio_alambre,
+          alambre_desperdicio,
+          inyectora_peso_inyectado_kg,
+          inyectora_desperdicio_kg,
+          monterrey_peso_alambre,
+          monterrey_calibre_alambre,
+          monterrey_peso_cinta,
+          china_verde_claro,
+          china_verde_medio,
+          china_verde_oscuro,
+          china_ocre,
+          china_alambre,
+          calandra_calibre,
+          calandra_desperdicio,
+          pvc_peso_bobina,
+          pvc_peso_desperdicio,
+          pvc_cantidad_bobinas,
+          varillas_peso_material,
+          varillas_desperdicio,
+          nevado_nieve,
+          formulado_desperdicio,
+          flecadora_desperdicio,
           maquinas!fk_registros_produccion_maquina(
             nombre,
             categoria
@@ -198,6 +268,11 @@ export class MachineReportService {
               desperdicio_monofilamento: registro.desperdicio_monofilamento ?? null,
               desperdicio_alambre: registro.desperdicio_alambre ?? null,
               showCepillosKg: detalleIdx === 0,
+              extras: ALL_EXTRA_KEYS.reduce((acc, k) => {
+                acc[k] = (registro as any)[k] ?? null;
+                return acc;
+              }, {} as Record<string, number | null>),
+              showExtras: detalleIdx === 0,
             });
             detalleIdx++;
           }
@@ -228,6 +303,11 @@ export class MachineReportService {
               desperdicio_monofilamento: registro.desperdicio_monofilamento ?? null,
               desperdicio_alambre: registro.desperdicio_alambre ?? null,
               showCepillosKg: true,
+              extras: ALL_EXTRA_KEYS.reduce((acc, k) => {
+                acc[k] = (registro as any)[k] ?? null;
+                return acc;
+              }, {} as Record<string, number | null>),
+              showExtras: true,
           });
         }
       }
@@ -399,6 +479,7 @@ private toYMD(d: Date): string {
 
       const isCuatroCabezas = categoria.categoria.toLowerCase() === "4 cabezas";
       const isCepillos = categoria.categoria.toLowerCase() === "cepillos";
+      const extraFields = CATEGORY_EXTRA_FIELDS[categoria.categoria] || [];
       const baseHeaders = ["Fecha", "Turno", "Operario", "Asistente", "Máquina", "Producto", "Producido", "% Cumplimiento"];
       const cuatroCabezasHeaders = [
         "VERDE MEDIO (KG)",
@@ -421,7 +502,9 @@ private toYMD(d: Date): string {
         ? [...baseHeaders, ...cuatroCabezasHeaders]
         : isCepillos
           ? [...baseHeaders, ...cepillosHeaders]
-          : baseHeaders;
+          : extraFields.length > 0
+            ? [...baseHeaders, ...extraFields.map(f => f.label)]
+            : baseHeaders;
 
       const sheetData = [
         headers,
@@ -463,6 +546,15 @@ private toYMD(d: Date): string {
               fmt(registro.peso_alambre),
               fmt(registro.desperdicio_monofilamento),
               fmt(registro.desperdicio_alambre),
+            ];
+          }
+          if (extraFields.length > 0) {
+            const show = registro.showExtras;
+            const fmt = (v: number | null | undefined) =>
+              show && v !== null && v !== undefined ? Number(v) : "";
+            return [
+              ...baseRow,
+              ...extraFields.map(f => fmt(registro.extras?.[f.key])),
             ];
           }
           return baseRow;

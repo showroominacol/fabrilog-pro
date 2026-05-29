@@ -369,6 +369,14 @@ export type Database = {
         Row: {
           alambre_calibre_20_kg: number | null
           alambre_calibre_22_kg: number | null
+          alambre_desperdicio: number | null
+          calandra_calibre: number | null
+          calandra_desperdicio: number | null
+          china_alambre: number | null
+          china_ocre: number | null
+          china_verde_claro: number | null
+          china_verde_medio: number | null
+          china_verde_oscuro: number | null
           desperdicio_alambre: number | null
           desperdicio_monofilamento: number | null
           desperdicio_puntas_kg: number | null
@@ -376,22 +384,43 @@ export type Database = {
           fecha: string
           fecha_registro: string
           festones_reciclados_kg: number | null
+          flecadora_desperdicio: number | null
+          formulado_desperdicio: number | null
           id: string
           id_consecutivo: string | null
+          inyectora_desperdicio_kg: number | null
+          inyectora_peso_inyectado_kg: number | null
           maquina_id: string
           monofilamento_usado: number | null
+          monterrey_calibre_alambre: number | null
+          monterrey_peso_alambre: number | null
+          monterrey_peso_cinta: number | null
+          nevado_nieve: number | null
           ocre_kg: number | null
           operario_id: string
           peso_alambre: number | null
           peso_pvc_marron: number | null
           peso_pvc_ocre: number | null
+          pvc_cantidad_bobinas: number | null
+          pvc_peso_bobina: number | null
+          pvc_peso_desperdicio: number | null
           turno: Database["public"]["Enums"]["turno_produccion"]
+          varillas_desperdicio: number | null
+          varillas_peso_material: number | null
           verde_medio_kg: number | null
           verde_oscuro_kg: number | null
         }
         Insert: {
           alambre_calibre_20_kg?: number | null
           alambre_calibre_22_kg?: number | null
+          alambre_desperdicio?: number | null
+          calandra_calibre?: number | null
+          calandra_desperdicio?: number | null
+          china_alambre?: number | null
+          china_ocre?: number | null
+          china_verde_claro?: number | null
+          china_verde_medio?: number | null
+          china_verde_oscuro?: number | null
           desperdicio_alambre?: number | null
           desperdicio_monofilamento?: number | null
           desperdicio_puntas_kg?: number | null
@@ -399,22 +428,43 @@ export type Database = {
           fecha: string
           fecha_registro?: string
           festones_reciclados_kg?: number | null
+          flecadora_desperdicio?: number | null
+          formulado_desperdicio?: number | null
           id?: string
           id_consecutivo?: string | null
+          inyectora_desperdicio_kg?: number | null
+          inyectora_peso_inyectado_kg?: number | null
           maquina_id: string
           monofilamento_usado?: number | null
+          monterrey_calibre_alambre?: number | null
+          monterrey_peso_alambre?: number | null
+          monterrey_peso_cinta?: number | null
+          nevado_nieve?: number | null
           ocre_kg?: number | null
           operario_id: string
           peso_alambre?: number | null
           peso_pvc_marron?: number | null
           peso_pvc_ocre?: number | null
+          pvc_cantidad_bobinas?: number | null
+          pvc_peso_bobina?: number | null
+          pvc_peso_desperdicio?: number | null
           turno: Database["public"]["Enums"]["turno_produccion"]
+          varillas_desperdicio?: number | null
+          varillas_peso_material?: number | null
           verde_medio_kg?: number | null
           verde_oscuro_kg?: number | null
         }
         Update: {
           alambre_calibre_20_kg?: number | null
           alambre_calibre_22_kg?: number | null
+          alambre_desperdicio?: number | null
+          calandra_calibre?: number | null
+          calandra_desperdicio?: number | null
+          china_alambre?: number | null
+          china_ocre?: number | null
+          china_verde_claro?: number | null
+          china_verde_medio?: number | null
+          china_verde_oscuro?: number | null
           desperdicio_alambre?: number | null
           desperdicio_monofilamento?: number | null
           desperdicio_puntas_kg?: number | null
@@ -422,16 +472,29 @@ export type Database = {
           fecha?: string
           fecha_registro?: string
           festones_reciclados_kg?: number | null
+          flecadora_desperdicio?: number | null
+          formulado_desperdicio?: number | null
           id?: string
           id_consecutivo?: string | null
+          inyectora_desperdicio_kg?: number | null
+          inyectora_peso_inyectado_kg?: number | null
           maquina_id?: string
           monofilamento_usado?: number | null
+          monterrey_calibre_alambre?: number | null
+          monterrey_peso_alambre?: number | null
+          monterrey_peso_cinta?: number | null
+          nevado_nieve?: number | null
           ocre_kg?: number | null
           operario_id?: string
           peso_alambre?: number | null
           peso_pvc_marron?: number | null
           peso_pvc_ocre?: number | null
+          pvc_cantidad_bobinas?: number | null
+          pvc_peso_bobina?: number | null
+          pvc_peso_desperdicio?: number | null
           turno?: Database["public"]["Enums"]["turno_produccion"]
+          varillas_desperdicio?: number | null
+          varillas_peso_material?: number | null
           verde_medio_kg?: number | null
           verde_oscuro_kg?: number | null
         }
