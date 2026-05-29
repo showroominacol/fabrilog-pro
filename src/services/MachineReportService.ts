@@ -20,8 +20,16 @@ export interface MachineReportData {
   alambre_calibre_22_kg?: number | null;
   festones_reciclados_kg?: number | null;
   desperdicio_puntas_kg?: number | null;
+  // Solo aplican a categoría "Cepillos"
+  peso_pvc_ocre?: number | null;
+  peso_pvc_marron?: number | null;
+  monofilamento_usado?: number | null;
+  peso_alambre?: number | null;
+  desperdicio_monofilamento?: number | null;
+  desperdicio_alambre?: number | null;
   // Solo mostrar los kg en la primera fila por registro
   showCuatroCabezasKg?: boolean;
+  showCepillosKg?: boolean;
 }
 
 export interface MachineReportByCategory {
@@ -71,6 +79,12 @@ export class MachineReportService {
           alambre_calibre_22_kg,
           festones_reciclados_kg,
           desperdicio_puntas_kg,
+          peso_pvc_ocre,
+          peso_pvc_marron,
+          monofilamento_usado,
+          peso_alambre,
+          desperdicio_monofilamento,
+          desperdicio_alambre,
           maquinas!fk_registros_produccion_maquina(
             nombre,
             categoria
@@ -177,6 +191,13 @@ export class MachineReportService {
               festones_reciclados_kg: registro.festones_reciclados_kg ?? null,
               desperdicio_puntas_kg: registro.desperdicio_puntas_kg ?? null,
               showCuatroCabezasKg: detalleIdx === 0,
+              peso_pvc_ocre: registro.peso_pvc_ocre ?? null,
+              peso_pvc_marron: registro.peso_pvc_marron ?? null,
+              monofilamento_usado: registro.monofilamento_usado ?? null,
+              peso_alambre: registro.peso_alambre ?? null,
+              desperdicio_monofilamento: registro.desperdicio_monofilamento ?? null,
+              desperdicio_alambre: registro.desperdicio_alambre ?? null,
+              showCepillosKg: detalleIdx === 0,
             });
             detalleIdx++;
           }
@@ -200,6 +221,13 @@ export class MachineReportService {
             festones_reciclados_kg: registro.festones_reciclados_kg ?? null,
             desperdicio_puntas_kg: registro.desperdicio_puntas_kg ?? null,
             showCuatroCabezasKg: true,
+              peso_pvc_ocre: registro.peso_pvc_ocre ?? null,
+              peso_pvc_marron: registro.peso_pvc_marron ?? null,
+              monofilamento_usado: registro.monofilamento_usado ?? null,
+              peso_alambre: registro.peso_alambre ?? null,
+              desperdicio_monofilamento: registro.desperdicio_monofilamento ?? null,
+              desperdicio_alambre: registro.desperdicio_alambre ?? null,
+              showCepillosKg: true,
           });
         }
       }
@@ -370,6 +398,7 @@ private toYMD(d: Date): string {
       if (categoria.registros.length === 0) continue;
 
       const isCuatroCabezas = categoria.categoria.toLowerCase() === "4 cabezas";
+      const isCepillos = categoria.categoria.toLowerCase() === "cepillos";
       const baseHeaders = ["Fecha", "Turno", "Operario", "Asistente", "Máquina", "Producto", "Producido", "% Cumplimiento"];
       const cuatroCabezasHeaders = [
         "VERDE MEDIO (KG)",
@@ -380,7 +409,19 @@ private toYMD(d: Date): string {
         "FESTONES RECICLADOS (KG)",
         "DESPERDICIO PUNTAS (KG)",
       ];
-      const headers = isCuatroCabezas ? [...baseHeaders, ...cuatroCabezasHeaders] : baseHeaders;
+      const cepillosHeaders = [
+        "PESO PVC OCRE",
+        "PESO PVC MARRÓN",
+        "MONOFILAMENTO USADO",
+        "PESO ALAMBRE",
+        "DESPERDICIO MONOFILAMENTO",
+        "DESPERDICIO ALAMBRE",
+      ];
+      const headers = isCuatroCabezas
+        ? [...baseHeaders, ...cuatroCabezasHeaders]
+        : isCepillos
+          ? [...baseHeaders, ...cepillosHeaders]
+          : baseHeaders;
 
       const sheetData = [
         headers,
@@ -395,20 +436,36 @@ private toYMD(d: Date): string {
             registro.producido,
             `${registro.porcentajeCumplimiento.toFixed(1)}%`,
           ];
-          if (!isCuatroCabezas) return baseRow;
-          const show = registro.showCuatroCabezasKg;
-          const fmt = (v: number | null | undefined) =>
-            show && v !== null && v !== undefined ? Number(v) : "";
-          return [
-            ...baseRow,
-            fmt(registro.verde_medio_kg),
-            fmt(registro.verde_oscuro_kg),
-            fmt(registro.ocre_kg),
-            fmt(registro.alambre_calibre_20_kg),
-            fmt(registro.alambre_calibre_22_kg),
-            fmt(registro.festones_reciclados_kg),
-            fmt(registro.desperdicio_puntas_kg),
-          ];
+          if (isCuatroCabezas) {
+            const show = registro.showCuatroCabezasKg;
+            const fmt = (v: number | null | undefined) =>
+              show && v !== null && v !== undefined ? Number(v) : "";
+            return [
+              ...baseRow,
+              fmt(registro.verde_medio_kg),
+              fmt(registro.verde_oscuro_kg),
+              fmt(registro.ocre_kg),
+              fmt(registro.alambre_calibre_20_kg),
+              fmt(registro.alambre_calibre_22_kg),
+              fmt(registro.festones_reciclados_kg),
+              fmt(registro.desperdicio_puntas_kg),
+            ];
+          }
+          if (isCepillos) {
+            const show = registro.showCepillosKg;
+            const fmt = (v: number | null | undefined) =>
+              show && v !== null && v !== undefined ? Number(v) : "";
+            return [
+              ...baseRow,
+              fmt(registro.peso_pvc_ocre),
+              fmt(registro.peso_pvc_marron),
+              fmt(registro.monofilamento_usado),
+              fmt(registro.peso_alambre),
+              fmt(registro.desperdicio_monofilamento),
+              fmt(registro.desperdicio_alambre),
+            ];
+          }
+          return baseRow;
         }),
       ];
 

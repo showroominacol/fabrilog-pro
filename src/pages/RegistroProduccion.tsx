@@ -74,6 +74,13 @@ interface FormData {
   alambre_calibre_22_kg: number | "";
   festones_reciclados_kg: number | "";
   desperdicio_puntas_kg: number | "";
+  // Cepillos
+  peso_pvc_ocre: number | "";
+  peso_pvc_marron: number | "";
+  monofilamento_usado: number | "";
+  peso_alambre: number | "";
+  desperdicio_monofilamento: number | "";
+  desperdicio_alambre: number | "";
 }
 
 // ===== Helpers de jornada (clave para amarradora) =====
@@ -104,6 +111,12 @@ export default function RegistroProduccion() {
     alambre_calibre_22_kg: "",
     festones_reciclados_kg: "",
     desperdicio_puntas_kg: "",
+    peso_pvc_ocre: "",
+    peso_pvc_marron: "",
+    monofilamento_usado: "",
+    peso_alambre: "",
+    desperdicio_monofilamento: "",
+    desperdicio_alambre: "",
   });
 
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
@@ -322,6 +335,12 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
         alambre_calibre_22_kg: "",
         festones_reciclados_kg: "",
         desperdicio_puntas_kg: "",
+        peso_pvc_ocre: "",
+        peso_pvc_marron: "",
+        monofilamento_usado: "",
+        peso_alambre: "",
+        desperdicio_monofilamento: "",
+        desperdicio_alambre: "",
       }));
     } else if (field === "maquina_id") {
       // Al cambiar máquina, resetear productos
@@ -606,6 +625,12 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
           alambre_calibre_22_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.alambre_calibre_22_kg) : null,
           festones_reciclados_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.festones_reciclados_kg) : null,
           desperdicio_puntas_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.desperdicio_puntas_kg) : null,
+          peso_pvc_ocre: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_pvc_ocre) : null,
+          peso_pvc_marron: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_pvc_marron) : null,
+          monofilamento_usado: formData.categoria_maquina === "Cepillos" ? toNum(formData.monofilamento_usado) : null,
+          peso_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_alambre) : null,
+          desperdicio_monofilamento: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_monofilamento) : null,
+          desperdicio_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_alambre) : null,
         })
         .select()
         .single();
@@ -730,6 +755,12 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
         alambre_calibre_22_kg: "",
         festones_reciclados_kg: "",
         desperdicio_puntas_kg: "",
+        peso_pvc_ocre: "",
+        peso_pvc_marron: "",
+        monofilamento_usado: "",
+        peso_alambre: "",
+        desperdicio_monofilamento: "",
+        desperdicio_alambre: "",
       });
       setPorcentajeCumplimiento(0);
       setAsistentesOpen(false);
@@ -1030,6 +1061,44 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
                     ["alambre_calibre_22_kg", "Alambre Calibre 22 (KG)"],
                     ["festones_reciclados_kg", "Festones Reciclados (KG)"],
                     ["desperdicio_puntas_kg", "Desperdicio Puntas (KG)"],
+                  ] as const).map(([key, label]) => (
+                    <div key={key} className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{label}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={formData[key] as number | ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            [key]: e.target.value === "" ? "" : parseFloat(e.target.value),
+                          }))
+                        }
+                        placeholder="0"
+                        className="input-touch"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Campos exclusivos para categoría "Cepillos" */}
+            {formData.categoria_maquina === "Cepillos" && (
+              <Card className="p-4 bg-muted/30">
+                <Label className="text-sm font-medium text-primary mb-3 block">
+                  Datos adicionales Cepillos
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {([
+                    ["peso_pvc_ocre", "Peso PVC Ocre"],
+                    ["peso_pvc_marron", "Peso PVC Marrón"],
+                    ["monofilamento_usado", "Monofilamento Usado"],
+                    ["peso_alambre", "Peso Alambre"],
+                    ["desperdicio_monofilamento", "Desperdicio Monofilamento"],
+                    ["desperdicio_alambre", "Desperdicio Alambre"],
                   ] as const).map(([key, label]) => (
                     <div key={key} className="space-y-1">
                       <Label className="text-xs text-muted-foreground">{label}</Label>
