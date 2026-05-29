@@ -74,19 +74,19 @@ export default function AdminMaquinasProductos() {
     }
   };
 
-  const handleMaquinaSubmit = async (data: { nombre: string; descripcion?: string; categoria?: string }) => {
+  const handleMaquinaSubmit = async (data: { nombre: string; descripcion?: string; categoria?: string; area?: 'amarrado' | 'entorchado' }) => {
     try {
       if (editingMaquina) {
         const { error } = await supabase
           .from('maquinas')
-          .update(data)
+          .update(data as any)
           .eq('id', editingMaquina.id);
         
         if (error) throw error;
         
         toast({ title: "Éxito", description: "Máquina actualizada correctamente" });
       } else {
-        const { error } = await supabase.from('maquinas').insert([data]);
+        const { error } = await supabase.from('maquinas').insert([data as any]);
         if (error) throw error;
         toast({ title: "Éxito", description: "Máquina creada correctamente" });
       }
