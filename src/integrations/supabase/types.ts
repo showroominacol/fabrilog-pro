@@ -367,34 +367,55 @@ export type Database = {
       }
       registros_produccion: {
         Row: {
+          alambre_calibre_20_kg: number | null
+          alambre_calibre_22_kg: number | null
+          desperdicio_puntas_kg: number | null
           es_asistente: boolean
           fecha: string
           fecha_registro: string
+          festones_reciclados_kg: number | null
           id: string
           id_consecutivo: string | null
           maquina_id: string
+          ocre_kg: number | null
           operario_id: string
           turno: Database["public"]["Enums"]["turno_produccion"]
+          verde_medio_kg: number | null
+          verde_oscuro_kg: number | null
         }
         Insert: {
+          alambre_calibre_20_kg?: number | null
+          alambre_calibre_22_kg?: number | null
+          desperdicio_puntas_kg?: number | null
           es_asistente?: boolean
           fecha: string
           fecha_registro?: string
+          festones_reciclados_kg?: number | null
           id?: string
           id_consecutivo?: string | null
           maquina_id: string
+          ocre_kg?: number | null
           operario_id: string
           turno: Database["public"]["Enums"]["turno_produccion"]
+          verde_medio_kg?: number | null
+          verde_oscuro_kg?: number | null
         }
         Update: {
+          alambre_calibre_20_kg?: number | null
+          alambre_calibre_22_kg?: number | null
+          desperdicio_puntas_kg?: number | null
           es_asistente?: boolean
           fecha?: string
           fecha_registro?: string
+          festones_reciclados_kg?: number | null
           id?: string
           id_consecutivo?: string | null
           maquina_id?: string
+          ocre_kg?: number | null
           operario_id?: string
           turno?: Database["public"]["Enums"]["turno_produccion"]
+          verde_medio_kg?: number | null
+          verde_oscuro_kg?: number | null
         }
         Relationships: [
           {

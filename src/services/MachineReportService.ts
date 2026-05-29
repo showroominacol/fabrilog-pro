@@ -12,6 +12,16 @@ export interface MachineReportData {
   producido: number;
   porcentajeCumplimiento: number;
   porcentajeSuma: number; // compatibilidad con UI; NO se exporta
+  // Solo aplican a categoría "4 cabezas"
+  verde_medio_kg?: number | null;
+  verde_oscuro_kg?: number | null;
+  ocre_kg?: number | null;
+  alambre_calibre_20_kg?: number | null;
+  alambre_calibre_22_kg?: number | null;
+  festones_reciclados_kg?: number | null;
+  desperdicio_puntas_kg?: number | null;
+  // Solo mostrar los kg en la primera fila por registro
+  showCuatroCabezasKg?: boolean;
 }
 
 export interface MachineReportByCategory {
@@ -54,6 +64,13 @@ export class MachineReportService {
           es_asistente,
           operario_id,
           maquina_id,
+          verde_medio_kg,
+          verde_oscuro_kg,
+          ocre_kg,
+          alambre_calibre_20_kg,
+          alambre_calibre_22_kg,
+          festones_reciclados_kg,
+          desperdicio_puntas_kg,
           maquinas!fk_registros_produccion_maquina(
             nombre,
             categoria
@@ -121,6 +138,7 @@ export class MachineReportService {
         const categoriaDatos = categorias.get(categoria)!;
 
         if (registro.detalle_produccion && registro.detalle_produccion.length > 0) {
+          let detalleIdx = 0;
           for (const detalle of registro.detalle_produccion) {
             const producido = Number(detalle?.produccion_real ?? 0);
             const tipo = detalle?.productos?.tipo_producto || null;
@@ -151,7 +169,16 @@ export class MachineReportService {
               producido,
               porcentajeCumplimiento,
               porcentajeSuma: porcentajeSuma,
+              verde_medio_kg: registro.verde_medio_kg ?? null,
+              verde_oscuro_kg: registro.verde_oscuro_kg ?? null,
+              ocre_kg: registro.ocre_kg ?? null,
+              alambre_calibre_20_kg: registro.alambre_calibre_20_kg ?? null,
+              alambre_calibre_22_kg: registro.alambre_calibre_22_kg ?? null,
+              festones_reciclados_kg: registro.festones_reciclados_kg ?? null,
+              desperdicio_puntas_kg: registro.desperdicio_puntas_kg ?? null,
+              showCuatroCabezasKg: detalleIdx === 0,
             });
+            detalleIdx++;
           }
         } else {
           // Registro real pero SIN detalle
@@ -165,6 +192,14 @@ export class MachineReportService {
             producido: 0,
             porcentajeCumplimiento: 0,
             porcentajeSuma: porcentajeSuma,
+            verde_medio_kg: registro.verde_medio_kg ?? null,
+            verde_oscuro_kg: registro.verde_oscuro_kg ?? null,
+            ocre_kg: registro.ocre_kg ?? null,
+            alambre_calibre_20_kg: registro.alambre_calibre_20_kg ?? null,
+            alambre_calibre_22_kg: registro.alambre_calibre_22_kg ?? null,
+            festones_reciclados_kg: registro.festones_reciclados_kg ?? null,
+            desperdicio_puntas_kg: registro.desperdicio_puntas_kg ?? null,
+            showCuatroCabezasKg: true,
           });
         }
       }
@@ -334,24 +369,51 @@ private toYMD(d: Date): string {
     for (const categoria of reportData) {
       if (categoria.registros.length === 0) continue;
 
-      const headers = ["Fecha", "Turno", "Operario", "Asistente", "Máquina", "Producto", "Producido", "% Cumplimiento"];
+      const isCuatroCabezas = categoria.categoria.toLowerCase() === "4 cabezas";
+      const baseHeaders = ["Fecha", "Turno", "Operario", "Asistente", "Máquina", "Producto", "Producido", "% Cumplimiento"];
+      const cuatroCabezasHeaders = [
+        "VERDE MEDIO (KG)",
+        "VERDE OSCURO (KG)",
+        "OCRE (KG)",
+        "ALAMBRE CALIBRE 20 (KG)",
+        "ALAMBRE CALIBRE 22 (KG)",
+        "FESTONES RECICLADOS (KG)",
+        "DESPERDICIO PUNTAS (KG)",
+      ];
+      const headers = isCuatroCabezas ? [...baseHeaders, ...cuatroCabezasHeaders] : baseHeaders;
 
       const sheetData = [
         headers,
-        ...categoria.registros.map((registro) => [
-          registro.fecha, // texto dd/mm/yyyy (evita desfases)
-          registro.turno,
-          registro.operario,
-          registro.asistente,
-          registro.maquina,
-          registro.producto,
-          registro.producido,
-          `${registro.porcentajeCumplimiento.toFixed(1)}%`,
-        ]),
+        ...categoria.registros.map((registro) => {
+          const baseRow: (string | number)[] = [
+            registro.fecha,
+            registro.turno,
+            registro.operario,
+            registro.asistente,
+            registro.maquina,
+            registro.producto,
+            registro.producido,
+            `${registro.porcentajeCumplimiento.toFixed(1)}%`,
+          ];
+          if (!isCuatroCabezas) return baseRow;
+          const show = registro.showCuatroCabezasKg;
+          const fmt = (v: number | null | undefined) =>
+            show && v !== null && v !== undefined ? Number(v) : "";
+          return [
+            ...baseRow,
+            fmt(registro.verde_medio_kg),
+            fmt(registro.verde_oscuro_kg),
+            fmt(registro.ocre_kg),
+            fmt(registro.alambre_calibre_20_kg),
+            fmt(registro.alambre_calibre_22_kg),
+            fmt(registro.festones_reciclados_kg),
+            fmt(registro.desperdicio_puntas_kg),
+          ];
+        }),
       ];
 
       const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
-      this.applyWorksheetStyles(worksheet);
+      this.applyWorksheetStyles(worksheet, headers.length);
       const sheetName = categoria.categoria.substring(0, 31);
       XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
     }
@@ -362,9 +424,10 @@ private toYMD(d: Date): string {
     saveAs(blob, filename);
   }
 
-  private applyWorksheetStyles(worksheet: XLSX.WorkSheet): void {
-    const range = XLSX.utils.decode_range(worksheet["!ref"] || "A1:H1");
-    worksheet["!cols"] = [
+  private applyWorksheetStyles(worksheet: XLSX.WorkSheet, colCount: number = 8): void {
+    const lastColLetter = XLSX.utils.encode_col(colCount - 1);
+    const range = XLSX.utils.decode_range(worksheet["!ref"] || `A1:${lastColLetter}1`);
+    const baseCols = [
       { width: 12 },
       { width: 15 },
       { width: 20 },
@@ -374,6 +437,8 @@ private toYMD(d: Date): string {
       { width: 12 },
       { width: 15 },
     ];
+    const extraCols = Array(Math.max(0, colCount - baseCols.length)).fill({ width: 18 });
+    worksheet["!cols"] = [...baseCols, ...extraCols];
     for (let col = range.s.c; col <= range.e.c; col++) {
       const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
       if (!worksheet[cellAddress]) continue;

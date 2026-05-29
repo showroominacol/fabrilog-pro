@@ -67,11 +67,23 @@ interface FormData {
   operario_principal_id: string;
   productos: ProductoDetalle[];
   asistentes: string[];
+  verde_medio_kg: number | "";
+  verde_oscuro_kg: number | "";
+  ocre_kg: number | "";
+  alambre_calibre_20_kg: number | "";
+  alambre_calibre_22_kg: number | "";
+  festones_reciclados_kg: number | "";
+  desperdicio_puntas_kg: number | "";
 }
 
 // ===== Helpers de jornada (clave para amarradora) =====
 const isTenHourShift = (turno: string) => (turno || "").replace(/\s+/g, "").toLowerCase() === "7:00am-5:00pm";
 const jornadaFactor = (turno: string) => (isTenHourShift(turno) ? 1.25 : 1); // 10h/8h
+const toNum = (v: number | "" | string): number | null => {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = typeof v === "number" ? v : parseFloat(v);
+  return isNaN(n) ? null : n;
+};
 
 export default function RegistroProduccion() {
   const { user } = useAuth();
@@ -85,6 +97,13 @@ export default function RegistroProduccion() {
     operario_principal_id: "",
     productos: [],
     asistentes: [],
+    verde_medio_kg: "",
+    verde_oscuro_kg: "",
+    ocre_kg: "",
+    alambre_calibre_20_kg: "",
+    alambre_calibre_22_kg: "",
+    festones_reciclados_kg: "",
+    desperdicio_puntas_kg: "",
   });
 
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
@@ -296,6 +315,13 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
         categoria_maquina: value,
         maquina_id: "",
         productos: [],
+        verde_medio_kg: "",
+        verde_oscuro_kg: "",
+        ocre_kg: "",
+        alambre_calibre_20_kg: "",
+        alambre_calibre_22_kg: "",
+        festones_reciclados_kg: "",
+        desperdicio_puntas_kg: "",
       }));
     } else if (field === "maquina_id") {
       // Al cambiar máquina, resetear productos
@@ -573,6 +599,13 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
           maquina_id: formData.maquina_id,
           es_asistente: false,
           id_consecutivo: idConsecutivo,
+          verde_medio_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.verde_medio_kg) : null,
+          verde_oscuro_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.verde_oscuro_kg) : null,
+          ocre_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.ocre_kg) : null,
+          alambre_calibre_20_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.alambre_calibre_20_kg) : null,
+          alambre_calibre_22_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.alambre_calibre_22_kg) : null,
+          festones_reciclados_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.festones_reciclados_kg) : null,
+          desperdicio_puntas_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.desperdicio_puntas_kg) : null,
         })
         .select()
         .single();
@@ -690,6 +723,13 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
         operario_principal_id: "",
         productos: [],
         asistentes: [],
+        verde_medio_kg: "",
+        verde_oscuro_kg: "",
+        ocre_kg: "",
+        alambre_calibre_20_kg: "",
+        alambre_calibre_22_kg: "",
+        festones_reciclados_kg: "",
+        desperdicio_puntas_kg: "",
       });
       setPorcentajeCumplimiento(0);
       setAsistentesOpen(false);
@@ -973,6 +1013,45 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
                   </SelectContent>
                 </Select>
               </div>
+            )}
+
+            {/* Campos exclusivos para categoría "4 cabezas" */}
+            {formData.categoria_maquina === "4 cabezas" && (
+              <Card className="p-4 bg-muted/30">
+                <Label className="text-sm font-medium text-primary mb-3 block">
+                  Datos adicionales 4 Cabezas (KG)
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {([
+                    ["verde_medio_kg", "Verde Medio (KG)"],
+                    ["verde_oscuro_kg", "Verde Oscuro (KG)"],
+                    ["ocre_kg", "Ocre (KG)"],
+                    ["alambre_calibre_20_kg", "Alambre Calibre 20 (KG)"],
+                    ["alambre_calibre_22_kg", "Alambre Calibre 22 (KG)"],
+                    ["festones_reciclados_kg", "Festones Reciclados (KG)"],
+                    ["desperdicio_puntas_kg", "Desperdicio Puntas (KG)"],
+                  ] as const).map(([key, label]) => (
+                    <div key={key} className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{label}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={formData[key] as number | ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            [key]: e.target.value === "" ? "" : parseFloat(e.target.value),
+                          }))
+                        }
+                        placeholder="0"
+                        className="input-touch"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
             )}
 
             {/* Productos */}
