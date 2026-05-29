@@ -1217,6 +1217,37 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
               </Card>
             )}
 
+            {/* Campos extra dinámicos por categoría */}
+            {CATEGORY_EXTRA_FIELDS[formData.categoria_maquina] && (
+              <Card className="p-4 bg-muted/30">
+                <Label className="text-sm font-medium text-primary mb-3 block">
+                  Datos adicionales {formData.categoria_maquina}
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {CATEGORY_EXTRA_FIELDS[formData.categoria_maquina].map(({ key, label }) => (
+                    <div key={key} className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{label}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={formData[key] as number | ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            [key]: e.target.value === "" ? "" : parseFloat(e.target.value),
+                          }))
+                        }
+                        placeholder="0"
+                        className="input-touch"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
             {/* Productos */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
