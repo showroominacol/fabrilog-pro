@@ -797,10 +797,8 @@ export class SummaryExcelService {
     // H = (B/15) * (D + IF(AND(F>0, F<=4, D>C),  F, 0))
     for (let i = 0; i < empleados.length; i++) {
       const r = i + 2; // fila Excel (1-based, +1 por header)
-      ws[`G${r}`] = { f: `IF(N(B${r})=0,0,(B${r}/15)*(C${r}+IF(AND(F${r}>0,F${r}<=4,C${r}>=D${r}),F${r},0)))` } as any;
-      ws[`H${r}`] = { f: `IF(N(B${r})=0,0,(B${r}/15)*(D${r}+IF(AND(F${r}>0,F${r}<=4,D${r}>C${r}),F${r},0)))` } as any;
-      (ws[`G${r}`] as any).z = "#,##0.00";
-      (ws[`H${r}`] as any).z = "#,##0.00";
+      ws[`G${r}`] = { t: "n", f: `IF(N(B${r})=0,0,(B${r}/15)*(C${r}+IF(AND(F${r}>0,F${r}<=4,C${r}>=D${r}),F${r},0)))`, z: "#,##0.00" } as any;
+      ws[`H${r}`] = { t: "n", f: `IF(N(B${r})=0,0,(B${r}/15)*(D${r}+IF(AND(F${r}>0,F${r}<=4,D${r}>C${r}),F${r},0)))`, z: "#,##0.00" } as any;
     }
 
     (ws as any)["!cols"] = [
