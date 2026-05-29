@@ -796,6 +796,7 @@ export class SummaryExcelService {
       { width: 14 },
       { width: 14 },
       { width: 22 },
+      { width: 14 },
     ];
 
     // Estilos básicos
