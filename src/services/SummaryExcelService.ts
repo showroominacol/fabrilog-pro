@@ -53,7 +53,7 @@ type PrefetchedRegistro = {
   fecha: string; // YYYY-MM-DD
   turno: string;
   operario_id: string;
-  maquinas: { nombre: string; categoria: string | null } | null;
+  maquinas: { nombre: string; categoria: string | null; area: string | null } | null;
   registro_asistentes: { asistente_id: string }[] | null;
   detalle_produccion: DetalleRow[] | null;
 };
@@ -70,7 +70,13 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 export class SummaryExcelService {
   async generateSummaryReport(fechaInicio: Date, fechaFin: Date): Promise<void> {
     const employeeData = await this.getEmployeeData(fechaInicio, fechaFin);
-    await this.exportToExcel(employeeData, fechaInicio, fechaFin);
+    const registros = await this.fetchRegistrosRange(fechaInicio, fechaFin);
+    const { data: empleados } = await supabase
+      .from("usuarios")
+      .select("id, nombre")
+      .eq("activo", true)
+      .order("nombre", { ascending: true });
+    await this.exportToExcel(employeeData, fechaInicio, fechaFin, empleados ?? [], registros);
   }
 
   // =============== Prefetch con batching de asistentes (SIN embed) ===============
@@ -95,7 +101,8 @@ export class SummaryExcelService {
           operario_id,
           maquinas!fk_registros_produccion_maquina(
             nombre,
-            categoria
+            categoria,
+            area
           ),
           detalle_produccion!fk_detalle_produccion_registro(
             produccion_real,
