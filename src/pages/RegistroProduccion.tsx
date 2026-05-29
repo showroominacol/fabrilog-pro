@@ -67,6 +67,13 @@ interface FormData {
   operario_principal_id: string;
   productos: ProductoDetalle[];
   asistentes: string[];
+  verde_medio_kg: number | "";
+  verde_oscuro_kg: number | "";
+  ocre_kg: number | "";
+  alambre_calibre_20_kg: number | "";
+  alambre_calibre_22_kg: number | "";
+  festones_reciclados_kg: number | "";
+  desperdicio_puntas_kg: number | "";
 }
 
 // ===== Helpers de jornada (clave para amarradora) =====
@@ -85,6 +92,13 @@ export default function RegistroProduccion() {
     operario_principal_id: "",
     productos: [],
     asistentes: [],
+    verde_medio_kg: "",
+    verde_oscuro_kg: "",
+    ocre_kg: "",
+    alambre_calibre_20_kg: "",
+    alambre_calibre_22_kg: "",
+    festones_reciclados_kg: "",
+    desperdicio_puntas_kg: "",
   });
 
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
