@@ -20,8 +20,16 @@ export interface MachineReportData {
   alambre_calibre_22_kg?: number | null;
   festones_reciclados_kg?: number | null;
   desperdicio_puntas_kg?: number | null;
+  // Solo aplican a categoría "Cepillos"
+  peso_pvc_ocre?: number | null;
+  peso_pvc_marron?: number | null;
+  monofilamento_usado?: number | null;
+  peso_alambre?: number | null;
+  desperdicio_monofilamento?: number | null;
+  desperdicio_alambre?: number | null;
   // Solo mostrar los kg en la primera fila por registro
   showCuatroCabezasKg?: boolean;
+  showCepillosKg?: boolean;
 }
 
 export interface MachineReportByCategory {
