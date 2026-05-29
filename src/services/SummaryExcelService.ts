@@ -741,7 +741,7 @@ export class SummaryExcelService {
       return quincena === "primera" ? day >= 1 && day <= 15 : day >= 16;
     });
 
-    const header = ["NOMBRE EMPLEADO", "VALOR", "ENTORCHADO", "AMARRADO", "AREA"];
+    const header = ["NOMBRE EMPLEADO", "VALOR", "ENTORCHADO", "AMARRADO", "AREA", "OTROS DIAS"];
     const rows: (string | number)[][] = [header];
 
     for (const emp of empleados) {
@@ -774,6 +774,7 @@ export class SummaryExcelService {
 
       const entorchado = diasPorArea.entorchado.size;
       const amarrado = diasPorArea.amarrado.size;
+      const otrosDias = Math.max(0, 15 - (entorchado + amarrado));
 
       // Categoría predominante
       let categoriaPredominante = "";
@@ -785,7 +786,7 @@ export class SummaryExcelService {
         }
       }
 
-      rows.push([emp.nombre, "", entorchado, amarrado, categoriaPredominante]);
+      rows.push([emp.nombre, "", entorchado, amarrado, categoriaPredominante, otrosDias]);
     }
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
