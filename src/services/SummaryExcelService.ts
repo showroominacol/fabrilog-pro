@@ -741,7 +741,7 @@ export class SummaryExcelService {
       return quincena === "primera" ? day >= 1 && day <= 15 : day >= 16;
     });
 
-    const header = ["NOMBRE EMPLEADO", "VALOR", "ENTORCHADO", "AMARRADO", "AREA", "OTROS DIAS"];
+    const header = ["NOMBRE EMPLEADO", "VALOR", "ENTORCHADO", "AMARRADO", "AREA", "OTROS DIAS", "VALOR ENTORCHADO", "VALOR AMARRADO"];
     const rows: (string | number)[][] = [header];
 
     for (const emp of empleados) {
@@ -786,10 +786,23 @@ export class SummaryExcelService {
         }
       }
 
-      rows.push([emp.nombre, "", entorchado, amarrado, categoriaPredominante, otrosDias]);
+      rows.push([emp.nombre, "", entorchado, amarrado, categoriaPredominante, otrosDias, "", ""]);
     }
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Fórmulas para VALOR ENTORCHADO (G) y VALOR AMARRADO (H)
+    // Si OTROS DIAS (F) <= 4, esos días se suman al área con mayor valor.
+    // G = (B/15) * (C + IF(AND(F>0, F<=4, C>=D), F, 0))
+    // H = (B/15) * (D + IF(AND(F>0, F<=4, D>C),  F, 0))
+    for (let i = 0; i < empleados.length; i++) {
+      const r = i + 2; // fila Excel (1-based, +1 por header)
+      ws[`G${r}`] = { f: `IF(N(B${r})=0,0,(B${r}/15)*(C${r}+IF(AND(F${r}>0,F${r}<=4,C${r}>=D${r}),F${r},0)))` } as any;
+      ws[`H${r}`] = { f: `IF(N(B${r})=0,0,(B${r}/15)*(D${r}+IF(AND(F${r}>0,F${r}<=4,D${r}>C${r}),F${r},0)))` } as any;
+      (ws[`G${r}`] as any).z = "#,##0.00";
+      (ws[`H${r}`] as any).z = "#,##0.00";
+    }
+
     (ws as any)["!cols"] = [
       { width: 30 },
       { width: 12 },
@@ -797,6 +810,8 @@ export class SummaryExcelService {
       { width: 14 },
       { width: 22 },
       { width: 14 },
+      { width: 18 },
+      { width: 18 },
     ];
 
     // Estilos básicos
