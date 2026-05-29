@@ -1,0 +1,23 @@
+
+ALTER TABLE public.registros_produccion
+  ADD COLUMN IF NOT EXISTS alambre_desperdicio numeric,
+  ADD COLUMN IF NOT EXISTS inyectora_peso_inyectado_kg numeric,
+  ADD COLUMN IF NOT EXISTS inyectora_desperdicio_kg numeric,
+  ADD COLUMN IF NOT EXISTS monterrey_peso_alambre numeric,
+  ADD COLUMN IF NOT EXISTS monterrey_calibre_alambre numeric,
+  ADD COLUMN IF NOT EXISTS monterrey_peso_cinta numeric,
+  ADD COLUMN IF NOT EXISTS china_verde_claro numeric,
+  ADD COLUMN IF NOT EXISTS china_verde_medio numeric,
+  ADD COLUMN IF NOT EXISTS china_verde_oscuro numeric,
+  ADD COLUMN IF NOT EXISTS china_ocre numeric,
+  ADD COLUMN IF NOT EXISTS china_alambre numeric,
+  ADD COLUMN IF NOT EXISTS calandra_calibre numeric,
+  ADD COLUMN IF NOT EXISTS calandra_desperdicio numeric,
+  ADD COLUMN IF NOT EXISTS pvc_peso_bobina numeric,
+  ADD COLUMN IF NOT EXISTS pvc_peso_desperdicio numeric,
+  ADD COLUMN IF NOT EXISTS pvc_cantidad_bobinas numeric,
+  ADD COLUMN IF NOT EXISTS varillas_peso_material numeric,
+  ADD COLUMN IF NOT EXISTS varillas_desperdicio numeric,
+  ADD COLUMN IF NOT EXISTS nevado_nieve numeric,
+  ADD COLUMN IF NOT EXISTS formulado_desperdicio numeric,
+  ADD COLUMN IF NOT EXISTS flecadora_desperdicio numeric;
