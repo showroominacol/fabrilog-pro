@@ -521,7 +521,13 @@ export class SummaryExcelService {
   }
 
   // ================== Export a Excel ==================
-  private async exportToExcel(employeeData: EmployeeData[], fechaInicio: Date, fechaFin: Date): Promise<void> {
+  private async exportToExcel(
+    employeeData: EmployeeData[],
+    fechaInicio: Date,
+    fechaFin: Date,
+    empleados: { id: string; nombre: string }[] = [],
+    registros: PrefetchedRegistro[] = []
+  ): Promise<void> {
     const workbook = XLSX.utils.book_new();
 
     const todasCategorias = [...new Set(employeeData.flatMap((e) => e.bloques.map((b) => b.categoria)))].sort();
@@ -605,6 +611,12 @@ export class SummaryExcelService {
     this.applyWorksheetStyles(worksheet, todasCategorias, employeeData.length);
 
     XLSX.utils.book_append_sheet(workbook, worksheet, "Resumen Producción");
+
+    // === Hojas adicionales: 15 días (1ra quincena) y 30 días (2da quincena) ===
+    const ws15 = this.buildQuincenaSheet(empleados, registros, "primera");
+    XLSX.utils.book_append_sheet(workbook, ws15, "15 dias");
+    const ws30 = this.buildQuincenaSheet(empleados, registros, "segunda");
+    XLSX.utils.book_append_sheet(workbook, ws30, "30 dias");
 
     const filename = this.generateFilename(fechaInicio, fechaFin);
     const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
