@@ -79,6 +79,11 @@ interface FormData {
 // ===== Helpers de jornada (clave para amarradora) =====
 const isTenHourShift = (turno: string) => (turno || "").replace(/\s+/g, "").toLowerCase() === "7:00am-5:00pm";
 const jornadaFactor = (turno: string) => (isTenHourShift(turno) ? 1.25 : 1); // 10h/8h
+const toNum = (v: number | "" | string): number | null => {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = typeof v === "number" ? v : parseFloat(v);
+  return isNaN(n) ? null : n;
+};
 
 export default function RegistroProduccion() {
   const { user } = useAuth();
