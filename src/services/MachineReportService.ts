@@ -398,6 +398,7 @@ private toYMD(d: Date): string {
       if (categoria.registros.length === 0) continue;
 
       const isCuatroCabezas = categoria.categoria.toLowerCase() === "4 cabezas";
+      const isCepillos = categoria.categoria.toLowerCase() === "cepillos";
       const baseHeaders = ["Fecha", "Turno", "Operario", "Asistente", "Máquina", "Producto", "Producido", "% Cumplimiento"];
       const cuatroCabezasHeaders = [
         "VERDE MEDIO (KG)",
@@ -408,7 +409,19 @@ private toYMD(d: Date): string {
         "FESTONES RECICLADOS (KG)",
         "DESPERDICIO PUNTAS (KG)",
       ];
-      const headers = isCuatroCabezas ? [...baseHeaders, ...cuatroCabezasHeaders] : baseHeaders;
+      const cepillosHeaders = [
+        "PESO PVC OCRE",
+        "PESO PVC MARRÓN",
+        "MONOFILAMENTO USADO",
+        "PESO ALAMBRE",
+        "DESPERDICIO MONOFILAMENTO",
+        "DESPERDICIO ALAMBRE",
+      ];
+      const headers = isCuatroCabezas
+        ? [...baseHeaders, ...cuatroCabezasHeaders]
+        : isCepillos
+          ? [...baseHeaders, ...cepillosHeaders]
+          : baseHeaders;
 
       const sheetData = [
         headers,
@@ -423,20 +436,36 @@ private toYMD(d: Date): string {
             registro.producido,
             `${registro.porcentajeCumplimiento.toFixed(1)}%`,
           ];
-          if (!isCuatroCabezas) return baseRow;
-          const show = registro.showCuatroCabezasKg;
-          const fmt = (v: number | null | undefined) =>
-            show && v !== null && v !== undefined ? Number(v) : "";
-          return [
-            ...baseRow,
-            fmt(registro.verde_medio_kg),
-            fmt(registro.verde_oscuro_kg),
-            fmt(registro.ocre_kg),
-            fmt(registro.alambre_calibre_20_kg),
-            fmt(registro.alambre_calibre_22_kg),
-            fmt(registro.festones_reciclados_kg),
-            fmt(registro.desperdicio_puntas_kg),
-          ];
+          if (isCuatroCabezas) {
+            const show = registro.showCuatroCabezasKg;
+            const fmt = (v: number | null | undefined) =>
+              show && v !== null && v !== undefined ? Number(v) : "";
+            return [
+              ...baseRow,
+              fmt(registro.verde_medio_kg),
+              fmt(registro.verde_oscuro_kg),
+              fmt(registro.ocre_kg),
+              fmt(registro.alambre_calibre_20_kg),
+              fmt(registro.alambre_calibre_22_kg),
+              fmt(registro.festones_reciclados_kg),
+              fmt(registro.desperdicio_puntas_kg),
+            ];
+          }
+          if (isCepillos) {
+            const show = registro.showCepillosKg;
+            const fmt = (v: number | null | undefined) =>
+              show && v !== null && v !== undefined ? Number(v) : "";
+            return [
+              ...baseRow,
+              fmt(registro.peso_pvc_ocre),
+              fmt(registro.peso_pvc_marron),
+              fmt(registro.monofilamento_usado),
+              fmt(registro.peso_alambre),
+              fmt(registro.desperdicio_monofilamento),
+              fmt(registro.desperdicio_alambre),
+            ];
+          }
+          return baseRow;
         }),
       ];
 
