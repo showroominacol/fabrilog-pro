@@ -2,6 +2,52 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { supabase } from "@/integrations/supabase/client";
 
+// === Campos extra por categoría (deben coincidir con RegistroProduccion.tsx) ===
+const CATEGORY_EXTRA_FIELDS: Record<string, { key: string; label: string }[]> = {
+  "Embobinadora de alambre": [
+    { key: "alambre_desperdicio", label: "DESPERDICIO" },
+  ],
+  "Inyectora": [
+    { key: "inyectora_peso_inyectado_kg", label: "PESO INYECTADO (KG)" },
+    { key: "inyectora_desperdicio_kg", label: "DESPERDICIO (KG)" },
+  ],
+  "Monterrey": [
+    { key: "monterrey_peso_alambre", label: "PESO ALAMBRE" },
+    { key: "monterrey_calibre_alambre", label: "CALIBRE ALAMBRE" },
+    { key: "monterrey_peso_cinta", label: "PESO CINTA" },
+  ],
+  "China": [
+    { key: "china_verde_claro", label: "VERDE CLARO" },
+    { key: "china_verde_medio", label: "VERDE MEDIO" },
+    { key: "china_verde_oscuro", label: "VERDE OSCURO" },
+    { key: "china_ocre", label: "OCRE" },
+    { key: "china_alambre", label: "ALAMBRE" },
+  ],
+  "Calandra": [
+    { key: "calandra_calibre", label: "CALIBRE" },
+    { key: "calandra_desperdicio", label: "DESPERDICIO" },
+  ],
+  "Cortadora PVC": [
+    { key: "pvc_peso_bobina", label: "PESO BOBINA" },
+    { key: "pvc_peso_desperdicio", label: "PESO DESPERDICIO" },
+    { key: "pvc_cantidad_bobinas", label: "CANTIDAD DE BOBINAS" },
+  ],
+  "Varillas": [
+    { key: "varillas_peso_material", label: "PESO MATERIAL" },
+    { key: "varillas_desperdicio", label: "DESPERDICIO" },
+  ],
+  "Nevado": [
+    { key: "nevado_nieve", label: "NIEVE" },
+  ],
+  "Formulado": [
+    { key: "formulado_desperdicio", label: "DESPERDICIO" },
+  ],
+  "Flecadora": [
+    { key: "flecadora_desperdicio", label: "DESPERDICIO" },
+  ],
+};
+const ALL_EXTRA_KEYS = Array.from(new Set(Object.values(CATEGORY_EXTRA_FIELDS).flat().map(f => f.key)));
+
 export interface MachineReportData {
   fecha: string; // dd/mm/yyyy (texto, sin new Date)
   turno: string;
@@ -30,6 +76,9 @@ export interface MachineReportData {
   // Solo mostrar los kg en la primera fila por registro
   showCuatroCabezasKg?: boolean;
   showCepillosKg?: boolean;
+  // Campos genéricos extra por categoría
+  extras?: Record<string, number | null>;
+  showExtras?: boolean;
 }
 
 export interface MachineReportByCategory {
