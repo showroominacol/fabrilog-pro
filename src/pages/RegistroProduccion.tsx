@@ -315,6 +315,13 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
         categoria_maquina: value,
         maquina_id: "",
         productos: [],
+        verde_medio_kg: "",
+        verde_oscuro_kg: "",
+        ocre_kg: "",
+        alambre_calibre_20_kg: "",
+        alambre_calibre_22_kg: "",
+        festones_reciclados_kg: "",
+        desperdicio_puntas_kg: "",
       }));
     } else if (field === "maquina_id") {
       // Al cambiar máquina, resetear productos
