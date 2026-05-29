@@ -847,6 +847,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
         peso_alambre: "",
         desperdicio_monofilamento: "",
         desperdicio_alambre: "",
+        ...EMPTY_EXTRA,
       });
       setPorcentajeCumplimiento(0);
       setAsistentesOpen(false);
