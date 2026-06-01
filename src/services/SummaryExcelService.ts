@@ -541,7 +541,7 @@ export class SummaryExcelService {
     const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
     // === Fórmula dinámica en C: DIAS REAL LABORADOS =========
-    // C{fila} = SUM(N(<todas las celdas DÍAS OP/AYU>))
+    // D{fila} = SUM(N(<todas las celdas DÍAS OP/AYU>))
     {
       const startRow = 3; // después de 2 filas de encabezado
       for (let i = 0; i < employeeData.length; i++) {
@@ -549,8 +549,8 @@ export class SummaryExcelService {
 
         const diasCells: string[] = [];
         for (let k = 0; k < todasCategorias.length; k++) {
-          const opDiasCol = (6 + 6 * k) + 1;  // G, M, S, ...
-          const ayuDiasCol = (9 + 6 * k) + 1; // J, P, V, ...
+          const opDiasCol = (7 + 6 * k) + 1;  // tras CEDULA: H, N, T, ...
+          const ayuDiasCol = (10 + 6 * k) + 1; // K, Q, W, ...
 
           const opDiasAddr = `${this.columnLetter(opDiasCol)}${rowIndex}`;
           const ayuDiasAddr = `${this.columnLetter(ayuDiasCol)}${rowIndex}`;
@@ -561,24 +561,24 @@ export class SummaryExcelService {
           ? `SUM(${diasCells.map(addr => `N(${addr})`).join(",")})`
           : "0";
 
-        worksheet[`C${rowIndex}`] = { f: sumaDias };
-        (worksheet[`C${rowIndex}`] as any).z = "0";
+        worksheet[`D${rowIndex}`] = { f: sumaDias };
+        (worksheet[`D${rowIndex}`] as any).z = "0";
       }
     }
 
-    // === Fórmula dinámica en D: BONO TOTAL ==================
-    // D{fila} = IF(N(B{fila})>0, (Σ(OP_%*OP_DÍAS)+Σ(AYU_%*AYU_DÍAS))/N(B{fila})/100, 0)
+    // === Fórmula dinámica en E: BONO TOTAL ==================
+    // E{fila} = IF(N(C{fila})>0, (Σ(OP_%*OP_DÍAS)+Σ(AYU_%*AYU_DÍAS))/N(C{fila})/100, 0)
     {
       const startRow = 3; // después de 2 filas de encabezado
       for (let i = 0; i < employeeData.length; i++) {
         const rowIndex = startRow + i;
-        const diasXLaborarCell = `B${rowIndex}`;
+        const diasXLaborarCell = `C${rowIndex}`;
 
         const terminos: string[] = [];
         for (let k = 0; k < todasCategorias.length; k++) {
-          const opPctCol   = 6 + 6 * k;
+          const opPctCol   = 7 + 6 * k;
           const opDiasCol  = opPctCol + 1;
-          const ayuPctCol  = 9 + 6 * k;
+          const ayuPctCol  = 10 + 6 * k;
           const ayuDiasCol = ayuPctCol + 1;
 
           const opPct   = `${this.columnLetter(opPctCol)}${rowIndex}`;
@@ -590,23 +590,23 @@ export class SummaryExcelService {
         }
 
         const numerador = terminos.length ? `(${terminos.join("+")})` : "0";
-        worksheet[`D${rowIndex}`] = {
+        worksheet[`E${rowIndex}`] = {
           f: `IF(N(${diasXLaborarCell})>0, ${numerador}/N(${diasXLaborarCell})/100, 0)`,
         };
-        (worksheet[`D${rowIndex}`] as any).z = "0.0%";
+        (worksheet[`E${rowIndex}`] as any).z = "0.0%";
       }
     }
 
-    // === Fórmula dinámica en E: BONO EN PESOS ==================
-    // E{fila} = IF(D{fila} >= 0.8, 500000 * D{fila}, 0)
+    // === Fórmula dinámica en F: BONO EN PESOS ==================
+    // F{fila} = IF(E{fila} >= 0.8, 500000 * E{fila}, 0)
     {
       const startRow = 3;
       for (let i = 0; i < employeeData.length; i++) {
         const rowIndex = startRow + i;
-        worksheet[`E${rowIndex}`] = {
-          f: `IF(D${rowIndex}>=0.8, 500000*MIN(D${rowIndex},1), 0)`,
+        worksheet[`F${rowIndex}`] = {
+          f: `IF(E${rowIndex}>=0.8, 500000*MIN(E${rowIndex},1), 0)`,
         };
-        (worksheet[`E${rowIndex}`] as any).z = "#,##0";
+        (worksheet[`F${rowIndex}`] as any).z = "#,##0";
       }
     }
 
