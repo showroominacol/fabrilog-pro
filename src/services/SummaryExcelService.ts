@@ -639,8 +639,8 @@ export class SummaryExcelService {
   }
 
   private createHeaders(categorias: string[]): (string | number)[][] {
-    const h1: (string | number)[] = ["NOMBRE", "DIAS X LABORAR", "DIAS REAL LABORADOS", "BONO TOTAL", "BONO EN PESOS"];
-    const h2: (string | number)[] = ["", "", "", "", ""];
+    const h1: (string | number)[] = ["NOMBRE", "CEDULA", "DIAS X LABORAR", "DIAS REAL LABORADOS", "BONO TOTAL", "BONO EN PESOS"];
+    const h2: (string | number)[] = ["", "", "", "", "", ""];
     for (const categoria of categorias) {
       h1.push(`OP. ${categoria.toUpperCase()}`, "", "");
       h2.push("%", "DÍAS", "OBSERVACIONES");
@@ -655,10 +655,11 @@ export class SummaryExcelService {
     for (const empleado of employeeData) {
       const row: (string | number)[] = [
         empleado.nombre,
+        empleado.cedula || "",
         empleado.diasXLaborar,
-        0, // C se calculará con fórmula
-        0, // D se calculará con fórmula
-        0, // E se calculará con fórmula (BONO EN PESOS)
+        0, // D se calculará con fórmula (DIAS REAL LABORADOS)
+        0, // E se calculará con fórmula (BONO TOTAL)
+        0, // F se calculará con fórmula (BONO EN PESOS)
       ];
       for (const categoria of categorias) {
         const b = empleado.bloques.find((x) => x.categoria === categoria);
@@ -690,6 +691,7 @@ export class SummaryExcelService {
 
     const colWidths = [
       { width: 25 }, // NOMBRE
+      { width: 16 }, // CEDULA
       { width: 15 }, // DIAS X LABORAR
       { width: 18 }, // DIAS REAL LABORADOS
       { width: 12 }, // BONO TOTAL
