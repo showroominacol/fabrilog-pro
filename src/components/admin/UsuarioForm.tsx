@@ -96,7 +96,6 @@ export function UsuarioForm({ usuario, onSubmit, onCancel }: UsuarioFormProps) {
                     <Input 
                       placeholder="Número de cédula" 
                       {...field}
-                      disabled={!!usuario}
                     />
                   </FormControl>
                   <FormMessage />
