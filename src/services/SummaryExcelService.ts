@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface EmployeeData {
   id: string;
   nombre: string;
+  cedula: string;
   diasXLaborar: number;
   diasRealLaborados: number; // se calculará en Excel
   observacion: string;
@@ -210,6 +211,7 @@ export class SummaryExcelService {
       return {
         id: empleado.id,
         nombre: empleado.nombre,
+        cedula: empleado.cedula,
         diasXLaborar,
         diasRealLaborados: 0, // lo sobreescribimos en Excel
         observacion: "",
