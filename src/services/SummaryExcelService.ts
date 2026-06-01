@@ -121,6 +121,8 @@ export class SummaryExcelService {
         )
         .gte("fecha", startDate)
         .lte("fecha", endDate)
+        .order("fecha", { ascending: true })
+        .order("id", { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
 
       const { data: page, error: regsErr } = await query;
