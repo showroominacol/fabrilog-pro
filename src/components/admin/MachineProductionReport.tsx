@@ -19,6 +19,7 @@ export function MachineProductionReport() {
   const [fechaFin, setFechaFin] = useState<string>('');
   const [totalRegistros, setTotalRegistros] = useState<number | null>(null);
   const [countLoading, setCountLoading] = useState(false);
+  const countedRange = fechaInicio && fechaFin ? `${fechaInicio} a ${fechaFin}` : '';
 
   React.useEffect(() => {
     // Establecer fecha por defecto (último mes)
@@ -49,13 +50,9 @@ export function MachineProductionReport() {
     let cancelado = false;
     setCountLoading(true);
     machineReportService
-      .generateMachineReport(inicio, fin)
-      .then((data) => {
+      .countMachineReportRows(inicio, fin)
+      .then((total) => {
         if (!cancelado) {
-          const total = (data ?? []).reduce(
-            (acc, cat) => acc + (cat.registros?.length ?? 0),
-            0,
-          );
           setTotalRegistros(total);
         }
       })
@@ -139,7 +136,7 @@ export function MachineProductionReport() {
               {countLoading
                 ? 'Calculando...'
                 : totalRegistros !== null
-                ? `Total: ${totalRegistros.toLocaleString()} registros`
+                ? `Total: ${totalRegistros.toLocaleString()} filas${countedRange ? ` (${countedRange})` : ''}`
                 : 'Total: —'}
             </Badge>
           </CardTitle>
