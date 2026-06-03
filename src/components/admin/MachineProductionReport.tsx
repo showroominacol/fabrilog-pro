@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Factory,
@@ -16,6 +17,8 @@ export function MachineProductionReport() {
   const [exportLoading, setExportLoading] = useState(false);
   const [fechaInicio, setFechaInicio] = useState<string>('');
   const [fechaFin, setFechaFin] = useState<string>('');
+  const [totalRegistros, setTotalRegistros] = useState<number | null>(null);
+  const [countLoading, setCountLoading] = useState(false);
 
   React.useEffect(() => {
     // Establecer fecha por defecto (último mes)
@@ -24,6 +27,43 @@ export function MachineProductionReport() {
     setFechaInicio(inicioMes.toISOString().split('T')[0]);
     setFechaFin(hoy.toISOString().split('T')[0]);
   }, []);
+
+  // Calcular el total de registros del reporte cuando cambian las fechas
+  React.useEffect(() => {
+    if (!fechaInicio || !fechaFin) {
+      setTotalRegistros(null);
+      return;
+    }
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(fechaFin);
+    if (isNaN(inicio.getTime()) || isNaN(fin.getTime()) || inicio > fin) {
+      setTotalRegistros(null);
+      return;
+    }
+    const diferenciaMeses = (fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24 * 30);
+    if (diferenciaMeses > 3) {
+      setTotalRegistros(null);
+      return;
+    }
+
+    let cancelado = false;
+    setCountLoading(true);
+    machineReportService
+      .generateMachineReport(inicio, fin)
+      .then((data) => {
+        if (!cancelado) setTotalRegistros(data?.length ?? 0);
+      })
+      .catch(() => {
+        if (!cancelado) setTotalRegistros(null);
+      })
+      .finally(() => {
+        if (!cancelado) setCountLoading(false);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [fechaInicio, fechaFin]);
 
   const handleGenerateExcel = async () => {
     if (!fechaInicio || !fechaFin) {
@@ -86,9 +126,16 @@ export function MachineProductionReport() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
+          <CardTitle className="flex items-center space-x-2 flex-wrap">
             <Factory className="h-5 w-5 text-primary" />
             <span>Reporte de Producción por Máquina</span>
+            <Badge variant="secondary" className="ml-2">
+              {countLoading
+                ? 'Calculando...'
+                : totalRegistros !== null
+                ? `Total: ${totalRegistros.toLocaleString()} registros`
+                : 'Total: —'}
+            </Badge>
           </CardTitle>
           <CardDescription>
             Descarga directamente el Excel por rango de fechas (sin vista previa en pantalla)
