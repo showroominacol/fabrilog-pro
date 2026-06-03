@@ -179,6 +179,7 @@ export class MachineReportService {
         .lte("fecha", endDate)
         .order("fecha", { ascending: true })
         .order("turno", { ascending: true })
+        .order("id", { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
 
       if (error) throw new Error(`Error fetching production data: ${error.message}`);
@@ -408,6 +409,8 @@ private toYMD(d: Date): string {
         .eq("es_asistente", false)
         .gte("fecha", startDate)
         .lte("fecha", endDate)
+        .order("fecha", { ascending: true })
+        .order("id", { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
 
       if (page && page.length > 0) {
