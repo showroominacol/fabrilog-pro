@@ -94,14 +94,12 @@ export class MachineReportService {
 
     const { data: operarios } = await supabase
       .from("usuarios")
-      .select("id, nombre")
-      .eq("activo", true);
+      .select("id, nombre");
     if (!operarios) return [];
 
     const { data: maquinas } = await supabase
       .from("maquinas")
-      .select("id, nombre, categoria")
-      .eq("activa", true);
+      .select("id, nombre, categoria");
     if (!maquinas) return [];
 
     // Paginar para evitar el límite de 1000 filas de Supabase
