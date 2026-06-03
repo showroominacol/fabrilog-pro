@@ -87,6 +87,70 @@ export interface MachineReportByCategory {
 }
 
 export class MachineReportService {
+  async countMachineReportRows(fechaInicio: Date, fechaFin: Date): Promise<number> {
+    const startDate = this.toYMD(fechaInicio);
+    const endDate = this.toYMD(fechaFin);
+
+    const registroIds: string[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: page, error } = await supabase
+        .from("registros_produccion")
+        .select("id")
+        .eq("es_asistente", false)
+        .gte("fecha", startDate)
+        .lte("fecha", endDate)
+        .order("id", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) throw new Error(`Error counting machine report rows: ${error.message}`);
+
+      if (page && page.length > 0) {
+        registroIds.push(...page.map((registro: any) => registro.id));
+        from += PAGE_SIZE;
+        hasMore = page.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    if (registroIds.length === 0) return 0;
+
+    let detalleRows = 0;
+    const registrosConDetalle = new Set<string>();
+    const CHUNK_SIZE = 500;
+
+    for (let i = 0; i < registroIds.length; i += CHUNK_SIZE) {
+      const chunk = registroIds.slice(i, i + CHUNK_SIZE);
+      let detailFrom = 0;
+      let detailHasMore = true;
+
+      while (detailHasMore) {
+        const { data: detalles, error } = await supabase
+          .from("detalle_produccion")
+          .select("registro_id")
+          .in("registro_id", chunk)
+          .range(detailFrom, detailFrom + PAGE_SIZE - 1);
+
+        if (error) throw new Error(`Error counting production details: ${error.message}`);
+
+        if (detalles && detalles.length > 0) {
+          detalleRows += detalles.length;
+          detalles.forEach((detalle: any) => registrosConDetalle.add(detalle.registro_id));
+          detailFrom += PAGE_SIZE;
+          detailHasMore = detalles.length === PAGE_SIZE;
+        } else {
+          detailHasMore = false;
+        }
+      }
+    }
+
+    return detalleRows + (registroIds.length - registrosConDetalle.size);
+  }
+
   async generateMachineReport(fechaInicio: Date, fechaFin: Date): Promise<MachineReportByCategory[]> {
     // Fechas puras para columna DATE
     const startDate = this.toYMD(fechaInicio); // YYYY-MM-DD
