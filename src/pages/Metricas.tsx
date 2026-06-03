@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { 
   BarChart3,
@@ -11,6 +12,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { summaryExcelService } from '@/services/SummaryExcelService';
+import { machineReportService } from '@/services/MachineReportService';
 import { MachineProductionReport } from '@/components/admin/MachineProductionReport';
 
 export default function Metricas() {
@@ -20,6 +22,45 @@ export default function Metricas() {
   const [summaryExportLoading, setSummaryExportLoading] = useState(false);
   const [fechaInicioSummary, setFechaInicioSummary] = useState<string>('');
   const [fechaFinSummary, setFechaFinSummary] = useState<string>('');
+  const [totalRegistrosSummary, setTotalRegistrosSummary] = useState<number | null>(null);
+  const [countLoadingSummary, setCountLoadingSummary] = useState(false);
+  const countedRangeSummary = fechaInicioSummary && fechaFinSummary ? `${fechaInicioSummary} a ${fechaFinSummary}` : '';
+
+  React.useEffect(() => {
+    if (!fechaInicioSummary || !fechaFinSummary) {
+      setTotalRegistrosSummary(null);
+      return;
+    }
+    const inicio = new Date(fechaInicioSummary);
+    const fin = new Date(fechaFinSummary);
+    if (isNaN(inicio.getTime()) || isNaN(fin.getTime()) || inicio > fin) {
+      setTotalRegistrosSummary(null);
+      return;
+    }
+    const diferenciaMeses = (fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24 * 30);
+    if (diferenciaMeses > 3) {
+      setTotalRegistrosSummary(null);
+      return;
+    }
+
+    let cancelado = false;
+    setCountLoadingSummary(true);
+    machineReportService
+      .countMachineReportRows(inicio, fin)
+      .then((total) => {
+        if (!cancelado) setTotalRegistrosSummary(total);
+      })
+      .catch(() => {
+        if (!cancelado) setTotalRegistrosSummary(null);
+      })
+      .finally(() => {
+        if (!cancelado) setCountLoadingSummary(false);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [fechaInicioSummary, fechaFinSummary]);
 
   const handleSummaryExport = async () => {
     if (!fechaInicioSummary || !fechaFinSummary) {
@@ -75,9 +116,16 @@ export default function Metricas() {
       {isAdmin && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
+            <CardTitle className="flex items-center space-x-2 flex-wrap gap-y-1">
               <FileText className="h-5 w-5 text-primary" />
               <span>Reporte Resumen</span>
+              <Badge variant="secondary" className="ml-2">
+                {countLoadingSummary
+                  ? 'Calculando...'
+                  : totalRegistrosSummary !== null
+                  ? `Total: ${totalRegistrosSummary.toLocaleString()} filas${countedRangeSummary ? ` (${countedRangeSummary})` : ''}`
+                  : 'Total: —'}
+              </Badge>
             </CardTitle>
             <CardDescription>
               Genera el reporte resumen con formato específico: encabezados combinados y bloques por categoría (% | DÍAS | HORAS)
