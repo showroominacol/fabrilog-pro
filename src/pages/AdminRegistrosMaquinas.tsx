@@ -54,6 +54,7 @@ export default function AdminRegistrosMaquinas() {
   const [maquinas, setMaquinas] = useState<{ id: string; nombre: string }[]>([]);
   const [filtroMaquina, setFiltroMaquina] = useState("all");
   const [filtroOperario, setFiltroOperario] = useState("");
+  const [filtroAsistente, setFiltroAsistente] = useState("");
   const [filtroTurno, setFiltroTurno] = useState("all");
   const [filtroIdConsecutivo, setFiltroIdConsecutivo] = useState("");
   const [filtroFechaInicio, setFiltroFechaInicio] = useState("");
@@ -80,7 +81,7 @@ export default function AdminRegistrosMaquinas() {
 
   useEffect(() => {
     loadData();
-  }, [currentPage, filtroMaquina, filtroOperario, filtroTurno, filtroIdConsecutivo, filtroFechaInicio, filtroFechaFin]);
+  }, [currentPage, filtroMaquina, filtroOperario, filtroAsistente, filtroTurno, filtroIdConsecutivo, filtroFechaInicio, filtroFechaFin]);
 
   const loadMaquinas = async () => {
     const { data } = await supabase
@@ -152,6 +153,33 @@ export default function AdminRegistrosMaquinas() {
           setLoading(false);
           return;
         }
+      }
+      if (filtroAsistente) {
+        // Buscar usuarios que coincidan
+        const { data: asUsers } = await supabase
+          .from("usuarios")
+          .select("id")
+          .or(`nombre.ilike.%${filtroAsistente}%,cedula.ilike.%${filtroAsistente}%`);
+        const asUserIds = asUsers?.map(u => u.id) || [];
+        if (asUserIds.length === 0) {
+          setRegistros([]);
+          setTotalRegistros(0);
+          setLoading(false);
+          return;
+        }
+        // Buscar registros donde estos usuarios son asistentes
+        const { data: asRegs } = await supabase
+          .from("registro_asistentes")
+          .select("registro_id")
+          .in("asistente_id", asUserIds);
+        const regIds = Array.from(new Set((asRegs || []).map(r => r.registro_id)));
+        if (regIds.length === 0) {
+          setRegistros([]);
+          setTotalRegistros(0);
+          setLoading(false);
+          return;
+        }
+        query = query.in("id", regIds);
       }
 
       const { data: registrosData, error: registrosError, count } = await query;
@@ -248,6 +276,7 @@ export default function AdminRegistrosMaquinas() {
   const clearFilters = () => {
     setFiltroMaquina("all");
     setFiltroOperario("");
+    setFiltroAsistente("");
     setFiltroTurno("all");
     setFiltroIdConsecutivo("");
     setFiltroFechaInicio("");
@@ -542,6 +571,15 @@ export default function AdminRegistrosMaquinas() {
                 placeholder="Buscar por nombre o cédula"
                 value={filtroOperario}
                 onChange={(e) => handleFilterChange(setFiltroOperario)(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Asistente</Label>
+              <Input
+                placeholder="Buscar por nombre o cédula"
+                value={filtroAsistente}
+                onChange={(e) => handleFilterChange(setFiltroAsistente)(e.target.value)}
               />
             </div>
 
