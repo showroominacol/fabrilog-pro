@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Factory,
@@ -11,6 +12,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { machineReportService } from '@/services/MachineReportService';
+import { supabase } from '@/integrations/supabase/client';
 
 export function MachineProductionReport() {
   const { toast } = useToast();
@@ -19,6 +21,8 @@ export function MachineProductionReport() {
   const [fechaFin, setFechaFin] = useState<string>('');
   const [totalRegistros, setTotalRegistros] = useState<number | null>(null);
   const [countLoading, setCountLoading] = useState(false);
+  const [asistenteId, setAsistenteId] = useState<string>('all');
+  const [usuarios, setUsuarios] = useState<{ id: string; nombre: string }[]>([]);
   const countedRange = fechaInicio && fechaFin ? `${fechaInicio} a ${fechaFin}` : '';
 
   React.useEffect(() => {
@@ -27,6 +31,18 @@ export function MachineProductionReport() {
     const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
     setFechaInicio(inicioMes.toISOString().split('T')[0]);
     setFechaFin(hoy.toISOString().split('T')[0]);
+  }, []);
+
+  // Cargar usuarios para el filtro de asistente
+  React.useEffect(() => {
+    supabase
+      .from('usuarios')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre', { ascending: true })
+      .then(({ data }) => {
+        if (data) setUsuarios(data as any);
+      });
   }, []);
 
   // Calcular el total de registros del reporte cuando cambian las fechas
@@ -50,7 +66,7 @@ export function MachineProductionReport() {
     let cancelado = false;
     setCountLoading(true);
     machineReportService
-      .countMachineReportRows(inicio, fin)
+      .countMachineReportRows(inicio, fin, asistenteId === 'all' ? undefined : asistenteId)
       .then((total) => {
         if (!cancelado) {
           setTotalRegistros(total);
@@ -66,7 +82,7 @@ export function MachineProductionReport() {
     return () => {
       cancelado = true;
     };
-  }, [fechaInicio, fechaFin]);
+  }, [fechaInicio, fechaFin, asistenteId]);
 
   const handleGenerateExcel = async () => {
     if (!fechaInicio || !fechaFin) {
@@ -95,7 +111,11 @@ export function MachineProductionReport() {
     setExportLoading(true);
     try {
       // 1) Obtener datos
-      const data = await machineReportService.generateMachineReport(inicio, fin);
+      const data = await machineReportService.generateMachineReport(
+        inicio,
+        fin,
+        asistenteId === 'all' ? undefined : asistenteId,
+      );
 
       if (!data || data.length === 0) {
         toast({
@@ -145,7 +165,7 @@ export function MachineProductionReport() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Rango de fechas */}
             <div className="space-y-2">
               <Label htmlFor="fechaInicio">Fecha Inicio</Label>
@@ -165,6 +185,23 @@ export function MachineProductionReport() {
                 value={fechaFin}
                 onChange={(e) => setFechaFin(e.target.value)}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="asistente">Asistente</Label>
+              <Select value={asistenteId} onValueChange={setAsistenteId}>
+                <SelectTrigger id="asistente">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {usuarios.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Botón único: Generar Excel */}

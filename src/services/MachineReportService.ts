@@ -87,9 +87,42 @@ export interface MachineReportByCategory {
 }
 
 export class MachineReportService {
-  async countMachineReportRows(fechaInicio: Date, fechaFin: Date): Promise<number> {
+  private async obtenerRegistroIdsPorAsistente(asistenteId: string): Promise<string[]> {
+    const ids: string[] = [];
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from("registro_asistentes")
+        .select("registro_id")
+        .eq("asistente_id", asistenteId)
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw new Error(`Error fetching assistant registros: ${error.message}`);
+      if (data && data.length > 0) {
+        ids.push(...data.map((r: any) => r.registro_id));
+        from += PAGE_SIZE;
+        hasMore = data.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+    return Array.from(new Set(ids));
+  }
+
+  async countMachineReportRows(
+    fechaInicio: Date,
+    fechaFin: Date,
+    asistenteId?: string,
+  ): Promise<number> {
     const startDate = this.toYMD(fechaInicio);
     const endDate = this.toYMD(fechaFin);
+
+    let asistenteRegistroIds: string[] | null = null;
+    if (asistenteId) {
+      asistenteRegistroIds = await this.obtenerRegistroIdsPorAsistente(asistenteId);
+      if (asistenteRegistroIds.length === 0) return 0;
+    }
 
     const registroIds: string[] = [];
     const PAGE_SIZE = 1000;
@@ -97,7 +130,7 @@ export class MachineReportService {
     let hasMore = true;
 
     while (hasMore) {
-      const { data: page, error } = await supabase
+      let query = supabase
         .from("registros_produccion")
         .select("id")
         .eq("es_asistente", false)
@@ -105,6 +138,10 @@ export class MachineReportService {
         .lte("fecha", endDate)
         .order("id", { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
+      if (asistenteRegistroIds) {
+        query = query.in("id", asistenteRegistroIds);
+      }
+      const { data: page, error } = await query;
 
       if (error) throw new Error(`Error counting machine report rows: ${error.message}`);
 
@@ -151,10 +188,20 @@ export class MachineReportService {
     return detalleRows + (registroIds.length - registrosConDetalle.size);
   }
 
-  async generateMachineReport(fechaInicio: Date, fechaFin: Date): Promise<MachineReportByCategory[]> {
+  async generateMachineReport(
+    fechaInicio: Date,
+    fechaFin: Date,
+    asistenteId?: string,
+  ): Promise<MachineReportByCategory[]> {
     // Fechas puras para columna DATE
     const startDate = this.toYMD(fechaInicio); // YYYY-MM-DD
     const endDate   = this.toYMD(fechaFin);    // YYYY-MM-DD
+
+    let asistenteRegistroIds: string[] | null = null;
+    if (asistenteId) {
+      asistenteRegistroIds = await this.obtenerRegistroIdsPorAsistente(asistenteId);
+      if (asistenteRegistroIds.length === 0) return [];
+    }
 
     const { data: operarios } = await supabase
       .from("usuarios")
@@ -175,7 +222,7 @@ export class MachineReportService {
     let hasMore = true;
 
     while (hasMore) {
-      const { data: page, error } = await supabase
+      let query = supabase
         .from("registros_produccion")
         .select(
           `
@@ -245,6 +292,10 @@ export class MachineReportService {
         .order("turno", { ascending: true })
         .order("id", { ascending: true })
         .range(from, from + PAGE_SIZE - 1);
+      if (asistenteRegistroIds) {
+        query = query.in("id", asistenteRegistroIds);
+      }
+      const { data: page, error } = await query;
 
       if (error) throw new Error(`Error fetching production data: ${error.message}`);
 
