@@ -51,7 +51,13 @@ export function MachineProductionReport() {
     machineReportService
       .generateMachineReport(inicio, fin)
       .then((data) => {
-        if (!cancelado) setTotalRegistros(data?.length ?? 0);
+        if (!cancelado) {
+          const total = (data ?? []).reduce(
+            (acc, cat) => acc + (cat.registros?.length ?? 0),
+            0,
+          );
+          setTotalRegistros(total);
+        }
       })
       .catch(() => {
         if (!cancelado) setTotalRegistros(null);
