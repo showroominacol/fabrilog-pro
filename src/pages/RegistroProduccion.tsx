@@ -676,7 +676,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
     }
 
     // ——— Validar que todos los datos adicionales de la categoría estén llenos
-    const FOUR_HEADS_KEYS: ExtraFieldKey[] = [
+    const FOUR_HEADS_KEYS = [
       "verde_medio_kg",
       "verde_oscuro_kg",
       "ocre_kg",
@@ -684,17 +684,17 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
       "alambre_calibre_22_kg",
       "festones_reciclados_kg",
       "desperdicio_puntas_kg",
-    ] as ExtraFieldKey[];
-    const CEPILLOS_KEYS: ExtraFieldKey[] = [
+    ] as const;
+    const CEPILLOS_KEYS = [
       "peso_pvc_ocre",
       "peso_pvc_marron",
       "monofilamento_usado",
       "peso_alambre",
       "desperdicio_monofilamento",
       "desperdicio_alambre",
-    ] as ExtraFieldKey[];
+    ] as const;
 
-    let requiredExtraKeys: ExtraFieldKey[] = [];
+    let requiredExtraKeys: readonly string[] = [];
     if (formData.categoria_maquina === "4 cabezas") {
       requiredExtraKeys = FOUR_HEADS_KEYS;
     } else if (formData.categoria_maquina === "Cepillos") {
@@ -704,7 +704,7 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
     }
 
     const camposFaltantes = requiredExtraKeys.filter((k) => {
-      const v = formData[k] as number | "" | undefined | null;
+      const v = (formData as any)[k] as number | "" | undefined | null;
       return v === "" || v === undefined || v === null || Number.isNaN(v as number);
     });
 
