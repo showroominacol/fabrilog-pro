@@ -1603,28 +1603,57 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
             )}
 
             {/* Botón enviar */}
-            <Button
-              type="submit"
-              className="w-full btn-touch text-lg font-semibold"
-              disabled={
+            {(() => {
+              const FOUR_HEADS_REQ = ["verde_medio_kg","verde_oscuro_kg","ocre_kg","alambre_calibre_20_kg","alambre_calibre_22_kg","festones_reciclados_kg","desperdicio_puntas_kg"];
+              const CEPILLOS_REQ = ["peso_pvc_ocre","peso_pvc_marron","monofilamento_usado","peso_alambre","desperdicio_monofilamento","desperdicio_alambre"];
+              let reqKeys: string[] = [];
+              if (formData.categoria_maquina === "4 cabezas") reqKeys = FOUR_HEADS_REQ;
+              else if (formData.categoria_maquina === "Cepillos") reqKeys = CEPILLOS_REQ;
+              else if (CATEGORY_EXTRA_FIELDS[formData.categoria_maquina]) reqKeys = CATEGORY_EXTRA_FIELDS[formData.categoria_maquina].map(f => f.key);
+              const extrasIncompletos = reqKeys.some((k) => {
+                const v = (formData as any)[k];
+                return v === "" || v === undefined || v === null || Number.isNaN(v);
+              });
+              const productosSeleccionados = formData.productos.filter((p) => !!p.producto_id);
+              const productosIncompletos =
+                productosSeleccionados.length === 0 ||
+                productosSeleccionados.some((p) => {
+                  const info = filteredProductos.find((x) => x.id === p.producto_id) || productos.find((x) => x.id === p.producto_id);
+                  if (info?.tipo_producto === "arbol_navideno" && p.niveles) {
+                    return p.niveles.reduce((s, n) => s + n.cantidad_ramas, 0) <= 0;
+                  }
+                  if (info?.tipo_producto === "arbol_amarradora" && p.ramas_amarradora) {
+                    return p.ramas_amarradora.reduce((s, r) => s + r.cantidad_producida, 0) <= 0;
+                  }
+                  return !p.produccion_real || p.produccion_real <= 0;
+                });
+              const disabled =
                 loading ||
                 !formData.turno ||
                 !formData.maquina_id ||
-                formData.productos.filter((p) => !!p.producto_id).length === 0
-              }
-            >
-              {loading ? (
+                !formData.operario_principal_id ||
+                extrasIncompletos ||
+                productosIncompletos;
+              return (
+                <Button
+              type="submit"
+              className="w-full btn-touch text-lg font-semibold"
+                  disabled={disabled}
+                >
+                  {loading ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   Guardando Registro...
                 </>
-              ) : (
+                  ) : (
                 <>
                   <CheckCircle className="mr-2 h-5 w-5" />
                   Guardar Producción
                 </>
-              )}
-            </Button>
+                  )}
+                </Button>
+              );
+            })()}
           </form>
         </CardContent>
       </Card>
