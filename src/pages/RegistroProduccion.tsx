@@ -675,6 +675,48 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
       return;
     }
 
+    // ——— Validar que todos los datos adicionales de la categoría estén llenos
+    const FOUR_HEADS_KEYS: ExtraFieldKey[] = [
+      "verde_medio_kg",
+      "verde_oscuro_kg",
+      "ocre_kg",
+      "alambre_calibre_20_kg",
+      "alambre_calibre_22_kg",
+      "festones_reciclados_kg",
+      "desperdicio_puntas_kg",
+    ] as ExtraFieldKey[];
+    const CEPILLOS_KEYS: ExtraFieldKey[] = [
+      "peso_pvc_ocre",
+      "peso_pvc_marron",
+      "monofilamento_usado",
+      "peso_alambre",
+      "desperdicio_monofilamento",
+      "desperdicio_alambre",
+    ] as ExtraFieldKey[];
+
+    let requiredExtraKeys: ExtraFieldKey[] = [];
+    if (formData.categoria_maquina === "4 cabezas") {
+      requiredExtraKeys = FOUR_HEADS_KEYS;
+    } else if (formData.categoria_maquina === "Cepillos") {
+      requiredExtraKeys = CEPILLOS_KEYS;
+    } else if (CATEGORY_EXTRA_FIELDS[formData.categoria_maquina]) {
+      requiredExtraKeys = CATEGORY_EXTRA_FIELDS[formData.categoria_maquina].map(f => f.key);
+    }
+
+    const camposFaltantes = requiredExtraKeys.filter((k) => {
+      const v = formData[k] as number | "" | undefined | null;
+      return v === "" || v === undefined || v === null || Number.isNaN(v as number);
+    });
+
+    if (camposFaltantes.length > 0) {
+      toast({
+        title: "Datos adicionales requeridos",
+        description: "Debes completar todos los datos adicionales de la categoría antes de guardar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // ——— Validar ramas para árboles amarradora (opcional)
     const invalidAmarradoraProducts = formData.productos.filter((producto) => {
       if (!producto.producto_id) return false;
