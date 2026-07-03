@@ -235,9 +235,7 @@ export default function AdminRegistrosMaquinas() {
       const registrosProcesados = registrosData.map(registro => {
         const detalles = detallesPorRegistro[registro.id] || [];
         const produccionTotal = detalles.reduce((sum, d) => sum + (d.produccion_real || 0), 0);
-        const porcentajePromedio = detalles.length > 0
-          ? detalles.reduce((sum, d) => sum + (d.porcentaje_cumplimiento || 0), 0) / detalles.length
-          : 0;
+        const porcentajeSumado = detalles.reduce((sum, d) => sum + (d.porcentaje_cumplimiento || 0), 0);
 
         return {
           id: registro.id,
@@ -254,7 +252,7 @@ export default function AdminRegistrosMaquinas() {
             cedula: registro.usuarios?.cedula || "N/A",
           },
           asistentes: asistentesPorRegistro[registro.id] || [],
-          porcentaje_cumplimiento: porcentajePromedio,
+          porcentaje_cumplimiento: porcentajeSumado,
           produccion_total: produccionTotal,
         };
       });
@@ -399,15 +397,13 @@ export default function AdminRegistrosMaquinas() {
 
       // Calcular totales
       const produccionTotal = detallesData?.reduce((sum, d) => sum + d.produccion_real, 0) || 0;
-      const cumplimientoPromedio = detallesData && detallesData.length > 0
-        ? detallesData.reduce((sum, d) => sum + d.porcentaje_cumplimiento, 0) / detallesData.length
-        : 0;
+      const cumplimientoTotal = detallesData?.reduce((sum, d) => sum + (d.porcentaje_cumplimiento || 0), 0) || 0;
 
       const finalY = (doc as any).lastAutoTable.finalY || yPos;
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text(`Producción Total: ${produccionTotal.toLocaleString()}`, 14, finalY + 10);
-      doc.text(`Cumplimiento Promedio: ${cumplimientoPromedio.toFixed(1)}%`, 14, finalY + 17);
+      doc.text(`Cumplimiento Total: ${cumplimientoTotal.toFixed(1)}%`, 14, finalY + 17);
 
       // Guardar PDF
       const fileName = `registro_${registroData.maquinas?.nombre}_${format(parseISO(registroData.fecha + 'T12:00:00'), "yyyyMMdd")}.pdf`;
