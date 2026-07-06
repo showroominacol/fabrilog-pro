@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      consecutivos_produccion: {
+        Row: {
+          fecha_actualizacion: string
+          prefijo: string
+          ultimo_numero: number
+        }
+        Insert: {
+          fecha_actualizacion?: string
+          prefijo: string
+          ultimo_numero?: number
+        }
+        Update: {
+          fecha_actualizacion?: string
+          prefijo?: string
+          ultimo_numero?: number
+        }
+        Relationships: []
+      }
       detalle_produccion: {
         Row: {
           fecha_creacion: string
