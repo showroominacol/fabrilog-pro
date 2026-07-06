@@ -732,143 +732,68 @@ const getProductoPorcentajeGeneral = (producto: ProductoDetalle, turno: string):
     try {
       const fechaAjustada = adjustDateForNightShift(formData.fecha, formData.turno as string);
 
-      // Generar ID consecutivo
-      const { data: idConsecutivo, error: idError } = await supabase
-        .rpc('generar_id_consecutivo', { p_maquina_id: formData.maquina_id });
+      const extraData = {
+        verde_medio_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.verde_medio_kg) : null,
+        verde_oscuro_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.verde_oscuro_kg) : null,
+        ocre_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.ocre_kg) : null,
+        alambre_calibre_20_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.alambre_calibre_20_kg) : null,
+        alambre_calibre_22_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.alambre_calibre_22_kg) : null,
+        festones_reciclados_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.festones_reciclados_kg) : null,
+        desperdicio_puntas_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.desperdicio_puntas_kg) : null,
+        peso_pvc_ocre: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_pvc_ocre) : null,
+        peso_pvc_marron: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_pvc_marron) : null,
+        monofilamento_usado: formData.categoria_maquina === "Cepillos" ? toNum(formData.monofilamento_usado) : null,
+        peso_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_alambre) : null,
+        desperdicio_monofilamento: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_monofilamento) : null,
+        desperdicio_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_alambre) : null,
+        ...ALL_EXTRA_KEYS.reduce((acc, k) => {
+          const fields = CATEGORY_EXTRA_FIELDS[formData.categoria_maquina] || [];
+          const isInCategory = fields.some((f) => f.key === k);
+          acc[k] = isInCategory ? toNum(formData[k] as number | "") : null;
+          return acc;
+        }, {} as Record<ExtraFieldKey, number | null>),
+      };
 
-      if (idError) throw idError;
-
-      const { data: registro, error: registroError } = await supabase
-        .from("registros_produccion")
-        .insert({
-          fecha: fechaAjustada,
-          turno: formData.turno,
-          operario_id: formData.operario_principal_id,
-          maquina_id: formData.maquina_id,
-          es_asistente: false,
-          id_consecutivo: idConsecutivo,
-          verde_medio_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.verde_medio_kg) : null,
-          verde_oscuro_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.verde_oscuro_kg) : null,
-          ocre_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.ocre_kg) : null,
-          alambre_calibre_20_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.alambre_calibre_20_kg) : null,
-          alambre_calibre_22_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.alambre_calibre_22_kg) : null,
-          festones_reciclados_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.festones_reciclados_kg) : null,
-          desperdicio_puntas_kg: formData.categoria_maquina === "4 cabezas" ? toNum(formData.desperdicio_puntas_kg) : null,
-          peso_pvc_ocre: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_pvc_ocre) : null,
-          peso_pvc_marron: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_pvc_marron) : null,
-          monofilamento_usado: formData.categoria_maquina === "Cepillos" ? toNum(formData.monofilamento_usado) : null,
-          peso_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.peso_alambre) : null,
-          desperdicio_monofilamento: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_monofilamento) : null,
-          desperdicio_alambre: formData.categoria_maquina === "Cepillos" ? toNum(formData.desperdicio_alambre) : null,
-          ...ALL_EXTRA_KEYS.reduce((acc, k) => {
-            const fields = CATEGORY_EXTRA_FIELDS[formData.categoria_maquina] || [];
-            const isInCategory = fields.some(f => f.key === k);
-            (acc as any)[k] = isInCategory ? toNum(formData[k] as number | "") : null;
-            return acc;
-          }, {} as Record<ExtraFieldKey, number | null>),
-        })
-        .select()
-        .single();
-
-      if (registroError) throw registroError;
-
-      const detallesPromises = formData.productos
-        .filter((p) => !!p.producto_id) // seguridad extra
-        .map(async (producto) => {
+      const productosPayload = formData.productos
+        .filter((p) => !!p.producto_id)
+        .map((producto) => {
           const productoInfo = productos.find((p) => p.id === producto.producto_id)!;
-
-          // Para árboles amarradora, calcular la suma total de ramas producidas
           let porcentajeProducto = 0;
           let produccionRealValue = producto.produccion_real;
 
           if (productoInfo.tipo_producto === "arbol_amarradora") {
-            // Calcular suma total de ramas producidas (dato crudo)
-            const totalRamasProducidas =
-              producto.ramas_amarradora?.reduce((sum, rama) => sum + rama.cantidad_producida, 0) || 0;
-
-            // produccion_real = suma total de ramas producidas
-            produccionRealValue = totalRamasProducidas;
-            // porcentaje = promedio de cumplimiento por rama (YA AJUSTADO por jornada)
+            produccionRealValue = producto.ramas_amarradora?.reduce((sum, rama) => sum + rama.cantidad_producida, 0) || 0;
             porcentajeProducto = producto.produccion_real;
           } else {
             const tope = getTopeForProduct(productoInfo, formData.turno as string);
             porcentajeProducto = tope > 0 ? (producto.produccion_real / tope) * 100 : 0;
-            produccionRealValue = producto.produccion_real;
           }
 
-          const { data: detalleData, error: detalleError } = await supabase
-            .from("detalle_produccion")
-            .insert({
-              registro_id: registro.id,
-              producto_id: producto.producto_id,
-              produccion_real: produccionRealValue,
-              porcentaje_cumplimiento: porcentajeProducto,
-              observaciones: producto.observaciones || null,
-            })
-            .select()
-            .single();
-
-          if (detalleError) throw detalleError;
-
-          // Si es árbol amarradora, guardar detalles de ramas
-          if (productoInfo.tipo_producto === "arbol_amarradora" && producto.ramas_amarradora) {
-            const ramasPromises = producto.ramas_amarradora.map((rama) =>
-              supabase.from("detalle_ramas_amarradora").insert({
-                detalle_produccion_id: detalleData.id,
-                numero_rama: rama.numero_rama,
-                cantidad_producida: rama.cantidad_producida,
-                tope_rama: rama.tope_rama,
-              }),
-            );
-
-            const ramasResults = await Promise.all(ramasPromises);
-            const ramasErrors = ramasResults.filter((result) => (result as any).error);
-            if (ramasErrors.length > 0) {
-              throw (ramasErrors[0] as any).error;
-            }
-          }
-
-          return { data: detalleData, error: null };
+          return {
+            producto_id: producto.producto_id,
+            produccion_real: produccionRealValue,
+            porcentaje_cumplimiento: porcentajeProducto,
+            observaciones: producto.observaciones || null,
+            ramas_amarradora:
+              productoInfo.tipo_producto === "arbol_amarradora" && producto.ramas_amarradora
+                ? producto.ramas_amarradora
+                : undefined,
+          };
         });
 
-      const detallesResults = await Promise.all(detallesPromises);
-      const detallesErrors = detallesResults.filter((result) => (result as any).error);
-      if (detallesErrors.length > 0) {
-        throw (detallesErrors[0] as any).error;
-      }
+      const { error: registroError } = await (supabase as any)
+        .rpc("crear_registro_produccion", {
+          p_fecha: fechaAjustada,
+          p_turno: formData.turno,
+          p_operario_id: formData.operario_principal_id,
+          p_maquina_id: formData.maquina_id,
+          p_extra: extraData,
+          p_productos: productosPayload,
+          p_asistentes: formData.asistentes,
+        })
+        .single();
 
-      if (formData.asistentes.length > 0) {
-        // Crear registros en tabla pivote (para trazabilidad)
-        const asistentesPromises = formData.asistentes.map((asistenteId) =>
-          supabase.from("registro_asistentes").insert({
-            registro_id: registro.id,
-            asistente_id: asistenteId,
-          }),
-        );
-
-        const asistentesResults = await Promise.all(asistentesPromises);
-        const asistentesErrors = asistentesResults.filter((result) => (result as any).error);
-        if (asistentesErrors.length > 0) {
-          throw (asistentesErrors[0] as any).error;
-        }
-
-        // Crear registros individuales de producción para cada ayudante
-        const registrosAsistentesPromises = formData.asistentes.map((asistenteId) =>
-          supabase.from("registros_produccion").insert({
-            fecha: fechaAjustada,
-            turno: formData.turno as any,
-            operario_id: asistenteId,
-            maquina_id: formData.maquina_id,
-            es_asistente: true,
-          }),
-        );
-
-        const registrosAsistentesResults = await Promise.all(registrosAsistentesPromises);
-        const registrosAsistentesErrors = registrosAsistentesResults.filter((result) => (result as any).error);
-        if (registrosAsistentesErrors.length > 0) {
-          throw (registrosAsistentesErrors[0] as any).error;
-        }
-      }
+      if (registroError) throw registroError;
 
       toast({
         title: "¡Registro Guardado!",
