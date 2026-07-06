@@ -590,6 +590,21 @@ export type Database = {
         }
         Returns: Record<string, unknown>[]
       }
+      crear_registro_produccion: {
+        Args: {
+          p_asistentes?: Json
+          p_extra?: Json
+          p_fecha: string
+          p_maquina_id: string
+          p_operario_id: string
+          p_productos?: Json
+          p_turno: Database["public"]["Enums"]["turno_produccion"]
+        }
+        Returns: {
+          id: string
+          id_consecutivo: string
+        }[]
+      }
       generar_id_consecutivo: {
         Args: { p_maquina_id: string }
         Returns: string
